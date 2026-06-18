@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Nekko Paw — local-first AI coding & cowork</title>
+    <meta
+      name="description"
+      content="An open-source desktop app that unifies chat, cowork, and code. First-class local model support (Ollama, LM Studio, vLLM) plus every cloud provider."
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <header class="nav">
+      <a class="brand" href="#top">
+        <span class="brand-mark">🐾</span> Nekko Paw
+      </a>
+      <nav class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#local">Local models</a>
+        <a href="#download">Download</a>
+        <a href="https://github.com/ermish/nekko-paw" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+      <button id="theme-toggle" class="theme-toggle" aria-label="Toggle theme">◐</button>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div class="hero-copy">
+          <span class="pill">Open source · MIT · runs fully local</span>
+          <h1>Chat, cowork, and code.<br /><span class="accent">One calm window.</span></h1>
+          <p class="lede">
+            Nekko Paw is a desktop assistant that unifies conversation and coding — with first-class
+            support for the models you run yourself. Point it at Ollama, LM Studio, or vLLM in one
+            click, or bring your own cloud keys.
+          </p>
+          <div class="cta-row">
+            <a class="btn btn-primary" href="#download">Download for free</a>
+            <a class="btn btn-outline" href="https://github.com/ermish/nekko-paw" target="_blank" rel="noopener">
+              Star on GitHub
+            </a>
+          </div>
+          <p class="muted small">No telemetry. No account. Your code never leaves your machine unless you say so.</p>
+        </div>
+        <div class="hero-art">
+          <div class="window-mock">
+            <div class="wm-bar"><span></span><span></span><span></span></div>
+            <div class="wm-body">
+              <div class="wm-rail">
+                <div class="wm-dot active"></div><div class="wm-dot"></div><div class="wm-dot"></div>
+                <div class="wm-dot"></div><div class="wm-dot"></div>
+              </div>
+              <div class="wm-chat">
+                <div class="bubble user">Add a dark-mode toggle to the settings page</div>
+                <div class="bubble ai">On it — editing <code>SettingsView.tsx</code> and wiring the theme store…</div>
+                <div class="tool">🛡 edit_file · SettingsView.tsx</div>
+              </div>
+              <div class="wm-ctx">
+                <div class="ctx-h">Context · 1,284 tok</div>
+                <div class="ctx-item"><b>AGENTS.md</b><i>guideline</i></div>
+                <div class="ctx-item"><b>SettingsView.tsx</b><i>file</i></div>
+                <div class="ctx-item"><b>Prefers tabs</b><i>memory</i></div>
+              </div>
+            </div>
+          </div>
+          <div class="mascot" id="mascot" title="Nekko">
+            <!-- pixel cat -->
+            <svg viewBox="0 0 32 40" width="120" shape-rendering="crispEdges">
+              <g fill="#f6a45c">
+                <rect x="6" y="2" width="4" height="4"/><rect x="18" y="2" width="4" height="4"/>
+                <rect x="5" y="5" width="18" height="13"/><rect x="7" y="18" width="14" height="14"/>
+                <rect x="3" y="20" width="4" height="6" class="paw-l"/><rect x="21" y="20" width="4" height="6" class="paw-r"/>
+              </g>
+              <g fill="#d97b38"><rect x="5" y="5" width="18" height="2"/><rect x="7" y="18" width="14" height="2"/><rect x="21" y="28" width="6" height="3"/><rect x="9" y="31" width="4" height="3"/><rect x="15" y="31" width="4" height="3"/></g>
+              <g fill="#2a2018"><rect x="9" y="9" width="2" height="3"/><rect x="17" y="9" width="2" height="3"/></g>
+              <g fill="#ff8f8f"><rect x="7" y="12" width="2" height="2"/><rect x="19" y="12" width="2" height="2"/></g>
+              <g fill="#ffe2c0"><rect x="11" y="22" width="6" height="8"/></g>
+            </svg>
+          </div>
+        </div>
+      </section>
+
+      <section id="features" class="features">
+        <h2>Everything in one surface</h2>
+        <div class="grid">
+          <div class="feat"><div class="fi">💬</div><h3>Unified chat / cowork / code</h3><p>No mode switching. Ask a question or hand off a task — same window, same thread.</p></div>
+          <div class="feat"><div class="fi">🔍</div><h3>Context inspector</h3><p>See exactly what enters the prompt — files, guidelines, memory — with live token counts. Toggle and pin anything.</p></div>
+          <div class="feat"><div class="fi">🛡</div><h3>Guardrails by default</h3><p>Risky commands (rm -rf, force push, curl|sh) prompt before running. Fully configurable: allow, ask, or deny.</p></div>
+          <div class="feat"><div class="fi">📦</div><h3>Sandbox out of the box</h3><p>File access jailed to your folders. Optional Docker isolation for shell commands.</p></div>
+          <div class="feat"><div class="fi">🗂</div><h3>Multi-folder index</h3><p>Add multiple roots. Nekko indexes files and symbols and searches across them instantly.</p></div>
+          <div class="feat"><div class="fi">🧠</div><h3>Memory management</h3><p>Global and per-project memory, stored as plain markdown you can read and edit.</p></div>
+          <div class="feat"><div class="fi">🔌</div><h3>Connectors</h3><p>Linear, Slack, Discord, Gmail, and Google Drive — pull real context into the conversation.</p></div>
+          <div class="feat"><div class="fi">🐾</div><h3>A mascot who kneads</h3><p>Nekko peeks in from the edge, waves hello, and makes cat biscuits while the model thinks.</p></div>
+        </div>
+      </section>
+
+      <section id="local" class="local">
+        <div class="local-copy">
+          <span class="pill">The headline feature</span>
+          <h2>Local models, finally first-class</h2>
+          <p>Most tools bolt local models on as an afterthought. Nekko Paw is built around them.</p>
+          <ul class="check">
+            <li>Auto-discover a running Ollama, LM Studio, or vLLM on localhost</li>
+            <li>Pull, load, and unload Ollama models from the app</li>
+            <li>Manage servers remotely and watch token usage over time</li>
+            <li>Bring cloud keys too — Anthropic, OpenAI, OpenRouter, any OpenAI-compatible endpoint</li>
+          </ul>
+        </div>
+        <div class="server-cards">
+          <div class="sc"><b>Ollama</b><span class="ok">●&nbsp;connected</span><code>localhost:11434</code></div>
+          <div class="sc"><b>LM Studio</b><span class="ok">●&nbsp;connected</span><code>localhost:1234</code></div>
+          <div class="sc"><b>vLLM</b><span class="muted">○&nbsp;not running</span><code>localhost:8000</code></div>
+        </div>
+      </section>
+
+      <section id="download" class="download">
+        <h2>Download Nekko Paw</h2>
+        <p class="muted">Free and open source. Pick your platform — builds are published on GitHub Releases.</p>
+        <div class="dl-row">
+          <a class="dl" href="https://github.com/ermish/nekko-paw/releases/latest" data-os="win">
+            <div class="dl-os">Windows</div><div class="dl-sub">.exe installer</div>
+          </a>
+          <a class="dl" href="https://github.com/ermish/nekko-paw/releases/latest" data-os="mac">
+            <div class="dl-os">macOS</div><div class="dl-sub">.dmg · Apple Silicon &amp; Intel</div>
+          </a>
+          <a class="dl" href="https://github.com/ermish/nekko-paw/releases/latest" data-os="linux">
+            <div class="dl-os">Linux</div><div class="dl-sub">AppImage · .deb</div>
+          </a>
+        </div>
+        <p class="small muted">Or build from source: <code>git clone</code>, <code>npm install</code>, <code>npm run dev</code>.</p>
+      </section>
+    </main>
+
+    <footer>
+      <span>🐾 Nekko Paw</span>
+      <span class="muted small">MIT licensed · made for people who run their own models</span>
+      <a href="https://github.com/ermish/nekko-paw" target="_blank" rel="noopener">github.com/ermish/nekko-paw</a>
+    </footer>
+
+    <script src="site.js"></script>
+  </body>
+</html>
