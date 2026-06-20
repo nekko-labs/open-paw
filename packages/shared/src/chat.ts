@@ -26,6 +26,13 @@ export interface ChatMessage {
   createdAt: number;
 }
 
+/** Per-session Context Inspector preferences (which provenance items the user
+ *  excluded or pinned), keyed by context item id. Persisted with the session. */
+export interface ContextPrefs {
+  excluded: string[];
+  pinned: string[];
+}
+
 export interface Session {
   id: string;
   title: string;
@@ -33,6 +40,7 @@ export interface Session {
   providerId?: string;
   modelId?: string;
   messages: ChatMessage[];
+  contextPrefs?: ContextPrefs;
   createdAt: number;
   updatedAt: number;
 }

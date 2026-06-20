@@ -21,7 +21,7 @@ import {
 } from '@nekko/core';
 import { getSettings, saveSettings } from './store.js';
 import { listSessions, getSession, createSession, deleteSession } from './sessions.js';
-import { sendChat, abortChat, resolveApproval, previewContext } from './chat.js';
+import { sendChat, abortChat, resolveApproval, previewContext, setContextPrefs } from './chat.js';
 import { listMemory, saveMemory, deleteMemory } from './memory.js';
 import { indexWorkspace, getIndexStatus, searchWorkspace, listIndexedFiles } from './workspace.js';
 import { usageSummary } from './usage.js';
@@ -112,6 +112,9 @@ export function registerIpc(): void {
   h(IpcChannels.contextToggle, (_e, sessionId: string, _itemId: string, _included: boolean, _pinned: boolean) =>
     // Toggles are tracked client-side for the preview; re-preview to reflect.
     previewContext(sessionId, []),
+  );
+  h(IpcChannels.contextSetPrefs, (_e, sessionId: string, prefs: { excluded: string[]; pinned: string[] }) =>
+    setContextPrefs(sessionId, prefs),
   );
 
   // Memory

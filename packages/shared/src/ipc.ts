@@ -35,6 +35,7 @@ export const IpcChannels = {
 
   contextPreview: 'context:preview',
   contextToggle: 'context:toggle',
+  contextSetPrefs: 'context:setPrefs',
 
   memoryList: 'memory:list',
   memorySave: 'memory:save',
@@ -92,6 +93,7 @@ export interface NekkoApi {
 
   previewContext(sessionId: string, attachedPaths: string[]): Promise<ContextBundle>;
   toggleContextItem(sessionId: string, itemId: string, included: boolean, pinned: boolean): Promise<ContextBundle>;
+  setContextPrefs(sessionId: string, prefs: import('./chat.js').ContextPrefs): Promise<void>;
 
   listMemory(scope: MemoryScope, workspaceId?: string): Promise<MemoryEntry[]>;
   saveMemory(entry: MemoryEntry): Promise<MemoryEntry[]>;

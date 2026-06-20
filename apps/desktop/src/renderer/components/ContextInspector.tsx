@@ -28,25 +28,57 @@ const SOURCE_COLOR: Record<ContextItem['source'], string> = {
 export function ContextInspector({ sessionId }: { sessionId: string | null }) {
   const [bundle, setBundle] = useState<ContextBundle | null>(null);
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
+  const [pinned, setPinned] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!sessionId) return;
-    window.nekko.previewContext(sessionId, []).then(setBundle);
+    window.nekko.previewContext(sessionId, []).then((b) => {
+      setBundle(b);
+      // Hydrate toggle/pin state from what the bundle reports (persisted prefs).
+      setExcluded(new Set(b.items.filter((i) => !i.included).map((i) => i.id)));
+      setPinned(new Set(b.items.filter((i) => i.pinned).map((i) => i.id)));
+    });
   }, [sessionId]);
 
   if (!sessionId) return <Empty />;
   if (!bundle) return <Empty />;
   if (bundle.items.length === 0) return <Empty />;
 
-  const toggle = (id: string) => {
-    setExcluded((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
+  const persist = (nextExcluded: Set<string>, nextPinned: Set<string>) => {
+    if (sessionId) {
+      window.nekko.setContextPrefs(sessionId, { excluded: [...nextExcluded], pinned: [...nextPinned] });
+    }
   };
 
-  const visible = bundle.items.map((i) => ({ ...i, included: !excluded.has(i.id) }));
+  const toggle = (id: string) => {
+    const nextExcluded = new Set(excluded);
+    const nextPinned = new Set(pinned);
+    if (nextExcluded.has(id)) {
+      nextExcluded.delete(id);
+    } else {
+      nextExcluded.add(id);
+      nextPinned.delete(id); // excluding an item also unpins it
+    }
+    setExcluded(nextExcluded);
+    setPinned(nextPinned);
+    persist(nextExcluded, nextPinned);
+  };
+
+  const togglePin = (id: string) => {
+    const nextExcluded = new Set(excluded);
+    const nextPinned = new Set(pinned);
+    if (nextPinned.has(id)) {
+      nextPinned.delete(id);
+    } else {
+      nextPinned.add(id);
+      nextExcluded.delete(id); // pinning forces inclusion
+    }
+    setExcluded(nextExcluded);
+    setPinned(nextPinned);
+    persist(nextExcluded, nextPinned);
+  };
+
+  const visible = bundle.items.map((i) => ({ ...i, included: !excluded.has(i.id), pinned: pinned.has(i.id) }));
   const total = visible.filter((i) => i.included).reduce((s, i) => s + i.tokens, 0);
   const windowTokens = bundle.contextWindow ?? 128000;
   const pct = Math.min(100, (total / windowTokens) * 100);
@@ -89,9 +121,18 @@ export function ContextInspector({ sessionId }: { sessionId: string | null }) {
                     <span className="shrink-0 text-[10px] text-ink-faint">{item.tokens} tok</span>
                   </div>
                   <p className="mt-0.5 truncate text-[11px] text-ink-faint">{item.preview}</p>
-                  <div className="mt-1 flex items-center gap-2">
+                  <div className="mt-1 flex items-center justify-between">
                     <span className="text-[10px] text-ink-faint">{item.included ? 'included' : 'excluded'}</span>
-                    {item.pinned && <PinIcon className="h-3 w-3 text-accent" />}
+                    <button
+                      title={item.pinned ? 'Unpin' : 'Pin (always include)'}
+                      className={item.pinned ? 'text-accent' : 'text-ink-faint hover:text-ink'}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        togglePin(item.id);
+                      }}
+                    >
+                      <PinIcon className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                 </div>
               ))}

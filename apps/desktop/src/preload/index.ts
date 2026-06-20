@@ -41,6 +41,7 @@ const api: NekkoApi = {
   previewContext: (sessionId, attachedPaths) => inv(IpcChannels.contextPreview, sessionId, attachedPaths),
   toggleContextItem: (sessionId, itemId, included, pinned) =>
     inv(IpcChannels.contextToggle, sessionId, itemId, included, pinned),
+  setContextPrefs: (sessionId, prefs) => inv(IpcChannels.contextSetPrefs, sessionId, prefs),
 
   listMemory: (scope: MemoryScope, workspaceId) => inv(IpcChannels.memoryList, scope, workspaceId),
   saveMemory: (entry: MemoryEntry) => inv(IpcChannels.memorySave, entry),

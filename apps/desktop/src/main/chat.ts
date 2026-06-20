@@ -107,7 +107,17 @@ export async function previewContext(sessionId: string, attachedPaths: string[])
     ],
     connectorSnippets: await collectConnectorSnippets(),
     indexSnippets: [],
+    excluded: new Set(session?.contextPrefs?.excluded ?? []),
+    pinned: new Set(session?.contextPrefs?.pinned ?? []),
   });
+}
+
+/** Persist the user's include/pin choices for a session. */
+export function setContextPrefs(sessionId: string, prefs: { excluded: string[]; pinned: string[] }): void {
+  const session = getSession(sessionId);
+  if (!session) return;
+  session.contextPrefs = prefs;
+  saveSession(session);
 }
 
 /** Run a chat turn end to end. */
@@ -134,6 +144,8 @@ export async function sendChat(opts: SendOptions, send: Sender): Promise<void> {
     ],
     connectorSnippets: await collectConnectorSnippets(opts.text),
     indexSnippets: [],
+    excluded: new Set(session.contextPrefs?.excluded ?? []),
+    pinned: new Set(session.contextPrefs?.pinned ?? []),
   });
   const contents = new Map<string, string>();
   for (const item of bundle.items) contents.set(item.id, item.preview);
