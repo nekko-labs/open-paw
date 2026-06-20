@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { runAgent } from './loop.js';
 import type { Provider, ProviderChunk } from '../providers/types.js';
-import type { ChatMessage, ToolCall, ToolResult } from '@nekko/shared';
+import type { ChatMessage, ToolCall, ToolResult } from '@open-paw/shared';
 
 /** A scripted provider: each call to chat() yields the next pre-set chunk list. */
 function scriptedProvider(rounds: ProviderChunk[][]): Provider {

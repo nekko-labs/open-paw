@@ -6,27 +6,27 @@ import { randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
 import fastifyStatic from '@fastify/static';
 import websocket from '@fastify/websocket';
-import { createHost, createDispatcher } from '@nekko/host';
-import { IpcEvents } from '@nekko/shared';
+import { createHost, createDispatcher } from '@open-paw/host';
+import { IpcEvents } from '@open-paw/shared';
 import { runRelayAgent } from './relay-agent.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const PORT = Number(process.env.NEKKO_PORT ?? 4317);
-const HOST = process.env.NEKKO_HOST ?? '127.0.0.1';
+const PORT = Number(process.env.OPENPAW_PORT ?? 4317);
+const HOST = process.env.OPENPAW_HOST ?? '127.0.0.1';
 const isLocal = HOST === '127.0.0.1' || HOST === 'localhost' || HOST === '::1';
-const DATA_DIR = process.env.NEKKO_DATA_DIR ?? join(homedir(), '.nekko-paw');
+const DATA_DIR = process.env.OPENPAW_DATA_DIR ?? join(homedir(), '.open-paw');
 // Auth is required iff a token is configured. (Containers must bind 0.0.0.0 but
 // are typically published only to the host's localhost, so we don't force a
-// token just because of the bind address — set NEKKO_TOKEN when truly exposed.)
-const TOKEN = process.env.NEKKO_TOKEN ?? '';
+// token just because of the bind address — set OPENPAW_TOKEN when truly exposed.)
+const TOKEN = process.env.OPENPAW_TOKEN ?? '';
 const requireAuth = TOKEN !== '';
 
 // Find the built renderer: explicit override, then the bundled `web/` (published
 // npx package), then the in-repo desktop build (dev).
 function findRendererDir(): string {
   const candidates = [
-    process.env.NEKKO_RENDERER_DIR,
+    process.env.OPENPAW_RENDERER_DIR,
     resolve(__dirname, 'web'),
     resolve(__dirname, '../../desktop/out/renderer'),
   ].filter(Boolean) as string[];
@@ -36,11 +36,11 @@ const RENDERER_DIR = findRendererDir();
 
 async function main() {
   // Relay-agent mode: connect out to a relay instead of serving HTTP locally.
-  if (process.env.NEKKO_RELAY_URL && process.env.NEKKO_ROOM) {
+  if (process.env.OPENPAW_RELAY_URL && process.env.OPENPAW_ROOM) {
     await runRelayAgent({
-      relayUrl: process.env.NEKKO_RELAY_URL,
-      room: process.env.NEKKO_ROOM,
-      key: process.env.NEKKO_PAIR_KEY || randomUUID().slice(0, 8),
+      relayUrl: process.env.OPENPAW_RELAY_URL,
+      room: process.env.OPENPAW_ROOM,
+      key: process.env.OPENPAW_PAIR_KEY || randomUUID().slice(0, 8),
       dataDir: DATA_DIR,
     });
     return;
@@ -48,8 +48,8 @@ async function main() {
 
   if (!existsSync(join(RENDERER_DIR, 'index.html'))) {
     console.error(
-      `[nekko] Renderer not found at ${RENDERER_DIR}.\n` +
-        `Build it first (npm run build -w @nekko/desktop) or set NEKKO_RENDERER_DIR.`,
+      `[open-paw] Renderer not found at ${RENDERER_DIR}.\n` +
+        `Build it first (npm run build -w @open-paw/desktop) or set OPENPAW_RENDERER_DIR.`,
     );
     process.exit(1);
   }
@@ -59,7 +59,7 @@ async function main() {
   const app = Fastify({ bodyLimit: 25 * 1024 * 1024 });
   await app.register(websocket);
 
-  // Auth: only enforced when a token is configured (NEKKO_TOKEN).
+  // Auth: only enforced when a token is configured (OPENPAW_TOKEN).
   const authorized = (suppliedToken: string | undefined) => !requireAuth || suppliedToken === TOKEN;
 
   app.addHook('onRequest', async (req, reply) => {
@@ -104,11 +104,11 @@ async function main() {
 
   await app.listen({ port: PORT, host: HOST });
   const url = `http://${isLocal ? 'localhost' : HOST}:${PORT}`;
-  console.log(`\n🐾 Nekko Paw web edition running at ${url}`);
+  console.log(`\n🐾 Open Paw web edition running at ${url}`);
   console.log(`   data dir: ${DATA_DIR}`);
   if (requireAuth) console.log(`   auth: token required (append ?token=… to the URL)`);
   else if (!isLocal)
-    console.log(`   ⚠ bound to ${HOST} without a token — set NEKKO_TOKEN to require auth before exposing publicly.`);
+    console.log(`   ⚠ bound to ${HOST} without a token — set OPENPAW_TOKEN to require auth before exposing publicly.`);
   console.log(`   (offline-first — only reaches the model servers + connectors you configure)\n`);
 }
 

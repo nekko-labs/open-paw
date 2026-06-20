@@ -1,6 +1,6 @@
 import { app, BrowserWindow, shell } from 'electron';
 import { join } from 'path';
-import { createHost } from '@nekko/host';
+import { createHost } from '@open-paw/host';
 import { registerIpc } from './ipc.js';
 import { loadWindowBounds, saveWindowBounds } from './windowState.js';
 
@@ -49,7 +49,7 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
-  const host = createHost({ dataDir: join(app.getPath('userData'), 'nekko') });
+  const host = createHost({ dataDir: join(app.getPath('userData'), 'open-paw') });
   registerIpc(host);
   createWindow();
 

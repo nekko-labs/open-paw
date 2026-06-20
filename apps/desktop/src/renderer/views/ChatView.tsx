@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import type { AgentEvent, ChatMessage, Session, ToolCall } from '@nekko/shared';
+import type { AgentEvent, ChatMessage, Session, ToolCall } from '@open-paw/shared';
 import { useStore } from '../store.js';
 import { Markdown } from '../components/Markdown.js';
 import { ContextInspector } from '../components/ContextInspector.js';

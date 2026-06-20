@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import type { AppSettings, GuardrailRule, GuardrailAction, SandboxMode, ThemeMode } from '@nekko/shared';
+import type { AppSettings, GuardrailRule, GuardrailAction, SandboxMode, ThemeMode } from '@open-paw/shared';
 import { useStore } from '../store.js';
 import { ShieldIcon, SunIcon } from '../icons.js';
 import { RemoteAccess } from '../components/RemoteAccess.js';
@@ -115,7 +115,7 @@ export function SettingsView() {
           </div>
         </section>
 
-        <p className="mt-6 text-center text-[11px] text-ink-faint">Nekko Paw · open source · MIT</p>
+        <p className="mt-6 text-center text-[11px] text-ink-faint">Open Paw · open source · MIT</p>
       </div>
     </div>
   );

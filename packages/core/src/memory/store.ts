@@ -1,4 +1,4 @@
-import type { MemoryEntry, MemoryScope } from '@nekko/shared';
+import type { MemoryEntry, MemoryScope } from '@open-paw/shared';
 
 /**
  * Serialize a memory entry to a markdown document with YAML-ish frontmatter.

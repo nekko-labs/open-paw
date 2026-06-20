@@ -1,4 +1,4 @@
-import type { GuardrailRule } from '@nekko/shared';
+import type { GuardrailRule } from '@open-paw/shared';
 
 /**
  * Default guardrail ruleset. These ship enabled out of the box so that risky

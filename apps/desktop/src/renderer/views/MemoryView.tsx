@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import type { MemoryEntry, MemoryScope } from '@nekko/shared';
+import type { MemoryEntry, MemoryScope } from '@open-paw/shared';
 import { PlusIcon, TrashIcon } from '../icons.js';
 
 export function MemoryView() {

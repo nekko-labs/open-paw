@@ -6,7 +6,7 @@ import { spawn } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { deriveKey, seal, open } from '@nekko/shared';
+import { deriveKey, seal, open } from '@open-paw/shared';
 
 const baseUrl = process.argv[2] || 'http://10.5.0.2:1338';
 const model = process.argv[3] || 'google/gemma-4-31b-qat';
@@ -30,7 +30,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // 1. relay
 procs.push(
   spawn('node', ['apps/relay/dist/index.js'], {
-    env: { ...process.env, NEKKO_RELAY_PORT: String(RELAY_PORT), NEKKO_RELAY_HOST: '127.0.0.1' },
+    env: { ...process.env, OPENPAW_RELAY_PORT: String(RELAY_PORT), OPENPAW_RELAY_HOST: '127.0.0.1' },
     stdio: 'ignore',
   }),
 );
@@ -41,10 +41,10 @@ procs.push(
   spawn('node', ['apps/server/dist/index.js'], {
     env: {
       ...process.env,
-      NEKKO_RELAY_URL: `ws://127.0.0.1:${RELAY_PORT}`,
-      NEKKO_ROOM: ROOM,
-      NEKKO_PAIR_KEY: PAIR_KEY,
-      NEKKO_DATA_DIR: dataDir,
+      OPENPAW_RELAY_URL: `ws://127.0.0.1:${RELAY_PORT}`,
+      OPENPAW_ROOM: ROOM,
+      OPENPAW_PAIR_KEY: PAIR_KEY,
+      OPENPAW_DATA_DIR: dataDir,
     },
     stdio: 'ignore',
   }),

@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🐾 Nekko Paw
+# 🐾 Open Paw
 
 **Local-first AI coding & cowork — chat, cowork, and code in one calm window.**
 
@@ -10,7 +10,7 @@ Open source · MIT · first-class support for the models you run yourself.
 
 ---
 
-Nekko Paw is a desktop assistant (Electron + React) that unifies conversation and
+Open Paw is a desktop assistant (Electron + React) that unifies conversation and
 coding into a single surface. Its headline feature is **first-class local model
 support** — point it at Ollama, LM Studio, or vLLM in one click — alongside every
 major cloud provider. It ships with a context-provenance inspector, default
@@ -23,7 +23,7 @@ biscuits while the model thinks.
 > agent loop (single- and multi-step). Run `node scripts/itest-local.mjs <baseUrl> <model>`
 > to check your own server.
 
-![Nekko Paw — unified chat with the Context Inspector](docs/screenshots/chat.png)
+![Open Paw — unified chat with the Context Inspector](docs/screenshots/chat.png)
 
 <table>
   <tr>
@@ -34,9 +34,9 @@ biscuits while the model thinks.
 
 > A full picture-by-picture tour is in the **[walkthrough guide](docs/WALKTHROUGH.md)**.
 
-## Why Nekko Paw
+## Why Open Paw
 
-**LM Studio runs models. Nekko Paw runs *with your work*.** Local model UIs are
+**LM Studio runs models. Open Paw runs *with your work*.** Local model UIs are
 essentially a chat box around a model — no awareness of your files or projects.
 Nekko reads, edits, searches, and runs inside your actual codebases: multi-folder
 index, file viewer with inline editing, a tool-using agent, per-project memory,
@@ -60,7 +60,7 @@ Same engine, same UI, multiple runtimes (see the design in the project spec):
 | **Docker** | `docker compose up` — workspaces as volumes, local models via `host.docker.internal` | ✅ available |
 | **Nekko Cloud** (paid) | managed hosting: subscriptions, always-available **Zero-Data-Retention** mode, cloud chat-history + file management, and **drive your local model from your phone** via a secure E2E relay | 🔜 planned |
 
-The desktop, web, and (coming) Docker editions all run the **same engine + same React UI** — only the transport differs (Electron IPC vs HTTP/WebSocket), via the shared `@nekko/host`.
+The desktop, web, and (coming) Docker editions all run the **same engine + same React UI** — only the transport differs (Electron IPC vs HTTP/WebSocket), via the shared `@open-paw/host`.
 
 ### Run the web edition
 
@@ -70,11 +70,11 @@ npm run web        # builds everything, then serves at http://localhost:4317
 ```
 
 Same app, in your browser, fully offline. It binds to `localhost` by default; set
-`NEKKO_TOKEN` to require an access token (append `?token=…` to the URL) before
-exposing it with `NEKKO_HOST=0.0.0.0`. Data lives in `~/.nekko-paw` (override with
-`NEKKO_DATA_DIR`).
+`OPENPAW_TOKEN` to require an access token (append `?token=…` to the URL) before
+exposing it with `OPENPAW_HOST=0.0.0.0`. Data lives in `~/.open-paw` (override with
+`OPENPAW_DATA_DIR`).
 
-![Nekko Paw web edition](docs/screenshots/web-edition.png)
+![Open Paw web edition](docs/screenshots/web-edition.png)
 
 ### Run with Docker
 
@@ -85,7 +85,7 @@ docker compose up        # build + run, then open http://localhost:4317
 Mount your codebases into `./workspace` (the sandbox confines file tools there),
 and reach a model server on your host at `http://host.docker.internal:<port>`.
 Settings/sessions persist in the `nekko-data` volume. Published to the host's
-localhost by default; set `NEKKO_TOKEN` before exposing on a network.
+localhost by default; set `OPENPAW_TOKEN` before exposing on a network.
 
 Cloud keeps inference and tools **on your machine** — the relay is an
 end-to-end-encrypted pipe to a paired local agent, so using your own model stays

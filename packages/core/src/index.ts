@@ -1,5 +1,5 @@
 /**
- * @nekko/core — the pure-TS engine behind Nekko Paw. No Electron imports, so it
+ * @open-paw/core — the pure-TS engine behind Open Paw. No Electron imports, so it
  * is unit-testable and could be reused in a CLI or server. The Electron main
  * process wires these modules to the filesystem, shell, and IPC.
  */

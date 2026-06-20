@@ -4,7 +4,7 @@
 FROM node:20-slim AS builder
 WORKDIR /app
 
-# Electron is a devDependency of @nekko/desktop; the web edition only needs the
+# Electron is a devDependency of @open-paw/desktop; the web edition only needs the
 # renderer build, so skip downloading the (large) Electron binary.
 ENV ELECTRON_SKIP_BINARY_DOWNLOAD=1
 
@@ -25,9 +25,9 @@ RUN npm prune --omit=dev
 FROM node:20-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production \
-    NEKKO_HOST=0.0.0.0 \
-    NEKKO_PORT=4317 \
-    NEKKO_DATA_DIR=/data
+    OPENPAW_HOST=0.0.0.0 \
+    OPENPAW_PORT=4317 \
+    OPENPAW_DATA_DIR=/data
 
 # Copy the pruned install + build outputs, preserving the workspace layout the
 # server expects (apps/server/dist resolves ../../desktop/out/renderer).

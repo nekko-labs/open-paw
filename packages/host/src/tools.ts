@@ -9,8 +9,8 @@ import {
   writeFileSync,
 } from 'fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'path';
-import type { ToolCall, ToolResult, AppSettings } from '@nekko/shared';
-import { classifyCommand } from '@nekko/core';
+import type { ToolCall, ToolResult, AppSettings } from '@open-paw/shared';
+import { classifyCommand } from '@open-paw/core';
 
 const execAsync = promisify(exec);
 

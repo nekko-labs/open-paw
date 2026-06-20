@@ -10,8 +10,8 @@ import type {
   SendOptions,
   AgentEvent,
   IndexStatus,
-} from '@nekko/shared';
-import { IpcChannels, IpcEvents } from '@nekko/shared';
+} from '@open-paw/shared';
+import { IpcChannels, IpcEvents } from '@open-paw/shared';
 
 const inv = ipcRenderer.invoke.bind(ipcRenderer);
 

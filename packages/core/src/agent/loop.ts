@@ -1,4 +1,4 @@
-import type { AgentEvent, ChatMessage, ToolCall, ToolResult } from '@nekko/shared';
+import type { AgentEvent, ChatMessage, ToolCall, ToolResult } from '@open-paw/shared';
 import type { Provider, ToolSpec } from '../providers/types.js';
 import { BUILTIN_TOOLS } from './tools.js';
 

@@ -1,4 +1,4 @@
-import { IpcEvents, deriveKey, seal, open } from '@nekko/shared';
+import { IpcEvents, deriveKey, seal, open } from '@open-paw/shared';
 import { createDispatcher } from './dispatch.js';
 import type { Host } from './host.js';
 

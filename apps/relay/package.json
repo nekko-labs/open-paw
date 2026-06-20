@@ -1,9 +1,9 @@
 {
-  "name": "@nekko/relay",
+  "name": "@open-paw/relay",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Nekko Paw relay — pairs a remote client with a local agent so a phone can drive your local model. Dumb, end-to-end pipe.",
+  "description": "Open Paw relay — pairs a remote client with a local agent so a phone can drive your local model. Dumb, end-to-end pipe.",
   "main": "./dist/index.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",

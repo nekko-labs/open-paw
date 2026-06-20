@@ -1,5 +1,5 @@
 {
-  "name": "@nekko/core",
+  "name": "@open-paw/core",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -17,6 +17,6 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@nekko/shared": "*"
+    "@open-paw/shared": "*"
   }
 }

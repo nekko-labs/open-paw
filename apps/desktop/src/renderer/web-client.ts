@@ -1,5 +1,5 @@
-import { IpcChannels, IpcEvents, deriveKey, seal, open } from '@nekko/shared';
-import type { AppSettings, AgentEvent, IndexStatus, NekkoApi } from '@nekko/shared';
+import { IpcChannels, IpcEvents, deriveKey, seal, open } from '@open-paw/shared';
+import type { AppSettings, AgentEvent, IndexStatus, NekkoApi } from '@open-paw/shared';
 
 /**
  * Browser transport for the web/Docker editions: implements the same NekkoApi

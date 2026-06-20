@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { OpenAICompatProvider, friendlyError } from './openai-compat.js';
-import type { ProviderConfig } from '@nekko/shared';
+import type { ProviderConfig } from '@open-paw/shared';
 
 const cfg: ProviderConfig = {
   id: 'p1',

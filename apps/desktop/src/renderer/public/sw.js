@@ -1,4 +1,4 @@
-// Minimal, safe service worker: makes Nekko Paw installable and gives the app
+// Minimal, safe service worker: makes Open Paw installable and gives the app
 // shell an offline fallback. It deliberately never touches /api or WebSocket
 // traffic — only same-origin GET navigations/static assets, network-first.
 const CACHE = 'nekko-shell-v1';

@@ -1,6 +1,6 @@
 import { BrowserWindow, dialog, ipcMain } from 'electron';
-import { IpcChannels, IpcEvents } from '@nekko/shared';
-import { createDispatcher, type Host } from '@nekko/host';
+import { IpcChannels, IpcEvents } from '@open-paw/shared';
+import { createDispatcher, type Host } from '@open-paw/host';
 
 function broadcast(channel: string, payload: unknown): void {
   for (const win of BrowserWindow.getAllWindows()) win.webContents.send(channel, payload);

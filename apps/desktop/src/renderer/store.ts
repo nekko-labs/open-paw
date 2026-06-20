@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { AppSettings, Session, ProviderConfig, ModelInfo } from '@nekko/shared';
+import type { AppSettings, Session, ProviderConfig, ModelInfo } from '@open-paw/shared';
 import type { MascotMood } from './components/Mascot.js';
 
 export type View = 'chat' | 'projects' | 'models' | 'connectors' | 'memory' | 'settings';

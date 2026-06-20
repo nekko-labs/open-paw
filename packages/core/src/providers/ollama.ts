@@ -1,4 +1,4 @@
-import type { ModelInfo, ProviderConfig, ToolCall } from '@nekko/shared';
+import type { ModelInfo, ProviderConfig, ToolCall } from '@open-paw/shared';
 import type { Provider, ChatRequest, ProviderChunk } from './types.js';
 
 /**

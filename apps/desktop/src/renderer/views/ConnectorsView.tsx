@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import type { ConnectorConfig, ConnectorKind, ConnectorResource } from '@nekko/shared';
-import { CONNECTOR_CATALOG } from '@nekko/shared';
+import type { ConnectorConfig, ConnectorKind, ConnectorResource } from '@open-paw/shared';
+import { CONNECTOR_CATALOG } from '@open-paw/shared';
 
 const ICON: Record<ConnectorKind, string> = { linear: '◣', slack: '#', discord: '🎮', gmail: '✉', gdrive: '▲' };
 

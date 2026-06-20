@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import type { ModelInfo, ProviderConfig, ProviderKind, UsageSummary } from '@nekko/shared';
-import { PROVIDER_DEFAULTS } from '@nekko/shared';
+import type { ModelInfo, ProviderConfig, ProviderKind, UsageSummary } from '@open-paw/shared';
+import { PROVIDER_DEFAULTS } from '@open-paw/shared';
 import { useStore } from '../store.js';
 import { PlusIcon, TrashIcon, CheckIcon } from '../icons.js';
 

@@ -1,6 +1,6 @@
 import { appendFileSync, existsSync, readFileSync } from 'fs';
 import { join } from 'path';
-import type { UsageRecord, UsageSummary } from '@nekko/shared';
+import type { UsageRecord, UsageSummary } from '@open-paw/shared';
 import { dataDir } from './store.js';
 
 const LOG = () => join(dataDir(), 'usage.jsonl');

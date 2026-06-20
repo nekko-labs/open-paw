@@ -1,5 +1,5 @@
-appId: dev.nekkolabs.nekkopaw
-productName: Nekko Paw
+appId: dev.nekkolabs.openpaw
+productName: Open Paw
 copyright: Copyright © 2026 Nekko Labs
 directories:
   output: release
@@ -12,7 +12,7 @@ extraMetadata:
 publish:
   provider: github
   owner: nekko-labs
-  repo: nekko-paw
+  repo: open-paw
 win:
   target:
     - msi

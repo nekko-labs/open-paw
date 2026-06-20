@@ -1,4 +1,4 @@
-import type { ModelInfo, ProviderConfig, ToolCall } from '@nekko/shared';
+import type { ModelInfo, ProviderConfig, ToolCall } from '@open-paw/shared';
 import type { Provider, ChatRequest, ProviderChunk, ToolSpec } from './types.js';
 import { parseSSE } from './sse.js';
 
@@ -31,8 +31,8 @@ export class OpenAICompatProvider implements Provider {
     const h: Record<string, string> = { 'Content-Type': 'application/json' };
     if (this.config.apiKey) h['Authorization'] = `Bearer ${this.config.apiKey}`;
     if (this.config.kind === 'openrouter') {
-      h['HTTP-Referer'] = 'https://github.com/nekko-labs/nekko-paw';
-      h['X-Title'] = 'Nekko Paw';
+      h['HTTP-Referer'] = 'https://github.com/nekko-labs/open-paw';
+      h['X-Title'] = 'Open Paw';
     }
     return h;
   }

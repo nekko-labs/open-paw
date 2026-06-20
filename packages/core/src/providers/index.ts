@@ -1,5 +1,5 @@
-import type { ProviderConfig } from '@nekko/shared';
-import { DISCOVERY_TARGETS } from '@nekko/shared';
+import type { ProviderConfig } from '@open-paw/shared';
+import { DISCOVERY_TARGETS } from '@open-paw/shared';
 import type { Provider } from './types.js';
 import { OpenAICompatProvider } from './openai-compat.js';
 import { AnthropicProvider } from './anthropic.js';

@@ -1,13 +1,13 @@
 {
-  "name": "@nekko/desktop",
+  "name": "@open-paw/desktop",
   "version": "0.1.0",
   "private": true,
-  "description": "Nekko Paw desktop app.",
+  "description": "Open Paw desktop app.",
   "author": {
     "name": "Nekko Labs",
-    "email": "support@nekkopaw.com"
+    "email": "support@openpaw.com"
   },
-  "homepage": "https://github.com/nekko-labs/nekko-paw",
+  "homepage": "https://github.com/nekko-labs/open-paw",
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
@@ -18,9 +18,9 @@
     "release": "electron-vite build && electron-builder --publish always"
   },
   "dependencies": {
-    "@nekko/core": "*",
-    "@nekko/host": "*",
-    "@nekko/shared": "*",
+    "@open-paw/core": "*",
+    "@open-paw/host": "*",
+    "@open-paw/shared": "*",
     "qrcode": "^1.5.4"
   },
   "devDependencies": {

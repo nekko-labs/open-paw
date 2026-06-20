@@ -1,5 +1,5 @@
-import { estimateTokens } from '@nekko/shared';
-import type { ContextBundle, ContextItem, MemoryEntry } from '@nekko/shared';
+import { estimateTokens } from '@open-paw/shared';
+import type { ContextBundle, ContextItem, MemoryEntry } from '@open-paw/shared';
 
 /** Inputs the assembler uses to build the context bundle for a turn. */
 export interface AssembleInput {

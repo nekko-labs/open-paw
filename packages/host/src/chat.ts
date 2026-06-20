@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
-import type { AgentEvent, ChatMessage, ContextBundle, SendOptions, ToolCall } from '@nekko/shared';
+import type { AgentEvent, ChatMessage, ContextBundle, SendOptions, ToolCall } from '@open-paw/shared';
 import {
   createProvider,
   runAgent,
@@ -9,7 +9,7 @@ import {
   renderContextBlock,
   isGuidelineFile,
   getConnector,
-} from '@nekko/core';
+} from '@open-paw/core';
 import { getSettings } from './store.js';
 import { getSession, saveSession } from './sessions.js';
 import { executeTool } from './tools.js';

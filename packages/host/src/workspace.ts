@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync, statSync } from 'fs';
 import { join, relative } from 'path';
-import type { IndexedFile, IndexStatus, SearchHit, WorkspaceFolder } from '@nekko/shared';
-import { IGNORED_DIRS, isIndexable, detectLanguage, extractOutline } from '@nekko/core';
+import type { IndexedFile, IndexStatus, SearchHit, WorkspaceFolder } from '@open-paw/shared';
+import { IGNORED_DIRS, isIndexable, detectLanguage, extractOutline } from '@open-paw/core';
 
 const indexCache = new Map<string, IndexedFile[]>();
 const statusCache = new Map<string, IndexStatus>();

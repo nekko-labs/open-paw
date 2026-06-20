@@ -1,4 +1,4 @@
-import type { ConnectorKind, ConnectorResource } from '@nekko/shared';
+import type { ConnectorKind, ConnectorResource } from '@open-paw/shared';
 
 export interface Connector {
   readonly kind: ConnectorKind;

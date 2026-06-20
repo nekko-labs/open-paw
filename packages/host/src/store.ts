@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import type { AppSettings } from '@nekko/shared';
-import { DEFAULT_GUARDRAILS } from '@nekko/core';
+import type { AppSettings } from '@open-paw/shared';
+import { DEFAULT_GUARDRAILS } from '@open-paw/core';
 import { dataDir } from './paths.js';
 
 export { dataDir } from './paths.js';

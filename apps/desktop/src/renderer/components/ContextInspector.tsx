@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import type { ContextBundle, ContextItem } from '@nekko/shared';
+import type { ContextBundle, ContextItem } from '@open-paw/shared';
 import { PinIcon } from '../icons.js';
 
 const SOURCE_LABEL: Record<ContextItem['source'], string> = {
@@ -21,7 +21,7 @@ const SOURCE_COLOR: Record<ContextItem['source'], string> = {
 };
 
 /**
- * The Context Inspector — Nekko Paw's signature panel. Shows exactly what is
+ * The Context Inspector — Open Paw's signature panel. Shows exactly what is
  * being added to the prompt this turn, grouped by provenance, each item
  * toggleable and pinnable, with live token counts and a context-window bar.
  */

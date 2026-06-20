@@ -1,6 +1,6 @@
-# Nekko Paw — Walkthrough
+# Open Paw — Walkthrough
 
-A guided tour of Nekko Paw, from install to your first agentic edit. Screenshots
+A guided tour of Open Paw, from install to your first agentic edit. Screenshots
 are from the running app.
 
 - [1. Install](#1-install)
@@ -18,34 +18,34 @@ are from the running app.
 ## 1. Install
 
 **Download a build** for your platform from the
-[Releases page](https://github.com/nekko-labs/nekko-paw/releases/latest):
+[Releases page](https://github.com/nekko-labs/open-paw/releases/latest):
 
 | Platform | Artifact |
 | --- | --- |
-| Windows | `Nekko Paw-<version>-x64.exe` (NSIS installer) |
-| macOS | `Nekko Paw-<version>-<arch>.dmg` (Apple Silicon & Intel) |
+| Windows | `Open Paw-<version>-x64.exe` (NSIS installer) |
+| macOS | `Open Paw-<version>-<arch>.dmg` (Apple Silicon & Intel) |
 | Linux | `.AppImage` or `.deb` |
 
 **Or run from source:**
 
 ```bash
-git clone https://github.com/nekko-labs/nekko-paw
-cd nekko-paw
+git clone https://github.com/nekko-labs/open-paw
+cd open-paw
 npm install
 npm run dev          # launches the desktop app
 ```
 
-Nekko Paw stores everything locally (under your OS app-data dir): settings,
+Open Paw stores everything locally (under your OS app-data dir): settings,
 sessions, memory, and a usage log. No account, no telemetry.
 
 ---
 
 ## 2. Connect a model
 
-Open the **Models** tab. This is where Nekko Paw differs from most tools — local
+Open the **Models** tab. This is where Open Paw differs from most tools — local
 model servers are first-class, not an afterthought.
 
-![Models tab](https://raw.githubusercontent.com/nekko-labs/nekko-paw/main/docs/screenshots/models.png)
+![Models tab](https://raw.githubusercontent.com/nekko-labs/open-paw/main/docs/screenshots/models.png)
 
 - **Auto-discover local** probes `localhost:11434` (Ollama), `:1234` (LM Studio),
   and `:8000` (vLLM). Anything running is added with one click.
@@ -62,7 +62,7 @@ model servers are first-class, not an afterthought.
 ### Example: connect an LM Studio server
 
 1. In LM Studio, load a model and start its server (Developer → Start Server).
-2. In Nekko Paw: **Add provider → LM Studio**, set the **Base URL** to your server,
+2. In Open Paw: **Add provider → LM Studio**, set the **Base URL** to your server,
    e.g. `http://10.5.0.2:1338` (you can paste just `host:port` — Nekko appends
    `/v1` automatically). No API key needed.
 3. **Test connection** → the model dropdown fills with whatever LM Studio is serving.
@@ -81,14 +81,14 @@ and "code" modes — it's one thread. Ask a question, or hand off a task and let
 Nekko act on your machine through tools (read / write / edit files, glob, grep,
 list dirs, run shell commands).
 
-![Unified chat](https://raw.githubusercontent.com/nekko-labs/nekko-paw/main/docs/screenshots/chat.png)
+![Unified chat](https://raw.githubusercontent.com/nekko-labs/open-paw/main/docs/screenshots/chat.png)
 
 - Pick the **provider and model** from the header dropdowns at any time.
 - Assistant messages render **markdown and code**; every **tool call** the model
   makes shows up as a card so you can see exactly what it did.
 - Streaming is live; hit **Stop** to abort a turn.
 
-**Keyboard shortcuts** — Nekko Paw has a command palette (think Cmd-K everywhere):
+**Keyboard shortcuts** — Open Paw has a command palette (think Cmd-K everywhere):
 
 | Shortcut | Action |
 | --- | --- |
@@ -96,13 +96,13 @@ list dirs, run shell commands).
 | `Ctrl/Cmd + N` | New chat |
 | `Ctrl/Cmd + \` | Toggle the context panel |
 
-![Command palette](https://raw.githubusercontent.com/nekko-labs/nekko-paw/main/docs/screenshots/command-palette.png)
+![Command palette](https://raw.githubusercontent.com/nekko-labs/open-paw/main/docs/screenshots/command-palette.png)
 
 ---
 
 ## 4. The Context Inspector
 
-The right-hand panel (toggle it with the panel icon) is Nekko Paw's signature
+The right-hand panel (toggle it with the panel icon) is Open Paw's signature
 feature. It shows **exactly what is entering the prompt this turn**, grouped by
 where it came from:
 
@@ -123,7 +123,7 @@ and shape it.
 
 Open **Settings**. Two layers keep Nekko from doing something you didn't intend.
 
-![Guardrails & sandbox](https://raw.githubusercontent.com/nekko-labs/nekko-paw/main/docs/screenshots/guardrails.png)
+![Guardrails & sandbox](https://raw.githubusercontent.com/nekko-labs/open-paw/main/docs/screenshots/guardrails.png)
 
 **Sandbox mode** controls how the agent may touch your machine:
 
@@ -149,7 +149,7 @@ The **Projects** tab manages your workspace folders — and yes, **multiple root
 are supported. Each folder is indexed for files and code symbols (functions,
 classes, interfaces, types) so the agent and search have a fast map of your code.
 
-![Projects & index](https://raw.githubusercontent.com/nekko-labs/nekko-paw/main/docs/screenshots/projects.png)
+![Projects & index](https://raw.githubusercontent.com/nekko-labs/open-paw/main/docs/screenshots/projects.png)
 
 - **Add** a folder and it indexes in the background.
 - See **file + symbol counts** and index status per project.
@@ -185,4 +185,4 @@ the model is thinking. Don't want it? Toggle it off in Settings → Appearance.
 ---
 
 Questions or ideas? Open an issue on
-[GitHub](https://github.com/nekko-labs/nekko-paw/issues).
+[GitHub](https://github.com/nekko-labs/open-paw/issues).

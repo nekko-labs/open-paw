@@ -25,6 +25,6 @@ jobs:
       - run: npm run build
       # Build installers (Windows: MSI + NSIS, macOS: dmg/zip, Linux: AppImage/deb)
       # and upload them to a draft GitHub Release for this tag.
-      - run: npm run release -w @nekko/desktop
+      - run: npm run release -w @open-paw/desktop
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

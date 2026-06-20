@@ -19,14 +19,14 @@ import type {
   GuardrailDecision,
   UsageSummary,
   RemoteStatus,
-} from '@nekko/shared';
+} from '@open-paw/shared';
 import {
   createProvider,
   discoverLocalProviders,
   OllamaProvider,
   getConnector,
   classifyCommand,
-} from '@nekko/core';
+} from '@open-paw/core';
 import { setDataDir, dataDir } from './paths.js';
 import { getSettings, saveSettings } from './store.js';
 import * as sessions from './sessions.js';

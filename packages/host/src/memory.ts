@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
 import { join } from 'path';
-import type { MemoryEntry, MemoryScope } from '@nekko/shared';
-import { serializeMemory, parseMemory } from '@nekko/core';
+import type { MemoryEntry, MemoryScope } from '@open-paw/shared';
+import { serializeMemory, parseMemory } from '@open-paw/core';
 import { dataDir } from './store.js';
 
 function memDir(): string {

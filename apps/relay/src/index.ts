@@ -38,8 +38,8 @@ const room = (code: string): Room => {
   return r;
 };
 
-const PORT = Number(process.env.NEKKO_RELAY_PORT ?? 4400);
-const HOST = process.env.NEKKO_RELAY_HOST ?? '0.0.0.0';
+const PORT = Number(process.env.OPENPAW_RELAY_PORT ?? 4400);
+const HOST = process.env.OPENPAW_RELAY_HOST ?? '0.0.0.0';
 
 async function main() {
   const app = Fastify();

@@ -1,8 +1,8 @@
-import { createHost, connectRelayAgent } from '@nekko/host';
+import { createHost, connectRelayAgent } from '@open-paw/host';
 
 /**
  * Relay-agent mode for the server CLI: create a host and expose it over a relay
- * (the heavy lifting lives in @nekko/host's connectRelayAgent, shared with the
+ * (the heavy lifting lives in @open-paw/host's connectRelayAgent, shared with the
  * desktop's in-app "remote access" feature).
  */
 export async function runRelayAgent(opts: { relayUrl: string; room: string; key: string; dataDir: string }): Promise<void> {

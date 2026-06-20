@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
-import type { RemoteStatus } from '@nekko/shared';
+import type { RemoteStatus } from '@open-paw/shared';
 
 /**
  * Settings card to expose this machine over a relay so a phone can drive its
