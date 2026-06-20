@@ -12,6 +12,9 @@
   --line: #e6e2dc;
   --accent: #ff7a59;
   --accent-soft: rgba(255, 122, 89, 0.12);
+  /* Make native controls (select popups, scrollbars) match the theme so we
+     never get light text on a light system-rendered dropdown. */
+  color-scheme: light;
 }
 
 [data-theme='dark'] {
@@ -24,6 +27,13 @@
   --line: #2a2a2f;
   --accent: #ff7a59;
   --accent-soft: rgba(255, 122, 89, 0.16);
+  color-scheme: dark;
+}
+
+/* Belt-and-suspenders for the native <select> popup list. */
+select.input option {
+  background: var(--surface);
+  color: var(--ink);
 }
 
 * {
@@ -131,3 +141,52 @@ body {
 
 .fade-in { animation: fade 0.25s ease; }
 @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+/* Speech bubbles — assistant on the left, user on the right, each with a small
+   tail so the conversation reads like a chat thread that flows from the box. */
+.bubble {
+  position: relative;
+  max-width: 85%;
+  border-radius: 16px;
+  padding: 10px 14px;
+}
+.bubble-user {
+  background: var(--accent);
+  color: #fff;
+  border-bottom-right-radius: 5px;
+}
+.bubble-user::after {
+  content: '';
+  position: absolute;
+  right: -5px;
+  bottom: 6px;
+  width: 12px;
+  height: 12px;
+  background: var(--accent);
+  clip-path: polygon(0 0, 0 100%, 100% 100%);
+}
+.bubble-ai {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-bottom-left-radius: 5px;
+}
+.bubble-ai::after {
+  content: '';
+  position: absolute;
+  left: -6px;
+  bottom: 6px;
+  width: 12px;
+  height: 12px;
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  clip-path: polygon(0 100%, 100% 100%, 0 0);
+}
+
+/* Thinking box — Claude-Code-style: quiet, left-accent rule, monospace-ish. */
+.thinking-box {
+  border: 1px solid var(--line);
+  border-left: 2px solid var(--accent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-2) 60%, transparent);
+}

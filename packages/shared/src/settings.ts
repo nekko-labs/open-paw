@@ -7,6 +7,15 @@ import type { ConnectorConfig } from './connectors.js';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 
+/** Sampling effort — maps to temperature in the chat request. */
+export type EffortLevel = 'low' | 'normal' | 'high';
+
+export const EFFORT_TEMPERATURE: Record<EffortLevel, number> = {
+  low: 0.2,
+  normal: 0.7,
+  high: 1.0,
+};
+
 export interface AppSettings {
   theme: ThemeMode;
   accent: string;
@@ -19,6 +28,8 @@ export interface AppSettings {
   defaultModelId?: string;
   /** Show the mascot. */
   mascotEnabled: boolean;
+  /** Sampling effort (temperature). */
+  effort?: EffortLevel;
 }
 
 /** One usage event appended to a JSONL log for analytics. */

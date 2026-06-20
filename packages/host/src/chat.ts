@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import type { AgentEvent, ChatMessage, ContextBundle, SendOptions, ToolCall } from '@open-paw/shared';
+import { EFFORT_TEMPERATURE } from '@open-paw/shared';
 import {
   createProvider,
   runAgent,
@@ -224,6 +225,7 @@ export async function sendChat(opts: SendOptions, send: Sender): Promise<void> {
           defaultCwd: settings.workspaces[0]?.path,
           requestApproval,
         }),
+      temperature: EFFORT_TEMPERATURE[settings.effort ?? 'normal'],
       signal: abort.signal,
     })) {
       if (event.type === 'usage') {

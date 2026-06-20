@@ -15,6 +15,8 @@ export interface RunAgentOptions {
   signal?: AbortSignal;
   /** Max tool-use round trips before giving up. */
   maxIterations?: number;
+  /** Sampling temperature (from the effort setting). */
+  temperature?: number;
 }
 
 let counter = 0;
@@ -50,6 +52,7 @@ export async function* runAgent(opts: RunAgentOptions): AsyncGenerator<AgentEven
         messages: opts.history,
         system: opts.system,
         tools,
+        temperature: opts.temperature,
         signal: opts.signal,
       })) {
         switch (chunk.type) {

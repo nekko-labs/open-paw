@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import type { AgentEvent, ChatMessage, Session, ToolCall } from '@open-paw/shared';
+import type { AgentEvent, ChatMessage, Session, ToolCall, ContextBundle, EffortLevel } from '@open-paw/shared';
 import { useStore } from '../store.js';
 import { Markdown } from '../components/Markdown.js';
 import { ContextInspector } from '../components/ContextInspector.js';
+import { ChatMetrics } from '../components/ChatMetrics.js';
 import { SendIcon, PlusIcon, PanelIcon, ShieldIcon, TrashIcon } from '../icons.js';
 
 interface PendingApproval {
@@ -39,7 +40,17 @@ export function ChatView() {
   const [liveTools, setLiveTools] = useState<ToolCall[]>([]);
   const [approval, setApproval] = useState<PendingApproval | null>(null);
   const [mobileNav, setMobileNav] = useState(false); // session drawer on phones
+  const [ctx, setCtx] = useState<ContextBundle | null>(null);
+  const [tps, setTps] = useState(0);
+  const [thinking, setThinking] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const turnStart = useRef(0);
+
+  const refreshCtx = (sid: string | null) => {
+    if (sid) window.nekko.previewContext(sid, []).then(setCtx).catch(() => setCtx(null));
+    else setCtx(null);
+  };
+  useEffect(() => refreshCtx(activeSessionId), [activeSessionId, sessions]);
 
   // Load the active session's transcript; reflect its workspace in the header.
   useEffect(() => {
@@ -61,7 +72,13 @@ export function ChatView() {
           break;
         case 'reasoning':
           setLiveReasoning((t) => t + e.delta);
+          setThinking(true);
           break;
+        case 'usage': {
+          const secs = (Date.now() - turnStart.current) / 1000;
+          if (secs > 0 && e.outputTokens > 0) setTps(Math.round(e.outputTokens / secs));
+          break;
+        }
         case 'tool_call':
           setLiveTools((tc) => [...tc, e.call]);
           break;
@@ -89,6 +106,7 @@ export function ChatView() {
           setLiveTools([]);
           setMascotMood('idle');
           if (activeSessionId) window.nekko.getSession(activeSessionId).then(setSession);
+          refreshCtx(activeSessionId);
           refreshSessions();
           break;
       }
@@ -121,6 +139,8 @@ export function ChatView() {
     setLiveText('');
     setLiveReasoning('');
     setLiveTools([]);
+    setThinking(false);
+    turnStart.current = Date.now();
     setMascotMood('thinking');
     // Optimistically show the user's message.
     setSession((prev) =>
@@ -189,7 +209,7 @@ export function ChatView() {
       {/* Conversation */}
       <section className="flex min-w-0 w-full flex-1 flex-col overflow-x-hidden">
         <header className="flex items-center justify-between gap-2 border-b border-line px-3 py-3 md:px-5">
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 md:flex-nowrap md:gap-3">
             <button
               className="btn btn-ghost shrink-0 px-2 py-1.5 md:hidden"
               onClick={() => setMobileNav(true)}
@@ -268,6 +288,8 @@ export function ChatView() {
 
         {approval && <ApprovalBar approval={approval} onDecide={approve} />}
 
+        <ChatMetrics bundle={ctx} tps={tps} thinking={thinking} streaming={streaming} />
+
         <div className="border-t border-line p-4">
           <div className="mx-auto flex w-full max-w-3xl items-end gap-2">
             <textarea
@@ -328,7 +350,7 @@ function Welcome({ hasProvider }: { hasProvider: boolean }) {
   );
 }
 
-/** Collapsible, dimmed view of a reasoning model's chain of thought. */
+/** Claude-Code-style thinking box: quiet, left-accent rule, collapsible. */
 function ReasoningBlock({ text, live }: { text: string; live: boolean }) {
   const [open, setOpen] = useState(true);
   // Auto-collapse once the model moves on to the actual answer.
@@ -336,21 +358,24 @@ function ReasoningBlock({ text, live }: { text: string; live: boolean }) {
     if (!live) setOpen(false);
   }, [live]);
   return (
-    <div className="fade-in">
+    <div className="fade-in thinking-box overflow-hidden">
       <button
-        className="flex items-center gap-2 text-[12px] text-ink-faint hover:text-ink-soft"
+        className="flex w-full items-center gap-2 px-3 py-2 text-[12px] font-medium text-ink-soft hover:text-ink"
         onClick={() => setOpen((o) => !o)}
       >
-        <span className={live ? 'h-2 w-2 animate-pulse rounded-full bg-accent' : 'h-2 w-2 rounded-full bg-ink-faint'} />
+        <span
+          className={live ? 'h-2 w-2 animate-pulse rounded-full' : 'h-2 w-2 rounded-full'}
+          style={{ background: live ? 'var(--accent)' : 'var(--ink-faint)' }}
+        />
         {live ? 'Thinking…' : 'Thought process'}
-        <span className="text-[10px]">{open ? '▾' : '▸'}</span>
+        <span className="ml-auto text-[10px] text-ink-faint">{open ? 'hide ▾' : 'show ▸'}</span>
       </button>
       {open && (
         <div
-          className="mt-1.5 max-h-56 overflow-y-auto whitespace-pre-wrap rounded-xl border border-line px-3 py-2 text-[12.5px] leading-relaxed text-ink-faint"
-          style={{ background: 'var(--surface-2)' }}
+          className="max-h-60 overflow-y-auto whitespace-pre-wrap border-t border-line px-3 py-2 font-mono text-[12px] leading-relaxed text-ink-faint"
         >
           {text}
+          {live && <span className="ml-0.5 inline-block h-3 w-1 animate-pulse align-middle" style={{ background: 'var(--accent)' }} />}
         </div>
       )}
     </div>
@@ -362,11 +387,12 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === 'user';
   return (
     <div className={`fade-in flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-      <div
-        className={`max-w-[85%] rounded-2xl px-4 py-3 ${isUser ? 'text-white' : 'card'}`}
-        style={isUser ? { background: 'var(--accent)' } : undefined}
-      >
-        {isUser ? <p className="whitespace-pre-wrap text-[14px]">{message.content}</p> : <Markdown text={message.content} />}
+      <div className={`bubble ${isUser ? 'bubble-user' : 'bubble-ai'}`}>
+        {isUser ? (
+          <p className="whitespace-pre-wrap text-[14px]">{message.content}</p>
+        ) : (
+          <Markdown text={message.content} />
+        )}
         {message.toolCalls?.map((c) => <ToolCard key={c.id} call={c} />)}
       </div>
     </div>
