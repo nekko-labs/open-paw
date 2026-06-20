@@ -3,6 +3,7 @@ import { useStore, type View } from './store.js';
 import { Mascot } from './components/Mascot.js';
 import { Toasts } from './components/Toasts.js';
 import { CommandPalette } from './components/CommandPalette.js';
+import { UpdateBanner } from './components/UpdateBanner.js';
 import { ChatView } from './views/ChatView.js';
 import { ModelsView } from './views/ModelsView.js';
 import { ProjectsView } from './views/ProjectsView.js';
@@ -98,6 +99,7 @@ export function App() {
         {view === 'settings' && <SettingsView />}
       </main>
 
+      <UpdateBanner />
       <Mascot mood={mascotMood} enabled={settings?.mascotEnabled ?? true} />
       <CommandPalette />
       <Toasts />

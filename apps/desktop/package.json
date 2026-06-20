@@ -21,6 +21,7 @@
     "@open-paw/core": "*",
     "@open-paw/host": "*",
     "@open-paw/shared": "*",
+    "electron-updater": "^6.3.9",
     "qrcode": "^1.5.4"
   },
   "devDependencies": {

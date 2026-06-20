@@ -10,6 +10,7 @@ import type {
   SendOptions,
   AgentEvent,
   IndexStatus,
+  UpdateInfo,
 } from '@open-paw/shared';
 import { IpcChannels, IpcEvents } from '@open-paw/shared';
 
@@ -86,6 +87,11 @@ const api: NekkoApi = {
   disableRemote: () => inv(IpcChannels.remoteDisable),
   getRemoteStatus: () => inv(IpcChannels.remoteStatus),
 
+  getAppInfo: () => inv(IpcChannels.appInfo),
+  checkForUpdates: () => inv(IpcChannels.updateCheck),
+  downloadUpdate: () => inv(IpcChannels.updateDownload),
+  quitAndInstall: () => inv(IpcChannels.updateInstall),
+
   onAgentEvent: (cb: (e: AgentEvent) => void) => {
     const listener = (_: unknown, e: AgentEvent) => cb(e);
     ipcRenderer.on(IpcEvents.agentEvent, listener);
@@ -95,6 +101,11 @@ const api: NekkoApi = {
     const listener = (_: unknown, s: IndexStatus) => cb(s);
     ipcRenderer.on(IpcEvents.indexProgress, listener);
     return () => ipcRenderer.removeListener(IpcEvents.indexProgress, listener);
+  },
+  onUpdateEvent: (cb: (u: UpdateInfo) => void) => {
+    const listener = (_: unknown, u: UpdateInfo) => cb(u);
+    ipcRenderer.on(IpcEvents.updateEvent, listener);
+    return () => ipcRenderer.removeListener(IpcEvents.updateEvent, listener);
   },
 };
 

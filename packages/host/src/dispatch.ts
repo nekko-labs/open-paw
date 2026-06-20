@@ -69,6 +69,8 @@ export function createDispatcher(host: Host): (channel: string, args: any[]) => 
     [C.remoteEnable]: ([relayUrl]) => host.enableRemote(relayUrl),
     [C.remoteDisable]: () => host.disableRemote(),
     [C.remoteStatus]: () => host.remoteStatus(),
+
+    [C.appInfo]: () => host.appInfo(),
   };
 
   return (channel, args) => {

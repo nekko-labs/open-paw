@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import type { AppSettings, GuardrailRule, GuardrailAction, SandboxMode, ThemeMode } from '@open-paw/shared';
+import type { AppInfo, AppSettings, GuardrailRule, GuardrailAction, SandboxMode, ThemeMode, UpdateInfo } from '@open-paw/shared';
 import { useStore } from '../store.js';
 import { ShieldIcon, SunIcon } from '../icons.js';
 import { RemoteAccess } from '../components/RemoteAccess.js';
@@ -60,6 +60,9 @@ export function SettingsView() {
           </div>
         </section>
 
+        {/* Updates */}
+        <UpdatesSection settings={settings} onToggle={(v) => update({ autoUpdate: v })} />
+
         {/* Sandbox */}
         <section className="card mt-5 p-5">
           <div className="flex items-center gap-2"><ShieldIcon className="h-4 w-4" /><h2 className="font-semibold">Sandbox</h2></div>
@@ -118,6 +121,54 @@ export function SettingsView() {
         <p className="mt-6 text-center text-[11px] text-ink-faint">Open Paw · open source · MIT</p>
       </div>
     </div>
+  );
+}
+
+function UpdatesSection({ settings, onToggle }: { settings: AppSettings; onToggle: (v: boolean) => void }) {
+  const [info, setInfo] = useState<AppInfo | null>(null);
+  const [status, setStatus] = useState<UpdateInfo | null>(null);
+  const [checking, setChecking] = useState(false);
+
+  useEffect(() => { window.nekko.getAppInfo().then(setInfo); }, []);
+
+  const check = async () => {
+    setChecking(true);
+    setStatus(await window.nekko.checkForUpdates());
+    setChecking(false);
+  };
+
+  const statusText = !status
+    ? ''
+    : status.state === 'available'
+      ? `Update available: v${status.version ?? ''}`
+      : status.state === 'none'
+        ? "You're up to date."
+        : status.state === 'error'
+          ? status.message ?? 'Update check failed.'
+          : status.state === 'downloaded'
+            ? 'Update downloaded — restart to apply.'
+            : '';
+
+  return (
+    <section className="card mt-5 p-5">
+      <div className="flex items-center gap-2"><SunIcon className="h-4 w-4" /><h2 className="font-semibold">Updates</h2></div>
+      <p className="mt-1 text-[12px] text-ink-faint">
+        {info ? `Open Paw ${info.version} · ${info.edition} edition` : ' '}
+      </p>
+      <div className="mt-3 flex min-h-[40px] items-center justify-between">
+        <div>
+          <span className="text-[13px]">Check for updates automatically</span>
+          <p className="text-[11px] text-ink-faint">Connects to the internet to look for new versions.</p>
+        </div>
+        <Toggle on={!!settings.autoUpdate} onChange={onToggle} />
+      </div>
+      <div className="mt-2 flex items-center gap-3">
+        <button className="btn btn-outline py-1.5 text-[12px]" onClick={check} disabled={checking}>
+          {checking ? 'Checking…' : 'Check now'}
+        </button>
+        {statusText && <span className="text-[12px] text-ink-faint">{statusText}</span>}
+      </div>
+    </section>
   );
 }
 

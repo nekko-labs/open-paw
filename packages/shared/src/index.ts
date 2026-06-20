@@ -14,3 +14,4 @@ export * from './ipc.js';
 export * from './settings.js';
 export * from './e2e.js';
 export * from './remote.js';
+export * from './update.js';

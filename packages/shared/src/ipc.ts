@@ -8,6 +8,7 @@ import type { MemoryEntry, MemoryScope } from './memory.js';
 import type { WorkspaceFolder, IndexStatus, SearchHit, IndexedFile } from './workspace.js';
 import type { ConnectorConfig, ConnectorKind, ConnectorResource } from './connectors.js';
 import type { GuardrailRule } from './guardrails.js';
+import type { AppInfo, UpdateInfo } from './update.js';
 
 /** Invoke (request/response) channels. */
 export const IpcChannels = {
@@ -73,6 +74,12 @@ export const IpcChannels = {
   remoteDisable: 'remote:disable',
   remoteStatus: 'remote:status',
 
+  appInfo: 'app:info',
+  // Transport-local update controls (desktop = electron-updater, web = refresh).
+  updateCheck: 'update:check',
+  updateDownload: 'update:download',
+  updateInstall: 'update:install',
+
   dialogOpenFolder: 'dialog:openFolder',
 } as const;
 
@@ -80,6 +87,7 @@ export const IpcChannels = {
 export const IpcEvents = {
   agentEvent: 'agent:event',
   indexProgress: 'index:progress',
+  updateEvent: 'update:event',
 } as const;
 
 /** The typed API the preload bridge exposes as window.nekko. */
@@ -151,6 +159,16 @@ export interface NekkoApi {
   disableRemote(): Promise<import('./remote.js').RemoteStatus>;
   getRemoteStatus(): Promise<import('./remote.js').RemoteStatus>;
 
+  /** Running version + edition. */
+  getAppInfo(): Promise<AppInfo>;
+  /** Check for a newer version (desktop: GitHub feed; web: server version). */
+  checkForUpdates(): Promise<UpdateInfo>;
+  /** Download the available update (desktop only; web resolves immediately). */
+  downloadUpdate(): Promise<UpdateInfo>;
+  /** Install + relaunch (desktop) or reload the page (web). */
+  quitAndInstall(): Promise<void>;
+
   onAgentEvent(cb: (e: AgentEvent) => void): () => void;
   onIndexProgress(cb: (s: IndexStatus) => void): () => void;
+  onUpdateEvent(cb: (u: UpdateInfo) => void): () => void;
 }

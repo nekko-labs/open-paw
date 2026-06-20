@@ -6,6 +6,10 @@ export default defineConfig({
   main: {
     build: {
       rollupOptions: {
+        // electron-updater is CJS with node-only internals — require it at
+        // runtime from node_modules (electron-builder packs production deps)
+        // instead of bundling it.
+        external: ['electron-updater'],
         input: { index: resolve(__dirname, 'src/main/index.ts') },
       },
     },
