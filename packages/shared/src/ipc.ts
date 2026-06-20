@@ -19,6 +19,7 @@ export const IpcChannels = {
   providersRemove: 'providers:remove',
   providersDiscover: 'providers:discover',
   providersTest: 'providers:test',
+  providersTestConfig: 'providers:testConfig',
 
   modelsList: 'models:list',
   modelPull: 'model:pull',
@@ -91,6 +92,8 @@ export interface NekkoApi {
   removeProvider(id: string): Promise<ProviderConfig[]>;
   discoverProviders(): Promise<ProviderConfig[]>;
   testProvider(id: string): Promise<{ ok: boolean; message: string }>;
+  /** Test an unsaved provider config (used by the add form before saving). */
+  testProviderConfig(cfg: ProviderConfig): Promise<{ ok: boolean; message: string }>;
 
   listModels(providerId: string): Promise<ModelInfo[]>;
   pullModel(providerId: string, model: string): Promise<{ ok: boolean; message: string }>;

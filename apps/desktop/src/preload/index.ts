@@ -24,6 +24,7 @@ const api: NekkoApi = {
   removeProvider: (id) => inv(IpcChannels.providersRemove, id),
   discoverProviders: () => inv(IpcChannels.providersDiscover),
   testProvider: (id) => inv(IpcChannels.providersTest, id),
+  testProviderConfig: (cfg) => inv(IpcChannels.providersTestConfig, cfg),
 
   listModels: (providerId) => inv(IpcChannels.modelsList, providerId),
   pullModel: (providerId, model) => inv(IpcChannels.modelPull, providerId, model),

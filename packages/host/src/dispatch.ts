@@ -21,6 +21,7 @@ export function createDispatcher(host: Host): (channel: string, args: any[]) => 
     [C.providersRemove]: ([id]) => host.removeProvider(id),
     [C.providersDiscover]: () => host.discoverProviders(),
     [C.providersTest]: ([id]) => host.testProvider(id),
+    [C.providersTestConfig]: ([cfg]) => host.testProviderConfig(cfg),
 
     [C.modelsList]: ([id]) => host.listModels(id),
     [C.modelPull]: ([id, m]) => host.pullModel(id, m),

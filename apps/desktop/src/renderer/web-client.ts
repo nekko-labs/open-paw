@@ -137,6 +137,7 @@ function makeWebClient(): NekkoApi {
     removeProvider: (id) => call(IpcChannels.providersRemove, id),
     discoverProviders: () => call(IpcChannels.providersDiscover),
     testProvider: (id) => call(IpcChannels.providersTest, id),
+    testProviderConfig: (cfg) => call(IpcChannels.providersTestConfig, cfg),
 
     listModels: (providerId) => call(IpcChannels.modelsList, providerId),
     pullModel: (providerId, model) => call(IpcChannels.modelPull, providerId, model),

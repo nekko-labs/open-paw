@@ -60,6 +60,7 @@ export interface Host {
   removeProvider(id: string): ProviderConfig[];
   discoverProviders(): Promise<ProviderConfig[]>;
   testProvider(id: string): Promise<{ ok: boolean; message: string }>;
+  testProviderConfig(cfg: ProviderConfig): Promise<{ ok: boolean; message: string }>;
 
   listModels(providerId: string): Promise<ModelInfo[]>;
   pullModel(providerId: string, model: string): Promise<{ ok: boolean; message: string }>;
@@ -144,6 +145,13 @@ export function createHost(opts: { dataDir: string }): Host {
     testProvider: async (id) => {
       const p = findProvider(id);
       return p ? createProvider(p).test() : { ok: false, message: 'Not found' };
+    },
+    testProviderConfig: async (cfg) => {
+      try {
+        return await createProvider(cfg).test();
+      } catch (e) {
+        return { ok: false, message: (e as Error).message };
+      }
     },
 
     listModels: async (providerId) => {
