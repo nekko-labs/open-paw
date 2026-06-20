@@ -1,6 +1,7 @@
-import { BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { IpcChannels, IpcEvents } from '@open-paw/shared';
 import { createDispatcher, type Host } from '@open-paw/host';
+import { initUpdater, checkForUpdates, downloadUpdate, quitAndInstall } from './update.js';
 
 function broadcast(channel: string, payload: unknown): void {
   for (const win of BrowserWindow.getAllWindows()) win.webContents.send(channel, payload);
@@ -43,6 +44,23 @@ export function registerIpc(host: Host): void {
     if (/^https?:\/\//i.test(target)) await shell.openExternal(target);
     else await shell.openPath(target);
   });
+
+  // App info (real Electron version + desktop edition) — overrides the host's.
+  ipcMain.removeHandler(IpcChannels.appInfo);
+  ipcMain.handle(IpcChannels.appInfo, () => ({
+    version: app.getVersion(),
+    platform: process.platform,
+    edition: 'desktop' as const,
+  }));
+
+  // Auto-update controls (electron-updater; transport-local).
+  initUpdater((u) => broadcast(IpcEvents.updateEvent, u));
+  ipcMain.removeHandler(IpcChannels.updateCheck);
+  ipcMain.handle(IpcChannels.updateCheck, () => checkForUpdates());
+  ipcMain.removeHandler(IpcChannels.updateDownload);
+  ipcMain.handle(IpcChannels.updateDownload, () => downloadUpdate());
+  ipcMain.removeHandler(IpcChannels.updateInstall);
+  ipcMain.handle(IpcChannels.updateInstall, () => quitAndInstall());
 
   // Forward host events to all renderers.
   host.events.on('agentEvent', (e) => broadcast(IpcEvents.agentEvent, e));

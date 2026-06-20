@@ -19,6 +19,7 @@ import type {
   GuardrailDecision,
   UsageSummary,
   RemoteStatus,
+  AppInfo,
 } from '@open-paw/shared';
 import {
   createProvider,
@@ -108,6 +109,7 @@ export interface Host {
   enableRemote(relayUrl: string): RemoteStatus;
   disableRemote(): RemoteStatus;
   remoteStatus(): RemoteStatus;
+  appInfo(): AppInfo;
 }
 
 export function createHost(opts: { dataDir: string }): Host {
@@ -271,6 +273,7 @@ export function createHost(opts: { dataDir: string }): Host {
       return { enabled: false };
     },
     remoteStatus: () => (remote ? remote.status : { enabled: false }),
+    appInfo: () => ({ version: process.env.OPENPAW_VERSION ?? '0.0.0', platform: process.platform, edition: 'web' }),
   };
   return host;
 }

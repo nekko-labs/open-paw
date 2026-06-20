@@ -1,5 +1,5 @@
-import { IpcChannels, IpcEvents, deriveKey, seal, open } from '@open-paw/shared';
-import type { AppSettings, AgentEvent, IndexStatus, NekkoApi } from '@open-paw/shared';
+import { IpcChannels, IpcEvents, deriveKey, seal, open, RELEASE_NOTES_URL } from '@open-paw/shared';
+import type { AppSettings, AgentEvent, IndexStatus, NekkoApi, AppInfo, UpdateInfo } from '@open-paw/shared';
 
 /**
  * Browser transport for the web/Docker editions: implements the same NekkoApi
@@ -16,6 +16,8 @@ function makeWebClient(): NekkoApi {
 
   const agentCbs = new Set<(e: AgentEvent) => void>();
   const indexCbs = new Set<(s: IndexStatus) => void>();
+  // Server build version captured when this tab loaded (for refresh detection).
+  let loadVersion: string | null = null;
   const dispatchEvent = (channel: string, payload: any) => {
     if (channel === IpcEvents.agentEvent) agentCbs.forEach((cb) => cb(payload));
     else if (channel === IpcEvents.indexProgress) indexCbs.forEach((cb) => cb(payload));
@@ -209,6 +211,27 @@ function makeWebClient(): NekkoApi {
     disableRemote: () => call(IpcChannels.remoteDisable),
     getRemoteStatus: () => call(IpcChannels.remoteStatus),
 
+    // Web edition: "update" = the server got a newer build since this tab
+    // loaded; we just suggest a refresh (no installer to run in the browser).
+    getAppInfo: () => call(IpcChannels.appInfo) as Promise<AppInfo>,
+    checkForUpdates: async () => {
+      const info = (await call(IpcChannels.appInfo)) as AppInfo;
+      if (loadVersion === null) loadVersion = info.version;
+      const stale = info.version !== loadVersion;
+      return {
+        state: stale ? 'available' : 'none',
+        currentVersion: loadVersion,
+        version: stale ? info.version : undefined,
+        notesUrl: RELEASE_NOTES_URL,
+        edition: 'web',
+      } as UpdateInfo;
+    },
+    downloadUpdate: async () =>
+      ({ state: 'available', currentVersion: loadVersion ?? '', notesUrl: RELEASE_NOTES_URL, edition: 'web' } as UpdateInfo),
+    quitAndInstall: async () => {
+      location.reload();
+    },
+
     onAgentEvent: (cb) => {
       agentCbs.add(cb);
       return () => agentCbs.delete(cb);
@@ -216,6 +239,28 @@ function makeWebClient(): NekkoApi {
     onIndexProgress: (cb) => {
       indexCbs.add(cb);
       return () => indexCbs.delete(cb);
+    },
+    onUpdateEvent: (cb) => {
+      // Poll the server version; emit 'available' once it differs from load.
+      let stopped = false;
+      const tick = async () => {
+        if (stopped) return;
+        try {
+          const info = (await call(IpcChannels.appInfo)) as AppInfo;
+          if (loadVersion === null) loadVersion = info.version;
+          else if (info.version !== loadVersion) {
+            cb({ state: 'available', currentVersion: loadVersion, version: info.version, notesUrl: RELEASE_NOTES_URL, edition: 'web' });
+          }
+        } catch {
+          /* server momentarily unreachable */
+        }
+      };
+      void tick();
+      const timer = setInterval(tick, 60000);
+      return () => {
+        stopped = true;
+        clearInterval(timer);
+      };
     },
   };
 }

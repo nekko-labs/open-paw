@@ -30,6 +30,12 @@ export interface AppSettings {
   mascotEnabled: boolean;
   /** Sampling effort (temperature). */
   effort?: EffortLevel;
+  /** Check for app updates automatically (desktop). */
+  autoUpdate?: boolean;
+  /** Whether we've shown the first-run "enable auto-update?" prompt. */
+  autoUpdatePrompted?: boolean;
+  /** UI language (BCP-47-ish code, e.g. "en", "es"). Undefined = follow system. */
+  language?: string;
 }
 
 /** One usage event appended to a JSONL log for analytics. */

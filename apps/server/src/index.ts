@@ -54,6 +54,16 @@ async function main() {
     process.exit(1);
   }
 
+  // Report this build's version (for the web edition's refresh-when-updated check).
+  if (!process.env.OPENPAW_VERSION) {
+    try {
+      const { createRequire } = await import('node:module');
+      process.env.OPENPAW_VERSION = createRequire(import.meta.url)('../package.json').version ?? '0.0.0';
+    } catch {
+      /* leave unset → host reports 0.0.0 */
+    }
+  }
+
   const host = createHost({ dataDir: DATA_DIR });
   const dispatch = createDispatcher(host);
   const app = Fastify({ bodyLimit: 25 * 1024 * 1024 });

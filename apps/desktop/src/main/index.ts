@@ -2,6 +2,7 @@ import { app, BrowserWindow, shell } from 'electron';
 import { join } from 'path';
 import { createHost } from '@open-paw/host';
 import { registerIpc } from './ipc.js';
+import { checkForUpdates } from './update.js';
 import { loadWindowBounds, saveWindowBounds } from './windowState.js';
 
 function createWindow(): void {
@@ -52,6 +53,11 @@ app.whenReady().then(() => {
   const host = createHost({ dataDir: join(app.getPath('userData'), 'open-paw') });
   registerIpc(host);
   createWindow();
+
+  // Auto-check for updates a few seconds after launch, if the user opted in.
+  if (host.getSettings().autoUpdate) {
+    setTimeout(() => { void checkForUpdates(); }, 4000);
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
