@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { AppSettings, Session, ProviderConfig, ModelInfo } from '@open-paw/shared';
 import type { MascotMood } from './components/Mascot.js';
 
-export type View = 'chat' | 'projects' | 'models' | 'connectors' | 'memory' | 'settings';
+export type View = 'command' | 'chat' | 'projects' | 'models' | 'connectors' | 'memory' | 'settings';
 
 export interface Toast {
   id: string;

@@ -5,6 +5,7 @@ import { Toasts } from './components/Toasts.js';
 import { CommandPalette } from './components/CommandPalette.js';
 import { UpdateBanner } from './components/UpdateBanner.js';
 import { ChatView } from './views/ChatView.js';
+import { CommandCenterView } from './views/CommandCenterView.js';
 import { ModelsView } from './views/ModelsView.js';
 import { ProjectsView } from './views/ProjectsView.js';
 import { ConnectorsView } from './views/ConnectorsView.js';
@@ -17,9 +18,11 @@ import {
   PlugIcon,
   BrainIcon,
   GearIcon,
+  GridIcon,
 } from './icons.js';
 
 const NAV: Array<{ view: View; label: string; Icon: (p: { className?: string }) => JSX.Element }> = [
+  { view: 'command', label: 'Command Center', Icon: GridIcon },
   { view: 'chat', label: 'Chat', Icon: ChatIcon },
   { view: 'projects', label: 'Projects', Icon: FolderIcon },
   { view: 'models', label: 'Models', Icon: ServerIcon },
@@ -91,6 +94,7 @@ export function App() {
             <span className="font-medium">Get started:</span> connect your first model in Models →
           </button>
         )}
+        {view === 'command' && <CommandCenterView />}
         {view === 'chat' && <ChatView />}
         {view === 'models' && <ModelsView />}
         {view === 'projects' && <ProjectsView />}

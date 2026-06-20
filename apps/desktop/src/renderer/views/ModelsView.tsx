@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import type { ModelInfo, ProviderConfig, ProviderKind, UsageSummary } from '@open-paw/shared';
+import type { ModelInfo, ProviderConfig, ProviderKind } from '@open-paw/shared';
 import { PROVIDER_DEFAULTS } from '@open-paw/shared';
 import { useStore } from '../store.js';
 import { PlusIcon, TrashIcon, CheckIcon } from '../icons.js';
@@ -10,13 +10,11 @@ const isLocal = (k: ProviderKind) => LOCAL_KINDS.includes(k);
 
 export function ModelsView() {
   const { providers, refreshProviders, pushToast } = useStore();
-  const [usage, setUsage] = useState<UsageSummary | null>(null);
   const [adding, setAdding] = useState(false);
   const [discovering, setDiscovering] = useState(false);
 
   useEffect(() => {
     refreshProviders();
-    window.nekko.getUsageSummary().then(setUsage);
   }, [refreshProviders]);
 
   const discover = async () => {
@@ -77,7 +75,9 @@ export function ModelsView() {
           onChanged={refreshProviders}
         />
 
-        <UsagePanel usage={usage} />
+        <p className="mt-8 text-center text-[12px] text-ink-faint">
+          Token usage and live worker status now live in the Command Center.
+        </p>
       </div>
     </div>
   );
@@ -294,41 +294,6 @@ function ProviderCard({ provider, onChanged }: { provider: ProviderConfig; onCha
           </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-function UsagePanel({ usage }: { usage: UsageSummary | null }) {
-  if (!usage) return null;
-  const max = Math.max(1, ...usage.daily.map((d) => d.input + d.output));
-  return (
-    <div className="card mt-8 p-5">
-      <h3 className="font-semibold">Token usage</h3>
-      <div className="mt-3 flex gap-6 text-[13px]">
-        <div><span className="text-ink-faint">Input</span> <span className="font-semibold">{usage.totalInput.toLocaleString()}</span></div>
-        <div><span className="text-ink-faint">Output</span> <span className="font-semibold">{usage.totalOutput.toLocaleString()}</span></div>
-      </div>
-      {usage.daily.length > 0 ? (
-        <div className="mt-4 flex h-32 items-end gap-1">
-          {usage.daily.slice(-30).map((d) => (
-            <div key={d.date} className="flex flex-1 flex-col justify-end" title={`${d.date}: ${(d.input + d.output).toLocaleString()} tok`}>
-              <div className="rounded-t" style={{ height: `${((d.input + d.output) / max) * 100}%`, background: 'var(--accent)', minHeight: 2 }} />
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="mt-3 text-[12px] text-ink-faint">No usage recorded yet — start a chat to see analytics.</p>
-      )}
-      {Object.keys(usage.byModel).length > 0 && (
-        <div className="mt-4 space-y-1">
-          {Object.entries(usage.byModel).map(([model, v]) => (
-            <div key={model} className="flex justify-between text-[12px]">
-              <span className="truncate font-mono text-ink-soft">{model}</span>
-              <span className="text-ink-faint">{(v.input + v.output).toLocaleString()} tok</span>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
