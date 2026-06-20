@@ -23,7 +23,9 @@ interface UiState {
   mascotMood: MascotMood;
   toasts: Toast[];
   paletteOpen: boolean;
+  activeWorkspaceId: string | null;
 
+  setActiveWorkspace: (id: string | null) => void;
   pushToast: (kind: Toast['kind'], message: string) => void;
   dismissToast: (id: string) => void;
   setPaletteOpen: (open: boolean) => void;
@@ -53,7 +55,9 @@ export const useStore = create<UiState>((set, get) => ({
   mascotMood: 'waving',
   toasts: [],
   paletteOpen: false,
+  activeWorkspaceId: null,
 
+  setActiveWorkspace: (id) => set({ activeWorkspaceId: id }),
   pushToast: (kind, message) => {
     const id = `t_${Date.now().toString(36)}_${Math.floor(performance.now())}`;
     set((s) => ({ toasts: [...s.toasts, { id, kind, message }] }));
@@ -62,7 +66,7 @@ export const useStore = create<UiState>((set, get) => ({
   dismissToast: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
   setPaletteOpen: (open) => set({ paletteOpen: open }),
   newChat: async () => {
-    const s = await window.nekko.createSession();
+    const s = await window.nekko.createSession(get().activeWorkspaceId ?? undefined);
     await get().refreshSessions();
     set({ activeSessionId: s.id, view: 'chat' });
   },
@@ -75,6 +79,9 @@ export const useStore = create<UiState>((set, get) => ({
     get().applyTheme();
     if (!get().activeProviderId && settings.defaultProviderId) {
       set({ activeProviderId: settings.defaultProviderId, activeModelId: settings.defaultModelId ?? null });
+    }
+    if (!get().activeWorkspaceId && settings.workspaces[0]) {
+      set({ activeWorkspaceId: settings.workspaces[0].id });
     }
   },
 

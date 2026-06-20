@@ -43,6 +43,14 @@ export function deleteSession(id: string): void {
   if (existsSync(pathFor(id))) rmSync(pathFor(id));
 }
 
+export function setSessionWorkspace(id: string, workspaceId?: string): Session | null {
+  const s = getSession(id);
+  if (!s) return null;
+  s.workspaceId = workspaceId;
+  saveSession(s);
+  return s;
+}
+
 export function createSession(workspaceId?: string): Session {
   const now = Date.now();
   const s: Session = {

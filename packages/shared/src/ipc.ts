@@ -29,6 +29,7 @@ export const IpcChannels = {
   sessionCreate: 'session:create',
   sessionGet: 'session:get',
   sessionDelete: 'session:delete',
+  sessionSetWorkspace: 'session:setWorkspace',
   chatSend: 'chat:send',
   chatAbort: 'chat:abort',
   toolApprove: 'tool:approve',
@@ -87,6 +88,7 @@ export interface NekkoApi {
   createSession(workspaceId?: string): Promise<Session>;
   getSession(id: string): Promise<Session | null>;
   deleteSession(id: string): Promise<void>;
+  setSessionWorkspace(sessionId: string, workspaceId?: string): Promise<Session | null>;
   sendChat(opts: SendOptions): Promise<void>;
   abortChat(sessionId: string): Promise<void>;
   approveTool(sessionId: string, toolCallId: string, approved: boolean): Promise<void>;

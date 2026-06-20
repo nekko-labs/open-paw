@@ -34,6 +34,7 @@ const api: NekkoApi = {
   createSession: (workspaceId) => inv(IpcChannels.sessionCreate, workspaceId),
   getSession: (id) => inv(IpcChannels.sessionGet, id),
   deleteSession: (id) => inv(IpcChannels.sessionDelete, id),
+  setSessionWorkspace: (sessionId, workspaceId) => inv(IpcChannels.sessionSetWorkspace, sessionId, workspaceId),
   sendChat: (opts: SendOptions) => inv(IpcChannels.chatSend, opts),
   abortChat: (sessionId) => inv(IpcChannels.chatAbort, sessionId),
   approveTool: (sessionId, toolCallId, approved) => inv(IpcChannels.toolApprove, sessionId, toolCallId, approved),

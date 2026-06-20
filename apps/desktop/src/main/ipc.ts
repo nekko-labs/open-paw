@@ -20,7 +20,7 @@ import {
   OllamaProvider,
 } from '@nekko/core';
 import { getSettings, saveSettings } from './store.js';
-import { listSessions, getSession, createSession, deleteSession } from './sessions.js';
+import { listSessions, getSession, createSession, deleteSession, setSessionWorkspace } from './sessions.js';
 import { sendChat, abortChat, resolveApproval, previewContext, setContextPrefs } from './chat.js';
 import { listMemory, saveMemory, deleteMemory } from './memory.js';
 import { indexWorkspace, getIndexStatus, searchWorkspace, listIndexedFiles } from './workspace.js';
@@ -97,6 +97,7 @@ export function registerIpc(): void {
   h(IpcChannels.sessionCreate, (_e, workspaceId?: string) => createSession(workspaceId));
   h(IpcChannels.sessionGet, (_e, id: string) => getSession(id));
   h(IpcChannels.sessionDelete, (_e, id: string) => deleteSession(id));
+  h(IpcChannels.sessionSetWorkspace, (_e, id: string, workspaceId?: string) => setSessionWorkspace(id, workspaceId));
   h(IpcChannels.chatSend, async (_e, opts: SendOptions) => {
     await sendChat(opts, (event) => broadcast(IpcEvents.agentEvent, event));
   });

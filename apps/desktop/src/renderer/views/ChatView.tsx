@@ -26,6 +26,9 @@ export function ChatView() {
     contextPanelOpen,
     toggleContextPanel,
     setMascotMood,
+    settings,
+    activeWorkspaceId,
+    setActiveWorkspace,
   } = useStore();
 
   const [session, setSession] = useState<Session | null>(null);
@@ -37,11 +40,15 @@ export function ChatView() {
   const [approval, setApproval] = useState<PendingApproval | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Load the active session's transcript.
+  // Load the active session's transcript; reflect its workspace in the header.
   useEffect(() => {
-    if (activeSessionId) window.nekko.getSession(activeSessionId).then(setSession);
-    else setSession(null);
-  }, [activeSessionId, sessions]);
+    if (activeSessionId) {
+      window.nekko.getSession(activeSessionId).then((s) => {
+        setSession(s);
+        if (s?.workspaceId) setActiveWorkspace(s.workspaceId);
+      });
+    } else setSession(null);
+  }, [activeSessionId, sessions, setActiveWorkspace]);
 
   // Subscribe to streaming agent events.
   useEffect(() => {
@@ -93,7 +100,7 @@ export function ChatView() {
   }, [session?.messages.length, liveText, liveTools.length]);
 
   const newChat = async () => {
-    const s = await window.nekko.createSession();
+    const s = await window.nekko.createSession(activeWorkspaceId ?? undefined);
     await refreshSessions();
     setActiveSession(s.id);
   };
@@ -102,7 +109,7 @@ export function ChatView() {
     if (!draft.trim() || !activeProviderId || !activeModelId) return;
     let sid = activeSessionId;
     if (!sid) {
-      const s = await window.nekko.createSession();
+      const s = await window.nekko.createSession(activeWorkspaceId ?? undefined);
       await refreshSessions();
       setActiveSession(s.id);
       sid = s.id;
@@ -196,6 +203,29 @@ export function ChatView() {
                 </option>
               ))}
             </select>
+            {settings && settings.workspaces.length > 0 && (
+              <select
+                className="input max-w-[170px] py-1.5"
+                title="Project this chat works in (scopes the index + per-project memory)"
+                value={activeWorkspaceId ?? ''}
+                onChange={async (e) => {
+                  const wid = e.target.value || undefined;
+                  setActiveWorkspace(wid ?? null);
+                  if (activeSessionId) {
+                    await window.nekko.setSessionWorkspace(activeSessionId, wid);
+                    const s = await window.nekko.getSession(activeSessionId);
+                    setSession(s);
+                  }
+                }}
+              >
+                <option value="">No project</option>
+                {settings.workspaces.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
           <button className={`btn btn-ghost ${contextPanelOpen ? 'text-accent' : ''}`} onClick={toggleContextPanel} title="Toggle context panel">
             <PanelIcon />
