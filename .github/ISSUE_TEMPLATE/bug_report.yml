@@ -1,0 +1,51 @@
+name: Bug report
+description: Something isn't working
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: A clear description of the bug and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to …
+        2. Click …
+        3. See error
+    validations:
+      required: true
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Model provider (if relevant)
+      options:
+        - Not applicable
+        - Ollama
+        - LM Studio
+        - vLLM
+        - OpenAI-compatible (other)
+        - Anthropic
+        - OpenAI
+        - OpenRouter
+  - type: input
+    id: model
+    attributes:
+      label: Model id (if relevant)
+      placeholder: e.g. google/gemma-4-31b-qat
+  - type: input
+    id: version
+    attributes:
+      label: Nekko Paw version & OS
+      placeholder: e.g. 0.1.0 on Windows 11
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / screenshots
+      description: Any console output, error toasts, or screenshots.

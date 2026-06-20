@@ -54,9 +54,9 @@ export class OpenAICompatProvider implements Provider {
       const res = await fetch(`${this.base()}/models`, { headers: this.headers() });
       return res.ok
         ? { ok: true, message: 'Connected' }
-        : { ok: false, message: `HTTP ${res.status}` };
+        : { ok: false, message: `HTTP ${res.status}${res.status === 401 ? ' — check your API key' : ''}` };
     } catch (e) {
-      return { ok: false, message: (e as Error).message };
+      return { ok: false, message: friendlyError(e, this.base()) };
     }
   }
 
@@ -70,15 +70,20 @@ export class OpenAICompatProvider implements Provider {
       tools: req.tools?.map(toOpenAITool),
     };
 
-    const res = await fetch(`${this.base()}/chat/completions`, {
-      method: 'POST',
-      headers: this.headers(),
-      body: JSON.stringify(body),
-      signal: req.signal,
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${this.base()}/chat/completions`, {
+        method: 'POST',
+        headers: this.headers(),
+        body: JSON.stringify(body),
+        signal: req.signal,
+      });
+    } catch (e) {
+      throw new Error(friendlyError(e, this.base()));
+    }
     if (!res.ok) {
       const text = await res.text().catch(() => '');
-      throw new Error(`chat ${res.status}: ${text.slice(0, 200)}`);
+      throw new Error(`Model request failed (HTTP ${res.status})${text ? `: ${text.slice(0, 200)}` : ''}`);
     }
 
     // Accumulate streamed tool-call fragments by index.
@@ -168,4 +173,14 @@ function safeParse(s: string): Record<string, unknown> {
   } catch {
     return {};
   }
+}
+
+/** Turn low-level fetch failures into actionable guidance. */
+export function friendlyError(e: unknown, url: string): string {
+  const msg = e instanceof Error ? e.message : String(e);
+  if (/abort/i.test(msg)) return 'Request cancelled.';
+  if (/ECONNREFUSED|fetch failed|Failed to fetch|ENOTFOUND|ETIMEDOUT|network/i.test(msg)) {
+    return `Can't reach the model server at ${url}. Is it running and reachable on the network?`;
+  }
+  return msg;
 }

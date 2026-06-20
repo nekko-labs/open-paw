@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { OpenAICompatProvider } from './openai-compat.js';
+import { OpenAICompatProvider, friendlyError } from './openai-compat.js';
 import type { ProviderConfig } from '@nekko/shared';
 
 const cfg: ProviderConfig = {
@@ -107,5 +107,21 @@ describe('OpenAICompatProvider.chat', () => {
     }
     expect(reasoning).toBe('Let me think carefully.');
     expect(answer).toBe('42');
+  });
+
+  it('test() returns a friendly message when the server is unreachable', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('fetch failed'));
+    const r = await new OpenAICompatProvider({ ...cfg, baseUrl: 'http://10.5.0.2:1338' }).test();
+    expect(r.ok).toBe(false);
+    expect(r.message).toMatch(/can't reach the model server/i);
+    expect(r.message).toContain('10.5.0.2:1338');
+  });
+});
+
+describe('friendlyError', () => {
+  it('maps connection failures to actionable guidance', () => {
+    expect(friendlyError(new Error('ECONNREFUSED'), 'http://x:1/v1')).toMatch(/can't reach/i);
+    expect(friendlyError(new Error('The user aborted a request.'), 'u')).toMatch(/cancelled/i);
+    expect(friendlyError(new Error('weird thing'), 'u')).toBe('weird thing');
   });
 });
