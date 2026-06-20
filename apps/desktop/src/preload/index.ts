@@ -50,6 +50,8 @@ const api: NekkoApi = {
   buildSpec: (sessionId) => inv(IpcChannels.specBuild, sessionId),
   setSpecLinked: (sessionId, linked) => inv(IpcChannels.specSetLinked, sessionId, linked),
   specPath: (sessionId) => inv(IpcChannels.specPath, sessionId),
+  setSessionOptions: (id, patch) => inv(IpcChannels.sessionSetOptions, id, patch),
+  listTools: () => inv(IpcChannels.toolsList),
 
   openFilesDialog: () => inv(IpcChannels.dialogOpenFiles),
   openPath: (path) => inv(IpcChannels.openPath, path),

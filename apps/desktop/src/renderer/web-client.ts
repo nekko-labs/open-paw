@@ -164,6 +164,8 @@ function makeWebClient(): NekkoApi {
     buildSpec: (sessionId) => call(IpcChannels.specBuild, sessionId),
     setSpecLinked: (sessionId, linked) => call(IpcChannels.specSetLinked, sessionId, linked),
     specPath: (sessionId) => call(IpcChannels.specPath, sessionId),
+    setSessionOptions: (id, patch) => call(IpcChannels.sessionSetOptions, id, patch),
+    listTools: () => call(IpcChannels.toolsList),
 
     // No native picker in the browser — ask for server-side path(s).
     openFilesDialog: async () => {

@@ -44,6 +44,8 @@ export function createDispatcher(host: Host): (channel: string, args: any[]) => 
     [C.specBuild]: ([sid]) => host.buildSpec(sid),
     [C.specSetLinked]: ([sid, linked]) => host.setSpecLinked(sid, linked),
     [C.specPath]: ([sid]) => host.specPath(sid),
+    [C.sessionSetOptions]: ([sid, patch]) => host.setSessionOptions(sid, patch),
+    [C.toolsList]: () => host.listTools(),
 
     [C.memoryList]: ([scope, wid]) => host.listMemory(scope, wid),
     [C.memorySave]: ([entry]) => host.saveMemory(entry),

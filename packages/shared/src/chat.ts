@@ -33,6 +33,14 @@ export interface ContextPrefs {
   pinned: string[];
 }
 
+/**
+ * How a chat handles tool execution:
+ *  - `ask`        — confirm every file write / command before it runs.
+ *  - `guardrails` — run freely except where the guardrail rules say ask/deny.
+ *  - `yolo`       — run everything without confirming (deny rules still block).
+ */
+export type ChatMode = 'ask' | 'guardrails' | 'yolo';
+
 export interface Session {
   id: string;
   title: string;
@@ -45,6 +53,14 @@ export interface Session {
   attachedPaths?: string[];
   /** When set, the chat keeps a spec.md in the workspace updated each turn. */
   specLinked?: boolean;
+  /** Tool-execution policy for this chat. */
+  mode?: ChatMode;
+  /** Tool names the user disabled for this chat (subset of the builtins). */
+  disabledTools?: string[];
+  /** Offline: no tool calls, no connectors/internet (local models only). */
+  offline?: boolean;
+  /** Incognito: don't persist the transcript or touch memory. */
+  incognito?: boolean;
   createdAt: number;
   updatedAt: number;
 }

@@ -27,6 +27,7 @@ import {
   OllamaProvider,
   getConnector,
   classifyCommand,
+  BUILTIN_TOOLS,
 } from '@open-paw/core';
 import { setDataDir, dataDir } from './paths.js';
 import { getSettings, saveSettings } from './store.js';
@@ -84,6 +85,11 @@ export interface Host {
   buildSpec(sessionId: string): Promise<{ ok: boolean; path?: string; message?: string }>;
   setSpecLinked(sessionId: string, linked: boolean): Session | null;
   specPath(sessionId: string): string | null;
+  setSessionOptions(
+    id: string,
+    patch: Partial<Pick<Session, 'mode' | 'disabledTools' | 'offline' | 'incognito'>>,
+  ): Session | null;
+  listTools(): Array<{ name: string; description: string }>;
 
   listMemory(scope: MemoryScope, workspaceId?: string): MemoryEntry[];
   saveMemory(entry: MemoryEntry): MemoryEntry[];
@@ -195,6 +201,8 @@ export function createHost(opts: { dataDir: string }): Host {
     buildSpec,
     setSpecLinked: sessions.setSpecLinked,
     specPath: specPathForSession,
+    setSessionOptions: sessions.setSessionOptions,
+    listTools: () => BUILTIN_TOOLS.map((t) => ({ name: t.name, description: t.description })),
     sendChat: (o) => sendChat(o, (e) => events.emit('agentEvent', e)),
     abortChat,
     approveTool: (_sessionId, toolCallId, approved) => resolveApproval(toolCallId, approved),

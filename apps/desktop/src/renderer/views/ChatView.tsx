@@ -4,7 +4,10 @@ import { useStore } from '../store.js';
 import { Markdown } from '../components/Markdown.js';
 import { ContextInspector } from '../components/ContextInspector.js';
 import { ChatMetrics } from '../components/ChatMetrics.js';
+import { ChatControls } from '../components/ChatControls.js';
 import { SendIcon, PlusIcon, PanelIcon, ShieldIcon, TrashIcon } from '../icons.js';
+
+const LOCAL_KINDS = ['ollama', 'lmstudio', 'vllm', 'openai-compat'];
 
 interface PendingApproval {
   call: ToolCall;
@@ -290,7 +293,17 @@ export function ChatView() {
 
         <ChatMetrics bundle={ctx} tps={tps} thinking={thinking} streaming={streaming} />
 
-        <div className="border-t border-line p-4">
+        <div className="border-t border-line px-4 pb-1 pt-3">
+          <ChatControls
+            session={session}
+            isCloudModel={
+              !LOCAL_KINDS.includes(providers.find((p) => p.id === activeProviderId)?.kind ?? '')
+            }
+            onChange={setSession}
+          />
+        </div>
+
+        <div className="px-4 pb-4">
           <div className="mx-auto flex w-full max-w-3xl items-end gap-2">
             <textarea
               className="input max-h-40 min-h-[44px] resize-none"

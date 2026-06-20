@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import type { AppInfo, AppSettings, GuardrailRule, GuardrailAction, SandboxMode, ThemeMode, UpdateInfo } from '@open-paw/shared';
+import type { AppInfo, AppSettings, ChatMode, GuardrailRule, GuardrailAction, SandboxMode, ThemeMode, UpdateInfo } from '@open-paw/shared';
 import { useStore } from '../store.js';
 import { ShieldIcon, SunIcon } from '../icons.js';
 import { RemoteAccess } from '../components/RemoteAccess.js';
@@ -12,6 +12,12 @@ const SANDBOX_OPTS: Array<{ value: SandboxMode; label: string; desc: string }> =
 ];
 
 const ACTION_COLORS: Record<GuardrailAction, string> = { allow: '#4ec98a', ask: '#e0a44a', deny: '#e0574a' };
+
+const CHAT_MODES: Array<{ value: ChatMode; label: string; desc: string }> = [
+  { value: 'ask', label: 'Ask', desc: 'Confirm every file write and command before it runs.' },
+  { value: 'guardrails', label: 'Guardrails', desc: 'Run freely, but ask/deny per your guardrail rules.' },
+  { value: 'yolo', label: 'YOLO', desc: 'Run everything without confirming (deny rules still block).' },
+];
 
 export function SettingsView() {
   const { applyTheme } = useStore();
@@ -77,50 +83,129 @@ export function SettingsView() {
           </div>
         </section>
 
+        {/* Chat modes */}
+        <section className="card mt-5 p-5">
+          <div className="flex items-center gap-2"><ShieldIcon className="h-4 w-4" /><h2 className="font-semibold">Chat modes</h2></div>
+          <p className="mt-1 text-[12px] text-ink-faint">
+            How chats run tools. Pick the default for new chats — each chat can override it from the composer.
+          </p>
+          <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-3">
+            {CHAT_MODES.map((m) => {
+              const active = (settings.defaultChatMode ?? 'guardrails') === m.value;
+              return (
+                <button key={m.value} onClick={() => update({ defaultChatMode: m.value })} className={`card p-3 text-left ${active ? 'border-accent' : ''}`}>
+                  <div className="text-[13px] font-medium">{m.label}</div>
+                  <div className="mt-0.5 text-[11px] text-ink-faint">{m.desc}</div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
         {/* Remote access (relay) */}
         <RemoteAccess />
 
         {/* Guardrails */}
-        <section className="card mt-5 p-5">
-          <div className="flex items-center gap-2"><ShieldIcon className="h-4 w-4" /><h2 className="font-semibold">Guardrails</h2></div>
-          <p className="mt-1 text-[12px] text-ink-faint">
-            Default protections for risky commands. Set each to allow, ask, or deny — and toggle any off.
-          </p>
-          <div className="mt-3 space-y-2">
-            {settings.guardrails.map((g) => (
-              <div key={g.id} className={`card p-3 ${g.enabled ? '' : 'opacity-50'}`}>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[13px] font-medium">{g.label}</span>
-                      <span className="h-2 w-2 rounded-full" style={{ background: g.severity === 'high' ? '#e0574a' : g.severity === 'medium' ? '#e0a44a' : '#8a8f98' }} />
-                    </div>
-                    <p className="truncate text-[11px] text-ink-faint">{g.description}</p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <div className="flex rounded-lg p-0.5" style={{ background: 'var(--surface-2)' }}>
-                      {(['allow', 'ask', 'deny'] as GuardrailAction[]).map((a) => (
-                        <button
-                          key={a}
-                          onClick={() => updateGuardrail({ ...g, action: a })}
-                          className="rounded-md px-2 py-1 text-[11px] font-medium"
-                          style={g.action === a ? { background: ACTION_COLORS[a], color: '#fff' } : { color: 'var(--ink-faint)' }}
-                        >
-                          {a}
-                        </button>
-                      ))}
-                    </div>
-                    <Toggle on={g.enabled} onChange={(v) => updateGuardrail({ ...g, enabled: v })} />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
+        <GuardrailsSection settings={settings} update={update} updateGuardrail={updateGuardrail} />
 
         <p className="mt-6 text-center text-[11px] text-ink-faint">Open Paw · open source · MIT</p>
       </div>
     </div>
+  );
+}
+
+function GuardrailsSection({
+  settings,
+  update,
+  updateGuardrail,
+}: {
+  settings: AppSettings;
+  update: (patch: Partial<AppSettings>) => void;
+  updateGuardrail: (rule: GuardrailRule) => void;
+}) {
+  const [jsonMode, setJsonMode] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [error, setError] = useState('');
+
+  const openJson = () => {
+    setDraft(JSON.stringify(settings.guardrails, null, 2));
+    setError('');
+    setJsonMode(true);
+  };
+
+  const apply = () => {
+    try {
+      const parsed = JSON.parse(draft) as GuardrailRule[];
+      if (!Array.isArray(parsed)) throw new Error('Expected a JSON array of rules.');
+      for (const r of parsed) {
+        if (!r.id || !r.pattern || !r.action) throw new Error('Each rule needs id, pattern, and action.');
+      }
+      update({ guardrails: parsed });
+      setJsonMode(false);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
+  return (
+    <section className="card mt-5 p-5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2"><ShieldIcon className="h-4 w-4" /><h2 className="font-semibold">Guardrails</h2></div>
+        <button className="btn btn-outline py-1 text-[12px]" onClick={() => (jsonMode ? setJsonMode(false) : openJson())}>
+          {jsonMode ? 'Visual editor' : 'Edit as JSON'}
+        </button>
+      </div>
+      <p className="mt-1 text-[12px] text-ink-faint">
+        Protections for risky commands. Set each to allow, ask, or deny — or edit the rule set directly as JSON.
+      </p>
+
+      {jsonMode ? (
+        <div className="mt-3">
+          <textarea
+            className="input min-h-[260px] font-mono text-[12px] leading-relaxed"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            spellCheck={false}
+          />
+          {error && <p className="mt-1.5 text-[12px]" style={{ color: '#e0574a' }}>{error}</p>}
+          <div className="mt-2 flex justify-end gap-2">
+            <button className="btn btn-ghost" onClick={() => setJsonMode(false)}>Cancel</button>
+            <button className="btn btn-primary" onClick={apply}>Apply</button>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-3 space-y-2">
+          {settings.guardrails.map((g) => (
+            <div key={g.id} className={`card p-3 ${g.enabled ? '' : 'opacity-50'}`}>
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[13px] font-medium">{g.label}</span>
+                    <span className="h-2 w-2 rounded-full" style={{ background: g.severity === 'high' ? '#e0574a' : g.severity === 'medium' ? '#e0a44a' : '#8a8f98' }} />
+                  </div>
+                  <p className="truncate text-[11px] text-ink-faint">{g.description}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <div className="flex rounded-lg p-0.5" style={{ background: 'var(--surface-2)' }}>
+                    {(['allow', 'ask', 'deny'] as GuardrailAction[]).map((a) => (
+                      <button
+                        key={a}
+                        onClick={() => updateGuardrail({ ...g, action: a })}
+                        className="rounded-md px-2 py-1 text-[11px] font-medium"
+                        style={g.action === a ? { background: ACTION_COLORS[a], color: '#fff' } : { color: 'var(--ink-faint)' }}
+                      >
+                        {a}
+                      </button>
+                    ))}
+                  </div>
+                  <Toggle on={g.enabled} onChange={(v) => updateGuardrail({ ...g, enabled: v })} />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 

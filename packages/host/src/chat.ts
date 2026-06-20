@@ -10,6 +10,7 @@ import {
   renderContextBlock,
   isGuidelineFile,
   getConnector,
+  BUILTIN_TOOLS,
 } from '@open-paw/core';
 import { getSettings } from './store.js';
 import { getSession, saveSession } from './sessions.js';
@@ -168,7 +169,16 @@ export async function sendChat(opts: SendOptions, send: Sender): Promise<void> {
     return;
   }
 
-  // Build context with provenance.
+  // Per-chat policy.
+  const mode = session.mode ?? settings.defaultChatMode ?? 'guardrails';
+  const offline = !!session.offline;
+  const incognito = !!session.incognito;
+  // Offline disables tool calls entirely; otherwise drop any the user turned off.
+  const tools = offline ? [] : BUILTIN_TOOLS.filter((t) => !(session.disabledTools ?? []).includes(t.name));
+  // Persist only when not incognito.
+  const persist = () => { if (!incognito) saveSession(session); };
+
+  // Build context with provenance. Offline mode skips internet connectors.
   const bundle = assembleContext({
     attached: collectAttached([...(session.attachedPaths ?? []), ...(opts.attachedPaths ?? [])]),
     guidelines: collectGuidelines(),
@@ -176,7 +186,7 @@ export async function sendChat(opts: SendOptions, send: Sender): Promise<void> {
       ...listMemory('global'),
       ...(session.workspaceId ? listMemory('workspace', session.workspaceId) : []),
     ],
-    connectorSnippets: await collectConnectorSnippets(opts.text),
+    connectorSnippets: offline ? [] : await collectConnectorSnippets(opts.text),
     indexSnippets: collectIndexSnippets(session.workspaceId, opts.text),
     excluded: new Set(session.contextPrefs?.excluded ?? []),
     pinned: new Set(session.contextPrefs?.pinned ?? []),
@@ -202,7 +212,7 @@ export async function sendChat(opts: SendOptions, send: Sender): Promise<void> {
   if (session.title === 'New chat') session.title = opts.text.slice(0, 48) || 'New chat';
   session.providerId = opts.providerId;
   session.modelId = opts.modelId;
-  saveSession(session);
+  persist();
 
   const abort = new AbortController();
   abortControllers.set(opts.sessionId, abort);
@@ -220,11 +230,13 @@ export async function sendChat(opts: SendOptions, send: Sender): Promise<void> {
       model: opts.modelId,
       system,
       history: session.messages,
+      tools,
       executeTool: (call) =>
         executeTool(call, {
           settings,
           defaultCwd: settings.workspaces[0]?.path,
           requestApproval,
+          mode,
         }),
       temperature: EFFORT_TEMPERATURE[settings.effort ?? 'normal'],
       signal: abort.signal,
@@ -241,18 +253,18 @@ export async function sendChat(opts: SendOptions, send: Sender): Promise<void> {
       }
       send(event);
       if (event.type === 'done' || event.type === 'error') {
-        saveSession(session);
+        persist();
       }
     }
   } catch (e) {
     send({ type: 'error', sessionId: opts.sessionId, message: (e as Error).message });
   } finally {
     abortControllers.delete(opts.sessionId);
-    saveSession(session);
+    persist();
   }
 
   // Keep the linked spec.md in sync with the conversation (best-effort).
-  if (session.specLinked) {
+  if (session.specLinked && !incognito) {
     buildSpec(opts.sessionId).catch(() => {});
   }
 }

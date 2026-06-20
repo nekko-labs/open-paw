@@ -9,7 +9,7 @@ import {
   writeFileSync,
 } from 'fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'path';
-import type { ToolCall, ToolResult, AppSettings } from '@open-paw/shared';
+import type { ToolCall, ToolResult, AppSettings, ChatMode } from '@open-paw/shared';
 import { classifyCommand } from '@open-paw/core';
 
 const execAsync = promisify(exec);
@@ -23,6 +23,13 @@ export interface ToolHostOptions {
    * wires this to the renderer's approval prompt.
    */
   requestApproval: (call: ToolCall, reason: string, severity: 'low' | 'medium' | 'high') => Promise<boolean>;
+  /** Per-chat tool-execution policy (defaults to guardrails). */
+  mode?: ChatMode;
+}
+
+/** Whether a mutating tool needs an up-front confirm in this mode. */
+function asksEverything(opts: ToolHostOptions): boolean {
+  return opts.mode === 'ask' || opts.settings.sandboxMode === 'ask-everything';
 }
 
 /** Roots the workspace-jail sandbox confines file access to. */
@@ -68,6 +75,9 @@ export async function executeTool(call: ToolCall, opts: ToolHostOptions): Promis
       case 'write_file': {
         const p = resolvePath(a.path, opts);
         assertInJail(p, opts);
+        if (asksEverything(opts)) {
+          if (!(await opts.requestApproval(call, `Write ${p}`, 'medium'))) return err(call, 'Write not approved by user.');
+        }
         mkdirSync(dirname(p), { recursive: true });
         writeFileSync(p, String(a.content ?? ''), 'utf8');
         return ok(call, `Wrote ${p} (${String(a.content ?? '').length} bytes)`);
@@ -76,6 +86,9 @@ export async function executeTool(call: ToolCall, opts: ToolHostOptions): Promis
         const p = resolvePath(a.path, opts);
         assertInJail(p, opts);
         if (!existsSync(p)) return err(call, `File not found: ${p}`);
+        if (asksEverything(opts)) {
+          if (!(await opts.requestApproval(call, `Edit ${p}`, 'medium'))) return err(call, 'Edit not approved by user.');
+        }
         const cur = readFileSync(p, 'utf8');
         const count = cur.split(a.old_string).length - 1;
         if (count === 0) return err(call, 'old_string not found in file.');
@@ -104,13 +117,19 @@ export async function executeTool(call: ToolCall, opts: ToolHostOptions): Promis
       }
       case 'bash': {
         const decision = classifyCommand(a.command, opts.settings.guardrails);
+        // A deny guardrail is a hard floor in every mode (even YOLO).
         if (decision.action === 'deny') {
           return err(call, `Blocked by guardrail (${decision.matches.map((m) => m.label).join(', ')}).`);
         }
-        if (decision.action === 'ask' || opts.settings.sandboxMode === 'ask-everything') {
+        // YOLO never prompts; Ask always prompts; Guardrails prompts on ask-rules.
+        const needsApproval =
+          opts.mode === 'yolo'
+            ? false
+            : asksEverything(opts) || decision.action === 'ask';
+        if (needsApproval) {
           const approved = await opts.requestApproval(
             call,
-            decision.matches.map((m) => m.label).join(', ') || 'Command approval',
+            decision.matches.map((m) => m.label).join(', ') || 'Run command',
             decision.severity,
           );
           if (!approved) return err(call, 'Command not approved by user.');

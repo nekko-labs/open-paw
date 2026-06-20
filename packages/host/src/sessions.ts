@@ -67,6 +67,18 @@ export function setSpecLinked(id: string, linked: boolean): Session | null {
   return s;
 }
 
+/** Patch per-chat options (mode, disabled tools, offline, incognito). */
+export function setSessionOptions(
+  id: string,
+  patch: Partial<Pick<Session, 'mode' | 'disabledTools' | 'offline' | 'incognito'>>,
+): Session | null {
+  const s = getSession(id);
+  if (!s) return null;
+  Object.assign(s, patch);
+  saveSession(s);
+  return s;
+}
+
 export function createSession(workspaceId?: string): Session {
   const now = Date.now();
   const s: Session = {

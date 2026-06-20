@@ -36,6 +36,8 @@ export interface AppSettings {
   autoUpdatePrompted?: boolean;
   /** UI language (BCP-47-ish code, e.g. "en", "es"). Undefined = follow system. */
   language?: string;
+  /** Default tool-execution policy for new chats. */
+  defaultChatMode?: import('./chat.js').ChatMode;
 }
 
 /** One usage event appended to a JSONL log for analytics. */

@@ -43,6 +43,8 @@ export const IpcChannels = {
   specBuild: 'spec:build',
   specSetLinked: 'spec:setLinked',
   specPath: 'spec:path',
+  sessionSetOptions: 'session:setOptions',
+  toolsList: 'tools:list',
 
   // Transport-local (handled by Electron main / web-client, not the host dispatcher)
   dialogOpenFiles: 'dialog:openFiles',
@@ -126,6 +128,11 @@ export interface NekkoApi {
   buildSpec(sessionId: string): Promise<{ ok: boolean; path?: string; message?: string }>;
   setSpecLinked(sessionId: string, linked: boolean): Promise<Session | null>;
   specPath(sessionId: string): Promise<string | null>;
+  setSessionOptions(
+    id: string,
+    patch: Partial<Pick<Session, 'mode' | 'disabledTools' | 'offline' | 'incognito'>>,
+  ): Promise<Session | null>;
+  listTools(): Promise<Array<{ name: string; description: string }>>;
 
   /** Open a native file picker (desktop) → chosen paths; browser → prompt. */
   openFilesDialog(): Promise<string[]>;
