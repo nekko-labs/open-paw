@@ -97,8 +97,13 @@ export const useStore = create<UiState>((set, get) => ({
     const providers = await window.nekko.listProviders();
     set({ providers });
     const active = get().activeProviderId ?? providers[0]?.id ?? null;
-    if (active && active !== get().activeProviderId) await get().selectProvider(active);
-    else if (active) set({ activeProviderId: active });
+    if (active) {
+      set({ activeProviderId: active });
+      // Always populate models for the active provider on startup — guards a
+      // race where a saved default provider is already active and would
+      // otherwise never have its model list fetched.
+      if (get().models.length === 0) await get().selectProvider(active);
+    }
   },
 
   selectProvider: async (id) => {
