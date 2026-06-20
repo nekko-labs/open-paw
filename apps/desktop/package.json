@@ -3,7 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "description": "Nekko Paw desktop app.",
-  "author": "ermish",
+  "author": {
+    "name": "Nekko Labs",
+    "email": "support@nekkopaw.com"
+  },
   "homepage": "https://github.com/nekko-labs/nekko-paw",
   "main": "./out/main/index.js",
   "scripts": {
