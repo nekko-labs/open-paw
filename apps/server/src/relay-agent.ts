@@ -1,68 +1,13 @@
-import { createHost, createDispatcher } from '@nekko/host';
-import { IpcEvents, deriveKey, seal, open } from '@nekko/shared';
+import { createHost, connectRelayAgent } from '@nekko/host';
 
 /**
- * Relay-agent mode: instead of serving HTTP locally, dial OUT to a relay and
- * answer requests for one room. This is how a phone / Nekko Cloud reaches the
- * model + tools running on this machine — no inbound ports. Uses the global
- * WebSocket (Node 21+). Reconnects on drop.
+ * Relay-agent mode for the server CLI: create a host and expose it over a relay
+ * (the heavy lifting lives in @nekko/host's connectRelayAgent, shared with the
+ * desktop's in-app "remote access" feature).
  */
 export async function runRelayAgent(opts: { relayUrl: string; room: string; key: string; dataDir: string }): Promise<void> {
   const host = createHost({ dataDir: opts.dataDir });
-  const dispatch = createDispatcher(host);
-  // E2E key shared with paired clients; the relay only sees ciphertext.
-  const e2eKey = await deriveKey(opts.key, opts.room);
-
-  const url =
-    `${opts.relayUrl.replace(/\/$/, '')}/relay?role=agent` +
-    `&room=${encodeURIComponent(opts.room)}&key=${encodeURIComponent(opts.key)}`;
-  let ws: WebSocket | null = null;
-
-  const sendSealed = async (obj: unknown) => {
-    try {
-      ws?.send(JSON.stringify({ enc: await seal(e2eKey, obj) }));
-    } catch {
-      /* closing */
-    }
-  };
-
-  // Stream host events (encrypted) to whoever is connected through the relay.
-  host.events.on('agentEvent', (e) => sendSealed({ type: 'event', channel: IpcEvents.agentEvent, payload: e }));
-  host.events.on('indexProgress', (s) => sendSealed({ type: 'event', channel: IpcEvents.indexProgress, payload: s }));
-
-  const connect = () => {
-    ws = new WebSocket(url);
-    ws.onopen = () => console.log(`[relay-agent] connected to room "${opts.room}"`);
-    ws.onmessage = async (ev) => {
-      let envelope: any;
-      try {
-        envelope = JSON.parse(typeof ev.data === 'string' ? ev.data : ev.data.toString());
-      } catch {
-        return;
-      }
-      if (!envelope.enc) return; // ignore non-encrypted (relay control) frames
-      let frame: any;
-      try {
-        frame = await open(e2eKey, envelope.enc);
-      } catch {
-        return; // wrong key / tampered
-      }
-      if (frame.type !== 'req') return;
-      try {
-        const result = await dispatch(frame.channel, frame.args ?? []);
-        await sendSealed({ type: 'res', id: frame.id, result: result ?? null });
-      } catch (e) {
-        await sendSealed({ type: 'res', id: frame.id, error: (e as Error).message });
-      }
-    };
-    ws.onclose = () => {
-      console.log('[relay-agent] disconnected; retrying in 2s');
-      setTimeout(connect, 2000);
-    };
-    ws.onerror = () => ws?.close();
-  };
-  connect();
-
+  connectRelayAgent(host, { relayUrl: opts.relayUrl, room: opts.room, key: opts.key });
   console.log(`\n🐾 Nekko relay-agent → ${opts.relayUrl}`);
   console.log(`   pair a client with:  room=${opts.room}  key=${opts.key}`);
   console.log(`   serving this machine's model + tools to paired clients (data: ${opts.dataDir})\n`);

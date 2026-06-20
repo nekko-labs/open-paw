@@ -60,6 +60,10 @@ export const IpcChannels = {
 
   usageSummary: 'usage:summary',
 
+  remoteEnable: 'remote:enable',
+  remoteDisable: 'remote:disable',
+  remoteStatus: 'remote:status',
+
   dialogOpenFolder: 'dialog:openFolder',
 } as const;
 
@@ -120,6 +124,10 @@ export interface NekkoApi {
   saveGuardrail(rule: GuardrailRule): Promise<GuardrailRule[]>;
 
   getUsageSummary(): Promise<UsageSummary>;
+
+  enableRemote(relayUrl: string): Promise<import('./remote.js').RemoteStatus>;
+  disableRemote(): Promise<import('./remote.js').RemoteStatus>;
+  getRemoteStatus(): Promise<import('./remote.js').RemoteStatus>;
 
   onAgentEvent(cb: (e: AgentEvent) => void): () => void;
   onIndexProgress(cb: (s: IndexStatus) => void): () => void;

@@ -190,6 +190,10 @@ function makeWebClient(): NekkoApi {
 
     getUsageSummary: () => call(IpcChannels.usageSummary),
 
+    enableRemote: (relayUrl) => call(IpcChannels.remoteEnable, relayUrl),
+    disableRemote: () => call(IpcChannels.remoteDisable),
+    getRemoteStatus: () => call(IpcChannels.remoteStatus),
+
     onAgentEvent: (cb) => {
       agentCbs.add(cb);
       return () => agentCbs.delete(cb);

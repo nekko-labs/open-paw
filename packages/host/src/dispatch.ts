@@ -60,6 +60,10 @@ export function createDispatcher(host: Host): (channel: string, args: any[]) => 
 
     [C.guardrailsClassify]: ([cmd]) => host.classifyCommand(cmd),
     [C.usageSummary]: () => host.usageSummary(),
+
+    [C.remoteEnable]: ([relayUrl]) => host.enableRemote(relayUrl),
+    [C.remoteDisable]: () => host.disableRemote(),
+    [C.remoteStatus]: () => host.remoteStatus(),
   };
 
   return (channel, args) => {

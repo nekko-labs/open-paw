@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import type { AppSettings, GuardrailRule, GuardrailAction, SandboxMode, ThemeMode } from '@nekko/shared';
 import { useStore } from '../store.js';
 import { ShieldIcon, SunIcon } from '../icons.js';
+import { RemoteAccess } from '../components/RemoteAccess.js';
 
 const SANDBOX_OPTS: Array<{ value: SandboxMode; label: string; desc: string }> = [
   { value: 'workspace-jail', label: 'Workspace jail', desc: 'File access is confined to your added folders.' },
@@ -72,6 +73,9 @@ export function SettingsView() {
             ))}
           </div>
         </section>
+
+        {/* Remote access (relay) */}
+        <RemoteAccess />
 
         {/* Guardrails */}
         <section className="card mt-5 p-5">

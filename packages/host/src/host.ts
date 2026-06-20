@@ -18,6 +18,7 @@ import type {
   ConnectorResource,
   GuardrailDecision,
   UsageSummary,
+  RemoteStatus,
 } from '@nekko/shared';
 import {
   createProvider,
@@ -33,6 +34,8 @@ import * as memory from './memory.js';
 import { usageSummary } from './usage.js';
 import { indexWorkspace, getIndexStatus, searchWorkspace, listIndexedFiles } from './workspace.js';
 import { sendChat, abortChat, resolveApproval, previewContext, setContextPrefs } from './chat.js';
+import { connectRelayAgent, type RelayAgentHandle } from './relay.js';
+import { randomUUID } from 'crypto';
 
 /**
  * The transport-agnostic host. `createHost()` returns an object implementing the
@@ -93,6 +96,11 @@ export interface Host {
 
   classifyCommand(command: string): GuardrailDecision;
   usageSummary(): UsageSummary;
+
+  /** Expose this machine over a relay so a remote client can reach it. */
+  enableRemote(relayUrl: string): RemoteStatus;
+  disableRemote(): RemoteStatus;
+  remoteStatus(): RemoteStatus;
 }
 
 export function createHost(opts: { dataDir: string }): Host {
@@ -102,7 +110,9 @@ export function createHost(opts: { dataDir: string }): Host {
 
   const findProvider = (id: string) => getSettings().providers.find((p) => p.id === id);
 
-  return {
+  let remote: { handle: RelayAgentHandle; status: RemoteStatus } | null = null;
+
+  const host: Host = {
     events,
     dataDir,
 
@@ -226,5 +236,23 @@ export function createHost(opts: { dataDir: string }): Host {
 
     classifyCommand: (command) => classifyCommand(command, getSettings().guardrails),
     usageSummary,
+
+    enableRemote: (relayUrl) => {
+      if (remote) remote.handle.stop();
+      const room = randomUUID().slice(0, 6);
+      const key = randomUUID().replace(/-/g, '').slice(0, 16);
+      const handle = connectRelayAgent(host, { relayUrl, room, key });
+      remote = { handle, status: { enabled: true, relayUrl, room, key } };
+      return remote.status;
+    },
+    disableRemote: () => {
+      if (remote) {
+        remote.handle.stop();
+        remote = null;
+      }
+      return { enabled: false };
+    },
+    remoteStatus: () => (remote ? remote.status : { enabled: false }),
   };
+  return host;
 }

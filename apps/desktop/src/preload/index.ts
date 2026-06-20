@@ -73,6 +73,10 @@ const api: NekkoApi = {
 
   getUsageSummary: () => inv(IpcChannels.usageSummary),
 
+  enableRemote: (relayUrl) => inv(IpcChannels.remoteEnable, relayUrl),
+  disableRemote: () => inv(IpcChannels.remoteDisable),
+  getRemoteStatus: () => inv(IpcChannels.remoteStatus),
+
   onAgentEvent: (cb: (e: AgentEvent) => void) => {
     const listener = (_: unknown, e: AgentEvent) => cb(e);
     ipcRenderer.on(IpcEvents.agentEvent, listener);
