@@ -15,6 +15,38 @@ import { getSession, saveSession } from './sessions.js';
 import { executeTool } from './tools.js';
 import { recordUsage } from './usage.js';
 import { listMemory } from './memory.js';
+import { searchWorkspace } from './workspace.js';
+
+/**
+ * Retrieve code snippets from the session's workspace index relevant to the
+ * query, so the model gets grounding without having to grep first. Keyword
+ * tokens are searched, hits grouped per file, and the top few files included.
+ */
+function collectIndexSnippets(
+  workspaceId: string | undefined,
+  query: string,
+): Array<{ relPath: string; path: string; body: string }> {
+  if (!workspaceId || !query.trim()) return [];
+  const folder = getSettings().workspaces.find((w) => w.id === workspaceId);
+  if (!folder) return [];
+
+  const tokens = Array.from(new Set(query.toLowerCase().match(/[a-z0-9_]{4,}/g) ?? [])).slice(0, 6);
+  if (tokens.length === 0) return [];
+
+  const byFile = new Map<string, { path: string; lines: string[] }>();
+  for (const token of tokens) {
+    for (const hit of searchWorkspace(folder, token)) {
+      const entry = byFile.get(hit.relPath) ?? { path: hit.path, lines: [] };
+      if (entry.lines.length < 8) entry.lines.push(`${hit.line}: ${hit.text}`);
+      byFile.set(hit.relPath, entry);
+    }
+  }
+
+  return [...byFile.entries()]
+    .sort((a, b) => b[1].lines.length - a[1].lines.length)
+    .slice(0, 4)
+    .map(([relPath, v]) => ({ relPath, path: v.path, body: v.lines.join('\n') }));
+}
 
 type Sender = (event: AgentEvent) => void;
 
@@ -143,7 +175,7 @@ export async function sendChat(opts: SendOptions, send: Sender): Promise<void> {
       ...(session.workspaceId ? listMemory('workspace', session.workspaceId) : []),
     ],
     connectorSnippets: await collectConnectorSnippets(opts.text),
-    indexSnippets: [],
+    indexSnippets: collectIndexSnippets(session.workspaceId, opts.text),
     excluded: new Set(session.contextPrefs?.excluded ?? []),
     pinned: new Set(session.contextPrefs?.pinned ?? []),
   });

@@ -99,9 +99,14 @@ export const useStore = create<UiState>((set, get) => ({
     const models = await window.nekko.listModels(id);
     set({ models });
     if (models[0] && !models.some((m) => m.id === get().activeModelId)) set({ activeModelId: models[0].id });
+    // Remember as the default for new chats and next launch.
+    window.nekko.updateSettings({ defaultProviderId: id, defaultModelId: get().activeModelId ?? undefined });
   },
 
-  selectModel: (id) => set({ activeModelId: id }),
+  selectModel: (id) => {
+    set({ activeModelId: id });
+    window.nekko.updateSettings({ defaultProviderId: get().activeProviderId ?? undefined, defaultModelId: id });
+  },
 
   toggleContextPanel: () => set((s) => ({ contextPanelOpen: !s.contextPanelOpen })),
 

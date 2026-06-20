@@ -1,11 +1,12 @@
 import { app, BrowserWindow, shell } from 'electron';
 import { join } from 'path';
 import { registerIpc } from './ipc.js';
+import { loadWindowBounds, saveWindowBounds } from './windowState.js';
 
 function createWindow(): void {
+  const bounds = loadWindowBounds();
   const win = new BrowserWindow({
-    width: 1280,
-    height: 840,
+    ...bounds,
     minWidth: 900,
     minHeight: 600,
     show: false,
@@ -20,6 +21,19 @@ function createWindow(): void {
   });
 
   win.on('ready-to-show', () => win.show());
+
+  // Persist size/position (debounced) so the window reopens where it was.
+  let saveTimer: NodeJS.Timeout | undefined;
+  const persist = () => {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+      if (win.isDestroyed() || win.isMinimized()) return;
+      const b = win.getBounds();
+      saveWindowBounds(b);
+    }, 400);
+  };
+  win.on('resize', persist);
+  win.on('move', persist);
 
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
