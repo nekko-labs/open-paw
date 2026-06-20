@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 const baseUrl = process.argv[2] || 'http://10.5.0.2:1338';
 const model = process.argv[3] || 'google/gemma-4-31b-qat';
 const ROOM = 'itest-room';
+const PAIR_KEY = 'secret123';
 const RELAY_PORT = 4455;
 
 const dataDir = mkdtempSync(join(tmpdir(), 'nekko-relay-'));
@@ -41,6 +42,7 @@ procs.push(
       ...process.env,
       NEKKO_RELAY_URL: `ws://127.0.0.1:${RELAY_PORT}`,
       NEKKO_ROOM: ROOM,
+      NEKKO_PAIR_KEY: PAIR_KEY,
       NEKKO_DATA_DIR: dataDir,
     },
     stdio: 'ignore',
@@ -48,8 +50,17 @@ procs.push(
 );
 await sleep(1200);
 
-// 3. remote client through the relay
-const ws = new WebSocket(`ws://127.0.0.1:${RELAY_PORT}/relay?role=client&room=${ROOM}`);
+// 3a. a client with the WRONG key must be rejected
+const wrongKeyRejected = await new Promise((resolve) => {
+  const bad = new WebSocket(`ws://127.0.0.1:${RELAY_PORT}/relay?role=client&room=${ROOM}&key=nope`);
+  bad.onclose = () => resolve(true);
+  bad.onopen = () => bad.send(JSON.stringify({ type: 'req', id: 0, channel: 'settings:get', args: [] }));
+  setTimeout(() => resolve(false), 3000);
+});
+console.log('wrong-key client rejected:', wrongKeyRejected);
+
+// 3b. remote client with the correct key
+const ws = new WebSocket(`ws://127.0.0.1:${RELAY_PORT}/relay?role=client&room=${ROOM}&key=${PAIR_KEY}`);
 const pending = new Map();
 let nextId = 1;
 const call = (channel, ...args) =>
@@ -79,8 +90,8 @@ try {
   console.log('providers:test →', test);
   const models = await call('models:list', 'lm');
   console.log('models:list →', models.slice(0, 3).map((m) => m.id).join(', '));
-  const pass = test.ok && models.some((m) => m.id === model);
-  console.log(`\n${pass ? 'RELAY PATH PASS ✅' : 'FAIL ❌'} — remote client reached the local model through the relay`);
+  const pass = test.ok && models.some((m) => m.id === model) && wrongKeyRejected;
+  console.log(`\n${pass ? 'RELAY PATH PASS ✅' : 'FAIL ❌'} — paired client reached the local model; wrong key rejected`);
   stop();
   process.exit(pass ? 0 : 1);
 } catch (e) {

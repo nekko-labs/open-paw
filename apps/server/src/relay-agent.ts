@@ -7,11 +7,13 @@ import { IpcEvents } from '@nekko/shared';
  * model + tools running on this machine — no inbound ports. Uses the global
  * WebSocket (Node 21+). Reconnects on drop.
  */
-export function runRelayAgent(opts: { relayUrl: string; room: string; dataDir: string }): void {
+export function runRelayAgent(opts: { relayUrl: string; room: string; key: string; dataDir: string }): void {
   const host = createHost({ dataDir: opts.dataDir });
   const dispatch = createDispatcher(host);
 
-  const url = `${opts.relayUrl.replace(/\/$/, '')}/relay?role=agent&room=${encodeURIComponent(opts.room)}`;
+  const url =
+    `${opts.relayUrl.replace(/\/$/, '')}/relay?role=agent` +
+    `&room=${encodeURIComponent(opts.room)}&key=${encodeURIComponent(opts.key)}`;
   let ws: WebSocket | null = null;
 
   const send = (obj: unknown) => {
@@ -52,6 +54,7 @@ export function runRelayAgent(opts: { relayUrl: string; room: string; dataDir: s
   };
   connect();
 
-  console.log(`\n🐾 Nekko relay-agent for room "${opts.room}" → ${opts.relayUrl}`);
+  console.log(`\n🐾 Nekko relay-agent → ${opts.relayUrl}`);
+  console.log(`   pair a client with:  room=${opts.room}  key=${opts.key}`);
   console.log(`   serving this machine's model + tools to paired clients (data: ${opts.dataDir})\n`);
 }

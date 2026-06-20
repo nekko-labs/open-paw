@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
+import { randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
 import fastifyStatic from '@fastify/static';
 import websocket from '@fastify/websocket';
@@ -30,6 +31,7 @@ async function main() {
     runRelayAgent({
       relayUrl: process.env.NEKKO_RELAY_URL,
       room: process.env.NEKKO_ROOM,
+      key: process.env.NEKKO_PAIR_KEY || randomUUID().slice(0, 8),
       dataDir: DATA_DIR,
     });
     return;
