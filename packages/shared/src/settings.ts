@@ -58,6 +58,8 @@ export interface AppSettings {
   prompts?: PromptTemplate[];
   /** Favorited models as `${providerId}::${modelId}`; sorted to the top. */
   favoriteModels?: string[];
+  /** Configured MCP servers (stdio). */
+  mcpServers?: import('./mcp.js').McpServerConfig[];
 }
 
 /** One usage event appended to a JSONL log for analytics. */

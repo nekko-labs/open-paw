@@ -81,6 +81,7 @@ export const IpcChannels = {
   remoteStatus: 'remote:status',
 
   appInfo: 'app:info',
+  mcpStatus: 'mcp:status',
   // Transport-local update controls (desktop = electron-updater, web = refresh).
   updateCheck: 'update:check',
   updateDownload: 'update:download',
@@ -179,6 +180,8 @@ export interface NekkoApi {
 
   /** Running version + edition. */
   getAppInfo(): Promise<AppInfo>;
+  /** Connect configured MCP servers and return their status + tools. */
+  getMcpStatus(): Promise<import('./mcp.js').McpServerStatus[]>;
   /** Check for a newer version (desktop: GitHub feed; web: server version). */
   checkForUpdates(): Promise<UpdateInfo>;
   /** Download the available update (desktop only; web resolves immediately). */

@@ -77,6 +77,7 @@ export function createDispatcher(host: Host): (channel: string, args: any[]) => 
     [C.remoteStatus]: () => host.remoteStatus(),
 
     [C.appInfo]: () => host.appInfo(),
+    [C.mcpStatus]: () => host.mcpStatus(),
   };
 
   return (channel, args) => {

@@ -94,6 +94,7 @@ const api: NekkoApi = {
   getRemoteStatus: () => inv(IpcChannels.remoteStatus),
 
   getAppInfo: () => inv(IpcChannels.appInfo),
+  getMcpStatus: () => inv(IpcChannels.mcpStatus),
   checkForUpdates: () => inv(IpcChannels.updateCheck),
   downloadUpdate: () => inv(IpcChannels.updateDownload),
   quitAndInstall: () => inv(IpcChannels.updateInstall),

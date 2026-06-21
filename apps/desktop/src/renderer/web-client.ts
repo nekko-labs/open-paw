@@ -220,6 +220,7 @@ function makeWebClient(): NekkoApi {
     // Web edition: "update" = the server got a newer build since this tab
     // loaded; we just suggest a refresh (no installer to run in the browser).
     getAppInfo: () => call(IpcChannels.appInfo) as Promise<AppInfo>,
+    getMcpStatus: () => call(IpcChannels.mcpStatus),
     checkForUpdates: async () => {
       const info = (await call(IpcChannels.appInfo)) as AppInfo;
       if (loadVersion === null) loadVersion = info.version;

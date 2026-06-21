@@ -19,6 +19,7 @@ import { recordUsage } from './usage.js';
 import { listMemory } from './memory.js';
 import { searchWorkspace } from './workspace.js';
 import { buildSpec } from './spec.js';
+import { syncMcp, mcpToolSpecs, isMcpTool, callMcpTool } from './mcp.js';
 
 /**
  * Retrieve code snippets from the session's workspace index relevant to the
@@ -173,8 +174,13 @@ export async function sendChat(opts: SendOptions, send: Sender): Promise<void> {
   const mode = session.mode ?? settings.defaultChatMode ?? 'guardrails';
   const offline = !!session.offline;
   const incognito = !!session.incognito;
-  // Offline disables tool calls entirely; otherwise drop any the user turned off.
-  const tools = offline ? [] : BUILTIN_TOOLS.filter((t) => !(session.disabledTools ?? []).includes(t.name));
+  // Offline disables tool calls entirely; otherwise drop any the user turned off
+  // and add the connected MCP servers' tools.
+  let tools = offline ? [] : BUILTIN_TOOLS.filter((t) => !(session.disabledTools ?? []).includes(t.name));
+  if (!offline && settings.mcpServers?.some((s) => s.enabled)) {
+    await syncMcp(settings.mcpServers);
+    tools = [...tools, ...mcpToolSpecs()];
+  }
   // Persist only when not incognito.
   const persist = () => { if (!incognito) saveSession(session); };
 
@@ -239,12 +245,14 @@ export async function sendChat(opts: SendOptions, send: Sender): Promise<void> {
       history: session.messages,
       tools,
       executeTool: (call) =>
-        executeTool(call, {
-          settings,
-          defaultCwd: settings.workspaces[0]?.path,
-          requestApproval,
-          mode,
-        }),
+        isMcpTool(call.name)
+          ? callMcpTool(call)
+          : executeTool(call, {
+              settings,
+              defaultCwd: settings.workspaces[0]?.path,
+              requestApproval,
+              mode,
+            }),
       temperature: EFFORT_TEMPERATURE[settings.effort ?? 'normal'],
       signal: abort.signal,
     })) {

@@ -20,6 +20,7 @@ import type {
   UsageSummary,
   RemoteStatus,
   AppInfo,
+  McpServerStatus,
 } from '@open-paw/shared';
 import {
   createProvider,
@@ -38,6 +39,7 @@ import { indexWorkspace, getIndexStatus, searchWorkspace, listIndexedFiles } fro
 import { sendChat, abortChat, resolveApproval, previewContext, setContextPrefs } from './chat.js';
 import { buildSpec, specPathForSession } from './spec.js';
 import { connectRelayAgent, type RelayAgentHandle } from './relay.js';
+import { syncMcp, mcpStatus } from './mcp.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -120,6 +122,8 @@ export interface Host {
   disableRemote(): RemoteStatus;
   remoteStatus(): RemoteStatus;
   appInfo(): AppInfo;
+  /** Connect (or reconnect) configured MCP servers and return their status. */
+  mcpStatus(): Promise<McpServerStatus[]>;
 }
 
 export function createHost(opts: { dataDir: string }): Host {
@@ -295,6 +299,11 @@ export function createHost(opts: { dataDir: string }): Host {
     },
     remoteStatus: () => (remote ? remote.status : { enabled: false }),
     appInfo: () => ({ version: process.env.OPENPAW_VERSION ?? '0.0.0', platform: process.platform, edition: 'web' }),
+    mcpStatus: async () => {
+      const configs = getSettings().mcpServers ?? [];
+      await syncMcp(configs);
+      return mcpStatus(configs);
+    },
   };
   return host;
 }

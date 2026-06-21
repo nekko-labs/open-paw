@@ -15,3 +15,4 @@ export * from './settings.js';
 export * from './e2e.js';
 export * from './remote.js';
 export * from './update.js';
+export * from './mcp.js';
