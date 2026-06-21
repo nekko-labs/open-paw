@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { AgentEvent, ChatMessage, Session, ToolCall, ContextBundle, EffortLevel, IndexedFile } from '@open-paw/shared';
+import { estimateCostUSD } from '@open-paw/shared';
 import { useStore } from '../store.js';
 import { Markdown } from '../components/Markdown.js';
 import { ContextInspector } from '../components/ContextInspector.js';
@@ -47,6 +48,7 @@ export function ChatView() {
   const [tps, setTps] = useState(0);
   const [thinking, setThinking] = useState(false);
   const [atFiles, setAtFiles] = useState<IndexedFile[]>([]);
+  const [cost, setCost] = useState(0);
   const [chatQuery, setChatQuery] = useState('');
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
@@ -60,6 +62,15 @@ export function ChatView() {
     else setCtx(null);
   };
   useEffect(() => refreshCtx(activeSessionId), [activeSessionId, sessions]);
+
+  // Per-chat estimated cost from recorded usage + the session's model.
+  useEffect(() => {
+    if (!activeSessionId) { setCost(0); return; }
+    window.nekko.getUsageSummary().then((u) => {
+      const s = u.bySession[activeSessionId];
+      setCost(s ? estimateCostUSD(session?.modelId, s.input, s.output) : 0);
+    }).catch(() => setCost(0));
+  }, [activeSessionId, session?.modelId, session?.messages.length]);
 
   // Load the active session's transcript; reflect its workspace in the header.
   useEffect(() => {
@@ -475,7 +486,7 @@ export function ChatView() {
 
         {approval && <ApprovalBar approval={approval} onDecide={approve} />}
 
-        <ChatMetrics bundle={ctx} tps={tps} thinking={thinking} streaming={streaming} />
+        <ChatMetrics bundle={ctx} tps={tps} thinking={thinking} streaming={streaming} cost={cost} />
 
         <div className="border-t border-line px-4 pb-1 pt-3">
           <ChatControls

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { ProviderConfig, Session, UsageSummary } from '@open-paw/shared';
 import type { RemoteStatus } from '@open-paw/shared';
+import { estimateCostUSD, formatUSD } from '@open-paw/shared';
 import { useStore } from '../store.js';
 import { Markdown } from '../components/Markdown.js';
 import { ChatIcon, FolderIcon, ServerIcon, PlusIcon, CheckIcon } from '../icons.js';
@@ -50,11 +51,14 @@ export function CommandCenterView() {
     setView('chat');
   };
 
+  const totalCost = usage
+    ? Object.entries(usage.byModel).reduce((sum, [model, v]) => sum + estimateCostUSD(model, v.input, v.output), 0)
+    : 0;
   const stats = [
     { label: 'Projects', value: settings?.workspaces.length ?? 0 },
     { label: 'Chats', value: sessions.length },
-    { label: 'Providers', value: providers.length },
     { label: 'Tokens today', value: tokensToday.toLocaleString() },
+    { label: 'Cost (est.)', value: formatUSD(totalCost) },
   ];
 
   return (
@@ -319,9 +323,12 @@ function UsagePanel({ usage }: { usage: UsageSummary | null }) {
       {Object.keys(usage.byModel).length > 0 && (
         <div className="mt-4 space-y-1">
           {Object.entries(usage.byModel).map(([model, v]) => (
-            <div key={model} className="flex justify-between text-[12px]">
+            <div key={model} className="flex justify-between gap-3 text-[12px]">
               <span className="truncate font-mono text-ink-soft">{model}</span>
-              <span className="text-ink-faint">{(v.input + v.output).toLocaleString()} tok</span>
+              <span className="shrink-0 text-ink-faint">
+                {(v.input + v.output).toLocaleString()} tok
+                <span className="ml-2 text-ink">{formatUSD(estimateCostUSD(model, v.input, v.output))}</span>
+              </span>
             </div>
           ))}
         </div>

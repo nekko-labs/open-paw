@@ -77,6 +77,40 @@ export interface UsageSummary {
   totalOutput: number;
   byModel: Record<string, { input: number; output: number }>;
   byProvider: Record<string, { input: number; output: number }>;
+  /** Per-session token totals (keyed by sessionId) for per-chat cost. */
+  bySession: Record<string, { input: number; output: number }>;
   /** Daily buckets (YYYY-MM-DD → tokens) for the chart. */
   daily: Array<{ date: string; input: number; output: number }>;
+}
+
+/**
+ * Rough public list prices (USD per 1M tokens), matched by substring of the
+ * model id. Local models / unknown ids → $0. Estimates only — always labelled.
+ */
+export const MODEL_PRICING: Array<{ match: string; input: number; output: number }> = [
+  { match: 'opus', input: 15, output: 75 },
+  { match: 'sonnet', input: 3, output: 15 },
+  { match: 'haiku', input: 0.8, output: 4 },
+  { match: 'gpt-4o-mini', input: 0.15, output: 0.6 },
+  { match: 'gpt-4o', input: 2.5, output: 10 },
+  { match: 'gpt-4.1', input: 2, output: 8 },
+  { match: 'o3', input: 2, output: 8 },
+  { match: 'o1', input: 15, output: 60 },
+  { match: 'gpt-3.5', input: 0.5, output: 1.5 },
+];
+
+/** Estimated USD cost for a model's token usage (0 for local/unknown models). */
+export function estimateCostUSD(modelId: string | undefined, input: number, output: number): number {
+  if (!modelId) return 0;
+  const id = modelId.toLowerCase();
+  const p = MODEL_PRICING.find((x) => id.includes(x.match));
+  if (!p) return 0;
+  return (input / 1e6) * p.input + (output / 1e6) * p.output;
+}
+
+/** Format a small USD amount for display. */
+export function formatUSD(n: number): string {
+  if (n <= 0) return '$0.00';
+  if (n < 0.01) return `$${n.toFixed(4)}`;
+  return `$${n.toFixed(2)}`;
 }

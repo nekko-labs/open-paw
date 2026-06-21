@@ -19,7 +19,7 @@ export function recordUsage(rec: UsageRecord): void {
 }
 
 export function usageSummary(): UsageSummary {
-  const summary: UsageSummary = { totalInput: 0, totalOutput: 0, byModel: {}, byProvider: {}, daily: [] };
+  const summary: UsageSummary = { totalInput: 0, totalOutput: 0, byModel: {}, byProvider: {}, bySession: {}, daily: [] };
   if (!existsSync(LOG())) return summary;
 
   const dailyMap = new Map<string, { input: number; output: number }>();
@@ -41,6 +41,12 @@ export function usageSummary(): UsageSummary {
     const bp = (summary.byProvider[r.providerId] ??= { input: 0, output: 0 });
     bp.input += r.inputTokens;
     bp.output += r.outputTokens;
+
+    if (r.sessionId) {
+      const bs = (summary.bySession[r.sessionId] ??= { input: 0, output: 0 });
+      bs.input += r.inputTokens;
+      bs.output += r.outputTokens;
+    }
 
     const day = new Date(r.ts).toISOString().slice(0, 10);
     const d = dailyMap.get(day) ?? { input: 0, output: 0 };

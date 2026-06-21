@@ -1,5 +1,6 @@
 import React from 'react';
 import type { ContextBundle, ContextItem, EffortLevel } from '@open-paw/shared';
+import { formatUSD } from '@open-paw/shared';
 import { useStore } from '../store.js';
 
 const SOURCE_LABEL: Record<string, string> = {
@@ -25,11 +26,13 @@ export function ChatMetrics({
   tps,
   thinking,
   streaming,
+  cost,
 }: {
   bundle: ContextBundle | null;
   tps: number;
   thinking: boolean;
   streaming: boolean;
+  cost?: number;
 }) {
   const settings = useStore((s) => s.settings);
   const effort = settings?.effort ?? 'normal';
@@ -101,6 +104,13 @@ export function ChatMetrics({
           />
           thinking {thinking ? 'on' : 'off'}
         </span>
+
+        {cost != null && cost > 0 && (
+          <>
+            <span className="opacity-40">·</span>
+            <span title="Estimated cost of this chat (list prices; local models are free)">{formatUSD(cost)}</span>
+          </>
+        )}
 
         {/* Effort control (pushed right) */}
         <button
