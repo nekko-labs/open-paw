@@ -11,7 +11,8 @@
     "packages/host",
     "apps/desktop",
     "apps/server",
-    "apps/relay"
+    "apps/relay",
+    "apps/cli"
   ],
   "scripts": {
     "build": "npm run build:core && npm run build -w @open-paw/host && npm run build -w @open-paw/desktop",
@@ -21,7 +22,7 @@
     "web": "npm run build:web && npm run start -w @open-paw/server",
     "bundle:web": "npm run build:web && npm run bundle -w @open-paw/server",
     "test": "npm run test -w @open-paw/core",
-    "typecheck": "npm run typecheck -w @open-paw/shared && npm run typecheck -w @open-paw/core && npm run typecheck -w @open-paw/host && npm run typecheck -w @open-paw/desktop && npm run typecheck -w @open-paw/server && npm run typecheck -w @open-paw/relay",
+    "typecheck": "npm run typecheck -w @open-paw/shared && npm run typecheck -w @open-paw/core && npm run typecheck -w @open-paw/host && npm run typecheck -w @open-paw/desktop && npm run typecheck -w @open-paw/server && npm run typecheck -w @open-paw/relay && npm run typecheck -w @open-paw/cli",
     "relay": "npm run build -w @open-paw/relay && npm run start -w @open-paw/relay",
     "dist": "npm run build && npm run dist -w @open-paw/desktop"
   },

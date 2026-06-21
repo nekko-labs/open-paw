@@ -1,0 +1,20 @@
+{
+  "name": "@open-paw/cli",
+  "version": "0.1.4",
+  "private": true,
+  "type": "module",
+  "description": "Open Paw CLI + MCP server — drive your local agent from the terminal or other tools (Claude Code, Codex, …).",
+  "bin": {
+    "opaw": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@open-paw/host": "*",
+    "@open-paw/shared": "*"
+  }
+}
