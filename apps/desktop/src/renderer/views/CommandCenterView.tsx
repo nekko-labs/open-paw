@@ -207,17 +207,34 @@ function KanbanCard({
 
 function WorkersDashboard({ providers, usage }: { providers: ProviderConfig[]; usage: UsageSummary | null }) {
   const [remote, setRemote] = useState<RemoteStatus | null>(null);
+  const [mcp, setMcp] = useState<import('@open-paw/shared').McpServerStatus[]>([]);
   useEffect(() => { window.nekko.getRemoteStatus().then(setRemote).catch(() => setRemote(null)); }, []);
+  useEffect(() => { window.nekko.getMcpStatus().then(setMcp).catch(() => setMcp([])); }, []);
   return (
     <section className="mt-8">
       <h2 className="text-[15px] font-semibold">Background tasks &amp; agents</h2>
-      <p className="mt-0.5 text-[12px] text-ink-faint">Model servers and the remote relay, with live status and usage.</p>
+      <p className="mt-0.5 text-[12px] text-ink-faint">Model servers, MCP servers, and the remote relay, with live status.</p>
       <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
         <RemoteCard remote={remote} />
         {providers.map((p) => (
           <WorkerCard key={p.id} provider={p} tokens={usage?.byProvider[p.id]} />
         ))}
-        {providers.length === 0 && (
+        {mcp.map((m) => (
+          <div key={m.id} className="card p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-base">🔌</span>
+                <span className="text-[13px] font-medium">{m.name}</span>
+                <span className="chip">MCP</span>
+              </div>
+              <StatusPill state={m.connected ? 'online' : 'offline'} />
+            </div>
+            <p className="mt-2 text-[12px] text-ink-faint">
+              {m.connected ? `${m.tools.length} tool${m.tools.length === 1 ? '' : 's'} available` : m.error ?? 'Not connected'}
+            </p>
+          </div>
+        ))}
+        {providers.length === 0 && mcp.length === 0 && (
           <div className="card p-4 text-[12px] text-ink-faint">No model providers yet — add one in Models.</div>
         )}
       </div>
