@@ -132,12 +132,62 @@ export function SettingsView() {
         {/* Guardrails */}
         <GuardrailsSection settings={settings} update={update} updateGuardrail={updateGuardrail} />
 
+        {/* Backup & restore */}
+        <BackupSection settings={settings} onSettings={(s) => { setSettings(s); useStore.setState({ settings: s }); applyTheme(); }} />
+
         {/* Data & privacy */}
         <DataSection onSettings={(s) => { setSettings(s); useStore.setState({ settings: s }); applyTheme(); }} />
 
         <p className="mt-6 text-center text-[11px] text-ink-faint">Open Paw · open source · MIT</p>
       </div>
     </div>
+  );
+}
+
+function BackupSection({ settings, onSettings }: { settings: AppSettings; onSettings: (s: AppSettings) => void }) {
+  const { pushToast, refreshProviders } = useStore();
+
+  const exportSettings = () => {
+    const blob = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'open-paw-settings.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importSettings = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/json,.json';
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      try {
+        const parsed = JSON.parse(await file.text());
+        if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new Error('Not a settings object');
+        if (!window.confirm('Import these settings? This overwrites your current configuration.')) return;
+        const next = await window.nekko.updateSettings(parsed);
+        onSettings(next);
+        await refreshProviders();
+        pushToast('success', 'Settings imported.');
+      } catch (e) {
+        pushToast('error', `Import failed: ${(e as Error).message}`);
+      }
+    };
+    input.click();
+  };
+
+  return (
+    <section className="card mt-5 p-5">
+      <div className="flex items-center gap-2"><SunIcon className="h-4 w-4" /><h2 className="font-semibold">Backup &amp; restore</h2></div>
+      <p className="mt-1 text-[12px] text-ink-faint">Export your configuration (providers, guardrails, prompts, MCP servers…) to a JSON file, or restore it on another machine.</p>
+      <div className="mt-3 flex gap-2">
+        <button className="btn btn-outline py-1.5 text-[12px]" onClick={exportSettings}>Export settings</button>
+        <button className="btn btn-outline py-1.5 text-[12px]" onClick={importSettings}>Import settings…</button>
+      </div>
+    </section>
   );
 }
 
