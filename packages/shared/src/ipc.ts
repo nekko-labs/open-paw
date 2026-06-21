@@ -131,7 +131,7 @@ export interface NekkoApi {
   specPath(sessionId: string): Promise<string | null>;
   setSessionOptions(
     id: string,
-    patch: Partial<Pick<Session, 'mode' | 'disabledTools' | 'offline' | 'incognito'>>,
+    patch: Partial<Pick<Session, 'title' | 'mode' | 'disabledTools' | 'offline' | 'incognito'>>,
   ): Promise<Session | null>;
   truncateSession(id: string, messageId: string): Promise<Session | null>;
   listTools(): Promise<Array<{ name: string; description: string }>>;

@@ -5,7 +5,7 @@ import { Markdown } from '../components/Markdown.js';
 import { ContextInspector } from '../components/ContextInspector.js';
 import { ChatMetrics } from '../components/ChatMetrics.js';
 import { ChatControls } from '../components/ChatControls.js';
-import { SendIcon, PlusIcon, PanelIcon, ShieldIcon, TrashIcon, DownloadIcon } from '../icons.js';
+import { SendIcon, PlusIcon, PanelIcon, ShieldIcon, TrashIcon, DownloadIcon, PencilIcon } from '../icons.js';
 
 const LOCAL_KINDS = ['ollama', 'lmstudio', 'vllm', 'openai-compat'];
 
@@ -47,6 +47,9 @@ export function ChatView() {
   const [tps, setTps] = useState(0);
   const [thinking, setThinking] = useState(false);
   const [atFiles, setAtFiles] = useState<IndexedFile[]>([]);
+  const [chatQuery, setChatQuery] = useState('');
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const turnStart = useRef(0);
@@ -127,6 +130,19 @@ export function ChatView() {
     const s = await window.nekko.createSession(activeWorkspaceId ?? undefined);
     await refreshSessions();
     setActiveSession(s.id);
+  };
+
+  const filteredSessions = chatQuery.trim()
+    ? sessions.filter((s) => s.title.toLowerCase().includes(chatQuery.toLowerCase()))
+    : sessions;
+
+  const commitRename = async (id: string) => {
+    const title = renameDraft.trim();
+    setRenamingId(null);
+    if (title) {
+      await window.nekko.setSessionOptions(id, { title });
+      refreshSessions();
+    }
   };
 
   const beginTurn = () => {
@@ -258,38 +274,70 @@ export function ChatView() {
         className={`${mobileNav ? 'absolute inset-y-0 left-0 z-30 flex' : 'hidden'} w-60 flex-col border-r border-line md:relative md:z-auto md:flex`}
         style={{ background: 'var(--paper)' }}
       >
-        <div className="flex items-center justify-between p-3">
+        <div className="flex items-center justify-between p-3 pb-1.5">
           <span className="text-sm font-semibold">Chats</span>
           <button className="btn btn-ghost px-2 py-1.5" onClick={newChat} title="New chat">
             <PlusIcon />
           </button>
         </div>
+        <div className="px-3 pb-2">
+          <input
+            className="input py-1.5 text-[12px]"
+            placeholder="Search chats…"
+            value={chatQuery}
+            onChange={(e) => setChatQuery(e.target.value)}
+          />
+        </div>
         <div className="flex-1 space-y-1 overflow-y-auto px-2 pb-2">
           {sessions.length === 0 && <p className="px-2 text-[12px] text-ink-faint">No chats yet.</p>}
-          {sessions.map((s) => (
-            <button
+          {filteredSessions.length === 0 && sessions.length > 0 && (
+            <p className="px-2 text-[12px] text-ink-faint">No chats match “{chatQuery}”.</p>
+          )}
+          {filteredSessions.map((s) => (
+            <div
               key={s.id}
-              onClick={() => {
-                setActiveSession(s.id);
-                setMobileNav(false);
-              }}
-              className={`group flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-[13px] ${
+              onClick={() => { setActiveSession(s.id); setMobileNav(false); }}
+              className={`group flex w-full cursor-pointer items-center justify-between gap-1 rounded-xl px-3 py-2 text-left text-[13px] ${
                 s.id === activeSessionId ? 'bg-surface-2 font-medium' : 'text-ink-soft hover:bg-surface-2'
               }`}
             >
-              <span className="truncate">{s.title}</span>
-              <span
-                className="hidden text-ink-faint group-hover:block"
-                onClick={async (ev) => {
-                  ev.stopPropagation();
-                  await window.nekko.deleteSession(s.id);
-                  if (s.id === activeSessionId) setActiveSession(null);
-                  refreshSessions();
-                }}
-              >
-                <TrashIcon className="h-4 w-4" />
+              {renamingId === s.id ? (
+                <input
+                  className="input min-w-0 flex-1 py-0.5 text-[13px]"
+                  value={renameDraft}
+                  autoFocus
+                  onClick={(ev) => ev.stopPropagation()}
+                  onChange={(ev) => setRenameDraft(ev.target.value)}
+                  onKeyDown={(ev) => { if (ev.key === 'Enter') commitRename(s.id); if (ev.key === 'Escape') setRenamingId(null); }}
+                  onBlur={() => commitRename(s.id)}
+                />
+              ) : (
+                <span className="truncate" onDoubleClick={(ev) => { ev.stopPropagation(); setRenamingId(s.id); setRenameDraft(s.title); }}>
+                  {s.title}
+                </span>
+              )}
+              <span className="hidden shrink-0 items-center gap-1 group-hover:flex">
+                <button
+                  className="text-ink-faint hover:text-ink"
+                  title="Rename"
+                  onClick={(ev) => { ev.stopPropagation(); setRenamingId(s.id); setRenameDraft(s.title); }}
+                >
+                  <PencilIcon className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  className="text-ink-faint hover:text-red-400"
+                  title="Delete"
+                  onClick={async (ev) => {
+                    ev.stopPropagation();
+                    await window.nekko.deleteSession(s.id);
+                    if (s.id === activeSessionId) setActiveSession(null);
+                    refreshSessions();
+                  }}
+                >
+                  <TrashIcon className="h-3.5 w-3.5" />
+                </button>
               </span>
-            </button>
+            </div>
           ))}
         </div>
       </aside>

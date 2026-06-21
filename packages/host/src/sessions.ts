@@ -77,10 +77,10 @@ export function truncateSession(id: string, messageId: string): Session | null {
   return s;
 }
 
-/** Patch per-chat options (mode, disabled tools, offline, incognito). */
+/** Patch per-chat options (title, mode, disabled tools, offline, incognito). */
 export function setSessionOptions(
   id: string,
-  patch: Partial<Pick<Session, 'mode' | 'disabledTools' | 'offline' | 'incognito'>>,
+  patch: Partial<Pick<Session, 'title' | 'mode' | 'disabledTools' | 'offline' | 'incognito'>>,
 ): Session | null {
   const s = getSession(id);
   if (!s) return null;

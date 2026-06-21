@@ -87,7 +87,7 @@ export interface Host {
   specPath(sessionId: string): string | null;
   setSessionOptions(
     id: string,
-    patch: Partial<Pick<Session, 'mode' | 'disabledTools' | 'offline' | 'incognito'>>,
+    patch: Partial<Pick<Session, 'title' | 'mode' | 'disabledTools' | 'offline' | 'incognito'>>,
   ): Session | null;
   truncateSession(id: string, messageId: string): Session | null;
   listTools(): Array<{ name: string; description: string }>;
