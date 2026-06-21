@@ -77,10 +77,29 @@ export function truncateSession(id: string, messageId: string): Session | null {
   return s;
 }
 
-/** Patch per-chat options (title, mode, disabled tools, offline, incognito). */
+/** Delete chats within a time window (today / this month / all). Returns count. */
+export function clearSessions(scope: 'today' | 'month' | 'all'): number {
+  let cutoff = 0;
+  if (scope !== 'all') {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    if (scope === 'month') d.setDate(1);
+    cutoff = d.getTime();
+  }
+  let n = 0;
+  for (const s of listSessions()) {
+    if (scope === 'all' || s.updatedAt >= cutoff) {
+      deleteSession(s.id);
+      n++;
+    }
+  }
+  return n;
+}
+
+/** Patch per-chat options (title, pin, mode, disabled tools, offline, incognito). */
 export function setSessionOptions(
   id: string,
-  patch: Partial<Pick<Session, 'title' | 'mode' | 'disabledTools' | 'offline' | 'incognito'>>,
+  patch: Partial<Pick<Session, 'title' | 'pinned' | 'mode' | 'disabledTools' | 'offline' | 'incognito'>>,
 ): Session | null {
   const s = getSession(id);
   if (!s) return null;

@@ -30,10 +30,10 @@ import {
   BUILTIN_TOOLS,
 } from '@open-paw/core';
 import { setDataDir, dataDir } from './paths.js';
-import { getSettings, saveSettings } from './store.js';
+import { getSettings, saveSettings, resetSettings } from './store.js';
 import * as sessions from './sessions.js';
 import * as memory from './memory.js';
-import { usageSummary } from './usage.js';
+import { usageSummary, clearUsage } from './usage.js';
 import { indexWorkspace, getIndexStatus, searchWorkspace, listIndexedFiles } from './workspace.js';
 import { sendChat, abortChat, resolveApproval, previewContext, setContextPrefs } from './chat.js';
 import { buildSpec, specPathForSession } from './spec.js';
@@ -87,9 +87,12 @@ export interface Host {
   specPath(sessionId: string): string | null;
   setSessionOptions(
     id: string,
-    patch: Partial<Pick<Session, 'title' | 'mode' | 'disabledTools' | 'offline' | 'incognito'>>,
+    patch: Partial<Pick<Session, 'title' | 'pinned' | 'mode' | 'disabledTools' | 'offline' | 'incognito'>>,
   ): Session | null;
   truncateSession(id: string, messageId: string): Session | null;
+  clearSessions(scope: 'today' | 'month' | 'all'): number;
+  resetSettings(): AppSettings;
+  wipeAllData(): AppSettings;
   listTools(): Array<{ name: string; description: string }>;
 
   listMemory(scope: MemoryScope, workspaceId?: string): MemoryEntry[];
@@ -204,6 +207,14 @@ export function createHost(opts: { dataDir: string }): Host {
     specPath: specPathForSession,
     setSessionOptions: sessions.setSessionOptions,
     truncateSession: sessions.truncateSession,
+    clearSessions: sessions.clearSessions,
+    resetSettings,
+    wipeAllData: () => {
+      sessions.clearSessions('all');
+      memory.clearMemory();
+      clearUsage();
+      return resetSettings();
+    },
     listTools: () => BUILTIN_TOOLS.map((t) => ({ name: t.name, description: t.description })),
     sendChat: (o) => sendChat(o, (e) => events.emit('agentEvent', e)),
     abortChat,

@@ -5,7 +5,7 @@ import { Markdown } from '../components/Markdown.js';
 import { ContextInspector } from '../components/ContextInspector.js';
 import { ChatMetrics } from '../components/ChatMetrics.js';
 import { ChatControls } from '../components/ChatControls.js';
-import { SendIcon, PlusIcon, PanelIcon, ShieldIcon, TrashIcon, DownloadIcon, PencilIcon } from '../icons.js';
+import { SendIcon, PlusIcon, PanelIcon, ShieldIcon, DownloadIcon, DotsIcon, PinIcon2 } from '../icons.js';
 
 const LOCAL_KINDS = ['ollama', 'lmstudio', 'vllm', 'openai-compat'];
 
@@ -50,6 +50,7 @@ export function ChatView() {
   const [chatQuery, setChatQuery] = useState('');
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
+  const [menuId, setMenuId] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const turnStart = useRef(0);
@@ -132,9 +133,25 @@ export function ChatView() {
     setActiveSession(s.id);
   };
 
-  const filteredSessions = chatQuery.trim()
+  const filteredSessions = (chatQuery.trim()
     ? sessions.filter((s) => s.title.toLowerCase().includes(chatQuery.toLowerCase()))
-    : sessions;
+    : sessions
+  )
+    .slice()
+    .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0)); // pinned first (stable)
+
+  const togglePin = async (s: Session) => {
+    await window.nekko.setSessionOptions(s.id, { pinned: !s.pinned });
+    refreshSessions();
+  };
+
+  // Close the per-chat menu on any outside click.
+  useEffect(() => {
+    if (!menuId) return;
+    const close = () => setMenuId(null);
+    document.addEventListener('click', close);
+    return () => document.removeEventListener('click', close);
+  }, [menuId]);
 
   const commitRename = async (id: string) => {
     const title = renameDraft.trim();
@@ -320,31 +337,41 @@ export function ChatView() {
                   onBlur={() => commitRename(s.id)}
                 />
               ) : (
-                <span className="truncate" onDoubleClick={(ev) => { ev.stopPropagation(); setRenamingId(s.id); setRenameDraft(s.title); }}>
-                  {s.title}
+                <span className="flex min-w-0 items-center gap-1.5 truncate" onDoubleClick={(ev) => { ev.stopPropagation(); setRenamingId(s.id); setRenameDraft(s.title); }}>
+                  {s.pinned && <PinIcon2 className="h-3 w-3 shrink-0 text-accent" />}
+                  <span className="truncate">{s.title}</span>
                 </span>
               )}
-              <span className="hidden shrink-0 items-center gap-1 group-hover:flex">
+              <div className="relative shrink-0">
                 <button
-                  className="text-ink-faint hover:text-ink"
-                  title="Rename"
-                  onClick={(ev) => { ev.stopPropagation(); setRenamingId(s.id); setRenameDraft(s.title); }}
+                  className={`text-ink-faint hover:text-ink ${menuId === s.id ? '' : 'opacity-0 group-hover:opacity-100'}`}
+                  title="More"
+                  onClick={(ev) => { ev.stopPropagation(); setMenuId(menuId === s.id ? null : s.id); }}
                 >
-                  <PencilIcon className="h-3.5 w-3.5" />
+                  <DotsIcon className="h-4 w-4" />
                 </button>
-                <button
-                  className="text-ink-faint hover:text-red-400"
-                  title="Delete"
-                  onClick={async (ev) => {
-                    ev.stopPropagation();
-                    await window.nekko.deleteSession(s.id);
-                    if (s.id === activeSessionId) setActiveSession(null);
-                    refreshSessions();
-                  }}
-                >
-                  <TrashIcon className="h-3.5 w-3.5" />
-                </button>
-              </span>
+                {menuId === s.id && (
+                  <div className="card absolute right-0 top-6 z-50 w-32 p-1 shadow-lg" onClick={(ev) => ev.stopPropagation()}>
+                    <button className="block w-full rounded-md px-2 py-1.5 text-left text-[12px] hover:bg-surface-2" onClick={() => { togglePin(s); setMenuId(null); }}>
+                      {s.pinned ? 'Unpin' : 'Pin'}
+                    </button>
+                    <button className="block w-full rounded-md px-2 py-1.5 text-left text-[12px] hover:bg-surface-2" onClick={() => { setRenamingId(s.id); setRenameDraft(s.title); setMenuId(null); }}>
+                      Rename
+                    </button>
+                    <button
+                      className="block w-full rounded-md px-2 py-1.5 text-left text-[12px] text-red-400 hover:bg-surface-2"
+                      onClick={async () => {
+                        setMenuId(null);
+                        await window.nekko.deleteSession(s.id);
+                        if (s.id === activeSessionId) setActiveSession(null);
+                        refreshSessions();
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           ))}
         </div>

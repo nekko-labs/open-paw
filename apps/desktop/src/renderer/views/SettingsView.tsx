@@ -129,9 +129,86 @@ export function SettingsView() {
         {/* Guardrails */}
         <GuardrailsSection settings={settings} update={update} updateGuardrail={updateGuardrail} />
 
+        {/* Data & privacy */}
+        <DataSection onSettings={(s) => { setSettings(s); useStore.setState({ settings: s }); applyTheme(); }} />
+
         <p className="mt-6 text-center text-[11px] text-ink-faint">Open Paw · open source · MIT</p>
       </div>
     </div>
+  );
+}
+
+function DataSection({ onSettings }: { onSettings: (s: AppSettings) => void }) {
+  const { refreshSessions, refreshProviders, pushToast } = useStore();
+  const [busy, setBusy] = useState(false);
+
+  const clear = async (scope: 'today' | 'month' | 'all', label: string) => {
+    if (!window.confirm(`Delete ${label}? This can't be undone.`)) return;
+    setBusy(true);
+    const n = await window.nekko.clearSessions(scope);
+    await refreshSessions();
+    useStore.setState({ activeSessionId: null });
+    setBusy(false);
+    pushToast('success', `Deleted ${n} chat${n === 1 ? '' : 's'}.`);
+  };
+
+  const reset = async () => {
+    if (!window.confirm('Reset all settings to defaults? Your providers and preferences will be cleared (chats are kept).')) return;
+    setBusy(true);
+    const s = await window.nekko.resetSettings();
+    onSettings(s);
+    await refreshProviders();
+    setBusy(false);
+    pushToast('success', 'Settings reset to defaults.');
+  };
+
+  const wipe = async () => {
+    if (!window.confirm('Delete EVERYTHING — all chats, settings, memory, and usage? This cannot be undone.')) return;
+    if (!window.confirm('Are you absolutely sure? This wipes all Open Paw data.')) return;
+    setBusy(true);
+    const s = await window.nekko.wipeAllData();
+    onSettings(s);
+    await refreshSessions();
+    await refreshProviders();
+    useStore.setState({ activeSessionId: null });
+    setBusy(false);
+    pushToast('success', 'All data deleted.');
+  };
+
+  return (
+    <section className="card mt-5 p-5" style={{ borderColor: 'color-mix(in srgb, #e0574a 35%, var(--line))' }}>
+      <div className="flex items-center gap-2"><ShieldIcon className="h-4 w-4" /><h2 className="font-semibold">Data &amp; privacy</h2></div>
+      <p className="mt-1 text-[12px] text-ink-faint">Everything stays on your machine. Clean it up here whenever you want.</p>
+
+      <div className="mt-3 flex min-h-[36px] flex-wrap items-center justify-between gap-2">
+        <span className="text-[13px]">Delete chats</span>
+        <div className="flex flex-wrap gap-2">
+          <button className="btn btn-outline py-1.5 text-[12px]" disabled={busy} onClick={() => clear('today', "today's chats")}>Today</button>
+          <button className="btn btn-outline py-1.5 text-[12px]" disabled={busy} onClick={() => clear('month', "this month's chats")}>This month</button>
+          <button className="btn btn-outline py-1.5 text-[12px]" disabled={busy} onClick={() => clear('all', 'all chats')}>All chats</button>
+        </div>
+      </div>
+
+      <div className="mt-2 flex min-h-[36px] items-center justify-between gap-2">
+        <span className="text-[13px]">Reset settings to defaults</span>
+        <button className="btn btn-outline py-1.5 text-[12px]" disabled={busy} onClick={reset}>Reset configs</button>
+      </div>
+
+      <div className="mt-2 flex min-h-[36px] items-center justify-between gap-2">
+        <div>
+          <span className="text-[13px]">Delete everything</span>
+          <p className="text-[11px] text-ink-faint">Chats, settings, memory, and usage analytics.</p>
+        </div>
+        <button
+          className="btn py-1.5 text-[12px] !text-white"
+          style={{ background: '#e0574a' }}
+          disabled={busy}
+          onClick={wipe}
+        >
+          Delete everything
+        </button>
+      </div>
+    </section>
   );
 }
 

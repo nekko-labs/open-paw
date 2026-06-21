@@ -61,9 +61,14 @@ export interface Session {
   offline?: boolean;
   /** Incognito: don't persist the transcript or touch memory. */
   incognito?: boolean;
+  /** Pinned to the top of the chat list. */
+  pinned?: boolean;
   createdAt: number;
   updatedAt: number;
 }
+
+/** Time window for bulk chat deletion. */
+export type ChatClearScope = 'today' | 'month' | 'all';
 
 /** Streaming events emitted by the agent loop. */
 export type AgentEvent =
