@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { AppInfo, AppSettings, ChatMode, GuardrailRule, GuardrailAction, SandboxMode, ThemeMode, UpdateInfo } from '@open-paw/shared';
 import { useStore } from '../store.js';
-import { ShieldIcon, SunIcon } from '../icons.js';
+import { ShieldIcon, SunIcon, TrashIcon } from '../icons.js';
 import { RemoteAccess } from '../components/RemoteAccess.js';
 import { useT, LANGUAGES } from '../i18n.js';
 
@@ -120,6 +120,9 @@ export function SettingsView() {
           </div>
         </section>
 
+        {/* Slash commands / prompt library */}
+        <PromptsSection settings={settings} update={update} />
+
         {/* Remote access (relay) */}
         <RemoteAccess />
 
@@ -129,6 +132,51 @@ export function SettingsView() {
         <p className="mt-6 text-center text-[11px] text-ink-faint">Open Paw · open source · MIT</p>
       </div>
     </div>
+  );
+}
+
+function PromptsSection({ settings, update }: { settings: AppSettings; update: (patch: Partial<AppSettings>) => void }) {
+  const prompts = settings.prompts ?? [];
+  const setPrompts = (next: typeof prompts) => update({ prompts: next });
+  const add = () =>
+    setPrompts([...prompts, { id: `p_${Date.now().toString(36)}`, name: 'new', body: '' }]);
+  const edit = (id: string, patch: Partial<{ name: string; body: string }>) =>
+    setPrompts(prompts.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+  const remove = (id: string) => setPrompts(prompts.filter((p) => p.id !== id));
+
+  return (
+    <section className="card mt-5 p-5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2"><SunIcon className="h-4 w-4" /><h2 className="font-semibold">Slash commands</h2></div>
+        <button className="btn btn-outline py-1 text-[12px]" onClick={add}>+ Add</button>
+      </div>
+      <p className="mt-1 text-[12px] text-ink-faint">Reusable prompts. Type <code>/name</code> in the composer to insert one.</p>
+      <div className="mt-3 space-y-2">
+        {prompts.length === 0 && <p className="text-[12px] text-ink-faint">No prompts yet.</p>}
+        {prompts.map((p) => (
+          <div key={p.id} className="card p-3">
+            <div className="flex items-center gap-2">
+              <span className="text-[12px] text-ink-faint">/</span>
+              <input
+                className="input py-1 text-[12.5px]"
+                style={{ maxWidth: 180 }}
+                value={p.name}
+                onChange={(e) => edit(p.id, { name: e.target.value.replace(/\s+/g, '-') })}
+              />
+              <button className="btn btn-ghost px-2 py-1" title="Delete" onClick={() => remove(p.id)}>
+                <TrashIcon className="h-4 w-4" />
+              </button>
+            </div>
+            <textarea
+              className="input mt-2 min-h-[56px] resize-none text-[12.5px]"
+              value={p.body}
+              placeholder="Prompt text inserted when you pick this command…"
+              onChange={(e) => edit(p.id, { body: e.target.value })}
+            />
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 

@@ -47,6 +47,7 @@ export function ChatView() {
   const [tps, setTps] = useState(0);
   const [thinking, setThinking] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
   const turnStart = useRef(0);
 
   const refreshCtx = (sid: string | null) => {
@@ -210,6 +211,10 @@ export function ChatView() {
   };
 
   const hasProvider = providers.length > 0;
+  // Slash-command palette: when the draft is just `/query` (no newline yet).
+  const slashQuery = draft.startsWith('/') && !draft.includes('\n') ? draft.slice(1).toLowerCase() : null;
+  const slashMatches =
+    slashQuery !== null ? (settings?.prompts ?? []).filter((p) => p.name.toLowerCase().includes(slashQuery)) : [];
   const lastMsg = session?.messages[session.messages.length - 1];
   const canRegenerate = !streaming && !!session?.messages.some((m) => m.role === 'assistant') && lastMsg?.role !== 'user';
 
@@ -371,17 +376,36 @@ export function ChatView() {
         </div>
 
         <div className="px-4 pb-4">
-          <div className="mx-auto flex w-full max-w-3xl items-end gap-2">
+          <div className="relative mx-auto flex w-full max-w-3xl items-end gap-2">
+            {slashMatches.length > 0 && (
+              <div className="card absolute bottom-full left-0 z-40 mb-2 w-full max-w-md overflow-hidden p-1.5 shadow-lg">
+                <div className="px-2 py-1 text-[10px] uppercase tracking-wide text-ink-faint">Slash commands</div>
+                {slashMatches.map((p) => (
+                  <button
+                    key={p.id}
+                    className="flex w-full flex-col rounded-lg px-2.5 py-1.5 text-left hover:bg-surface-2"
+                    onClick={() => { setDraft(p.body); composerRef.current?.focus(); }}
+                  >
+                    <span className="font-mono text-[12.5px] text-accent">/{p.name}</span>
+                    <span className="truncate text-[11px] text-ink-faint">{p.body}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             <textarea
+              ref={composerRef}
               className="input max-h-40 min-h-[44px] resize-none"
               rows={1}
-              placeholder={hasProvider ? 'Message Nekko… (it can read, write, and run code)' : 'Add a model provider in Models first'}
+              placeholder={hasProvider ? 'Message Nekko…  (type / for prompts)' : 'Add a model provider in Models first'}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
+                  if (slashMatches.length === 1) { setDraft(slashMatches[0].body); return; }
                   send();
+                } else if (e.key === 'Escape' && slashMatches.length) {
+                  setDraft('');
                 }
               }}
               disabled={!hasProvider}

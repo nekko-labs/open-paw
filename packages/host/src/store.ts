@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import type { AppSettings } from '@open-paw/shared';
+import { DEFAULT_PROMPTS } from '@open-paw/shared';
 import { DEFAULT_GUARDRAILS } from '@open-paw/core';
 import { dataDir } from './paths.js';
 
@@ -18,6 +19,7 @@ function defaults(): AppSettings {
     workspaces: [],
     connectors: [],
     mascotEnabled: true,
+    prompts: DEFAULT_PROMPTS,
   };
 }
 

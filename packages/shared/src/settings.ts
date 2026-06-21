@@ -7,6 +7,22 @@ import type { ConnectorConfig } from './connectors.js';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 
+/** A reusable prompt, invokable from the composer as `/name`. */
+export interface PromptTemplate {
+  id: string;
+  name: string;
+  body: string;
+}
+
+/** Built-in slash commands seeded for new installs. */
+export const DEFAULT_PROMPTS: PromptTemplate[] = [
+  { id: 'explain', name: 'explain', body: 'Explain how this code works, step by step.' },
+  { id: 'review', name: 'review', body: 'Review this code for bugs, edge cases, and possible improvements.' },
+  { id: 'test', name: 'test', body: 'Write tests for this code, covering the important edge cases.' },
+  { id: 'fix', name: 'fix', body: 'Find and fix the bug. Explain the root cause and the fix.' },
+  { id: 'refactor', name: 'refactor', body: 'Refactor this for clarity and simplicity without changing behavior.' },
+];
+
 /** Sampling effort — maps to temperature in the chat request. */
 export type EffortLevel = 'low' | 'normal' | 'high';
 
@@ -38,6 +54,8 @@ export interface AppSettings {
   language?: string;
   /** Default tool-execution policy for new chats. */
   defaultChatMode?: import('./chat.js').ChatMode;
+  /** Reusable prompts invokable as `/name` in the composer. */
+  prompts?: PromptTemplate[];
 }
 
 /** One usage event appended to a JSONL log for analytics. */
