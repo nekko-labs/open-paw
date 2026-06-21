@@ -260,6 +260,14 @@ export function ChatView() {
     composerRef.current?.focus();
   };
 
+  // Favorited models sort to the top of the picker (★).
+  const favoriteModels = new Set(settings?.favoriteModels ?? []);
+  const sortedModels = [...models].sort((a, b) => {
+    const fa = favoriteModels.has(`${activeProviderId}::${a.id}`) ? 0 : 1;
+    const fb = favoriteModels.has(`${activeProviderId}::${b.id}`) ? 0 : 1;
+    return fa - fb;
+  });
+
   const lastMsg = session?.messages[session.messages.length - 1];
   const canRegenerate = !streaming && !!session?.messages.some((m) => m.role === 'assistant') && lastMsg?.role !== 'user';
 
@@ -372,9 +380,9 @@ export function ChatView() {
               onChange={(e) => selectModel(e.target.value)}
             >
               {models.length === 0 && <option value="">No models</option>}
-              {models.map((m) => (
+              {sortedModels.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.name}
+                  {favoriteModels.has(`${activeProviderId}::${m.id}`) ? '★ ' : ''}{m.name}
                 </option>
               ))}
             </select>

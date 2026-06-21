@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import type { ModelInfo, ProviderConfig, ProviderKind } from '@open-paw/shared';
 import { PROVIDER_DEFAULTS } from '@open-paw/shared';
 import { useStore } from '../store.js';
-import { PlusIcon, TrashIcon, CheckIcon } from '../icons.js';
+import { PlusIcon, TrashIcon, CheckIcon, StarIcon } from '../icons.js';
 
 const KINDS: ProviderKind[] = ['ollama', 'lmstudio', 'vllm', 'anthropic', 'openai', 'openrouter', 'openai-compat'];
 const LOCAL_KINDS: ProviderKind[] = ['ollama', 'lmstudio', 'vllm', 'openai-compat'];
@@ -206,9 +206,19 @@ function AddProvider({ onDone }: { onDone: () => void }) {
 }
 
 function ProviderCard({ provider, onChanged }: { provider: ProviderConfig; onChanged: () => void }) {
+  const settings = useStore((s) => s.settings);
+  const refreshSettings = useStore((s) => s.refreshSettings);
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [conn, setConn] = useState<{ state: 'unknown' | 'testing' | 'ok' | 'fail'; message?: string }>({ state: 'unknown' });
   const [pullName, setPullName] = useState('');
+
+  const isFavorite = (key: string) => (settings?.favoriteModels ?? []).includes(key);
+  const toggleFavorite = async (key: string) => {
+    const set = new Set(settings?.favoriteModels ?? []);
+    set.has(key) ? set.delete(key) : set.add(key);
+    await window.nekko.updateSettings({ favoriteModels: [...set] });
+    refreshSettings();
+  };
 
   const load = async () => {
     setModels(await window.nekko.listModels(provider.id));
@@ -278,7 +288,16 @@ function ProviderCard({ provider, onChanged }: { provider: ProviderConfig; onCha
         {models.length === 0 && <p className="text-[12px] text-ink-faint">No models found.</p>}
         {models.map((m) => (
           <div key={m.id} className="flex items-center justify-between rounded-lg px-2 py-1.5 text-[12.5px]" style={{ background: 'var(--surface-2)' }}>
-            <span className="truncate font-mono">{m.name}</span>
+            <div className="flex min-w-0 items-center gap-1.5">
+              <button
+                title={isFavorite(`${provider.id}::${m.id}`) ? 'Unfavorite' : 'Favorite (pin to top of the model picker)'}
+                className={isFavorite(`${provider.id}::${m.id}`) ? 'text-accent' : 'text-ink-faint hover:text-ink'}
+                onClick={() => toggleFavorite(`${provider.id}::${m.id}`)}
+              >
+                <StarIcon className="h-3.5 w-3.5" filled={isFavorite(`${provider.id}::${m.id}`)} />
+              </button>
+              <span className="truncate font-mono">{m.name}</span>
+            </div>
             <div className="flex items-center gap-2">
               {m.sizeBytes && <span className="text-[10px] text-ink-faint">{(m.sizeBytes / 1e9).toFixed(1)} GB</span>}
               {isOllama && (

@@ -56,6 +56,8 @@ export interface AppSettings {
   defaultChatMode?: import('./chat.js').ChatMode;
   /** Reusable prompts invokable as `/name` in the composer. */
   prompts?: PromptTemplate[];
+  /** Favorited models as `${providerId}::${modelId}`; sorted to the top. */
+  favoriteModels?: string[];
 }
 
 /** One usage event appended to a JSONL log for analytics. */
