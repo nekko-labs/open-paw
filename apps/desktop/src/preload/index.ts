@@ -52,6 +52,9 @@ const api: NekkoApi = {
   specPath: (sessionId) => inv(IpcChannels.specPath, sessionId),
   setSessionOptions: (id, patch) => inv(IpcChannels.sessionSetOptions, id, patch),
   truncateSession: (id, messageId) => inv(IpcChannels.sessionTruncate, id, messageId),
+  clearSessions: (scope) => inv(IpcChannels.sessionsClear, scope),
+  resetSettings: () => inv(IpcChannels.settingsReset),
+  wipeAllData: () => inv(IpcChannels.dataWipe),
   listTools: () => inv(IpcChannels.toolsList),
 
   openFilesDialog: () => inv(IpcChannels.dialogOpenFiles),

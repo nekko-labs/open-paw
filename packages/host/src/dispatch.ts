@@ -46,6 +46,9 @@ export function createDispatcher(host: Host): (channel: string, args: any[]) => 
     [C.specPath]: ([sid]) => host.specPath(sid),
     [C.sessionSetOptions]: ([sid, patch]) => host.setSessionOptions(sid, patch),
     [C.sessionTruncate]: ([sid, mid]) => host.truncateSession(sid, mid),
+    [C.sessionsClear]: ([scope]) => host.clearSessions(scope),
+    [C.settingsReset]: () => host.resetSettings(),
+    [C.dataWipe]: () => host.wipeAllData(),
     [C.toolsList]: () => host.listTools(),
 
     [C.memoryList]: ([scope, wid]) => host.listMemory(scope, wid),

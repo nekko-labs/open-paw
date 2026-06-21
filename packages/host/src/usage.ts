@@ -1,9 +1,14 @@
-import { appendFileSync, existsSync, readFileSync } from 'fs';
+import { appendFileSync, existsSync, readFileSync, rmSync } from 'fs';
 import { join } from 'path';
 import type { UsageRecord, UsageSummary } from '@open-paw/shared';
 import { dataDir } from './store.js';
 
 const LOG = () => join(dataDir(), 'usage.jsonl');
+
+/** Delete the usage analytics log. */
+export function clearUsage(): void {
+  if (existsSync(LOG())) rmSync(LOG());
+}
 
 export function recordUsage(rec: UsageRecord): void {
   try {

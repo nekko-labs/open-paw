@@ -34,3 +34,10 @@ export function deleteMemory(id: string): void {
   const p = join(memDir(), `${id}.md`);
   if (existsSync(p)) rmSync(p);
 }
+
+/** Delete every memory note (global + per-workspace). */
+export function clearMemory(): void {
+  for (const f of readdirSync(memDir())) {
+    if (f.endsWith('.md')) rmSync(join(memDir(), f));
+  }
+}

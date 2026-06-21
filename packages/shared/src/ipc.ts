@@ -45,6 +45,9 @@ export const IpcChannels = {
   specPath: 'spec:path',
   sessionSetOptions: 'session:setOptions',
   sessionTruncate: 'session:truncate',
+  sessionsClear: 'sessions:clear',
+  settingsReset: 'settings:reset',
+  dataWipe: 'data:wipe',
   toolsList: 'tools:list',
 
   // Transport-local (handled by Electron main / web-client, not the host dispatcher)
@@ -131,9 +134,15 @@ export interface NekkoApi {
   specPath(sessionId: string): Promise<string | null>;
   setSessionOptions(
     id: string,
-    patch: Partial<Pick<Session, 'title' | 'mode' | 'disabledTools' | 'offline' | 'incognito'>>,
+    patch: Partial<Pick<Session, 'title' | 'pinned' | 'mode' | 'disabledTools' | 'offline' | 'incognito'>>,
   ): Promise<Session | null>;
   truncateSession(id: string, messageId: string): Promise<Session | null>;
+  /** Delete chats within a window; returns how many were removed. */
+  clearSessions(scope: import('./chat.js').ChatClearScope): Promise<number>;
+  /** Reset all settings to defaults (keeps chats). */
+  resetSettings(): Promise<AppSettings>;
+  /** Delete everything: chats, settings, memory, and usage. */
+  wipeAllData(): Promise<AppSettings>;
   listTools(): Promise<Array<{ name: string; description: string }>>;
 
   /** Open a native file picker (desktop) → chosen paths; browser → prompt. */

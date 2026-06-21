@@ -47,3 +47,10 @@ export function saveSettings(patch: Partial<AppSettings>): AppSettings {
   writeFileSync(SETTINGS_PATH(), JSON.stringify(cache, null, 2), 'utf8');
   return cache;
 }
+
+/** Reset all settings (theme, providers, guardrails, prompts, …) to defaults. */
+export function resetSettings(): AppSettings {
+  cache = defaults();
+  writeFileSync(SETTINGS_PATH(), JSON.stringify(cache, null, 2), 'utf8');
+  return cache;
+}
