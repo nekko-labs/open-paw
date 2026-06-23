@@ -146,8 +146,23 @@ The core engine is Electron-free so it can be tested in isolation and reused.
 npm install
 npm run build:core   # build shared + core
 npm test             # vitest (guardrails, context, outline)
-npm run dev          # launch the desktop app (electron-vite)
+npm run dev          # launch the desktop app with hot reload (electron-vite)
 ```
+
+### Test your changes locally (no installer, no Defender)
+
+After making changes, run **one** command to build and launch the real app for
+your current OS — no need to download the released installer:
+
+```bash
+npm run local        # build everything + launch the built desktop app (Windows/macOS)
+npm run web          # build + serve the web edition at http://localhost:4317
+```
+
+`npm run local` builds the production renderer/main and runs it via
+`electron-vite preview` (no `electron-builder`, so it sidesteps the MSI/Defender
+step). Run it on each OS to test that OS's build; `npm run web` covers the
+browser. For a tight loop, `npm run dev` has hot reload.
 
 Build installers:
 
