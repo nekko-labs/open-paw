@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { getHost, resolveModel, runChat, dataDir } from './lib.js';
+import { getClient, resolveModel, runChat, dataDir } from './lib.js';
 import { runMcpServer } from './mcp.js';
 
 const VERSION = '0.1.4';
@@ -24,11 +24,16 @@ function parseFlags(argv: string[]): { _: string[]; flags: Record<string, string
 const HELP = `Open Paw CLI (opaw ${VERSION}) — drive your local agent from the terminal.
 
 Usage:
-  opaw status                       Show providers, model, workspaces, sessions
-  opaw sessions                     List chat sessions
+  opaw status [--json]              Show providers, model, workspaces, sessions
+  opaw sessions [--json]            List chat sessions
   opaw chat "<prompt>" [opts]       Run an agent turn (streams the reply)
   opaw mcp                          Start the MCP server (stdio) for other tools
   opaw --help | --version
+
+Target (any command):
+  --url <http://host:port>          Talk to a running server (else OPENPAW_URL,
+                                    else the local data dir)
+  --token <token>                   Bearer token for a secured server (OPENPAW_TOKEN)
 
 chat options:
   --session <id>     Continue an existing session (default: newest, or new)
@@ -37,7 +42,7 @@ chat options:
   --provider <id>    Provider override
   --model <id>       Model override
 
-Data dir: ${dataDir()}  (override with OPENPAW_DATA_DIR)`;
+Local data dir: ${dataDir()}  (override with OPENPAW_DATA_DIR)`;
 
 async function main() {
   const { _, flags } = parseFlags(process.argv.slice(2));
@@ -46,24 +51,35 @@ async function main() {
   if (flags.version || cmd === 'version') return void console.log(VERSION);
   if (!cmd || flags.help || cmd === 'help') return void console.log(HELP);
 
-  if (cmd === 'mcp') return runMcpServer();
+  if (cmd === 'mcp') return runMcpServer({ url: flags.url as string, token: flags.token as string });
 
-  const h = getHost();
+  const json = !!flags.json;
+  const client = getClient({ url: flags.url as string, token: flags.token as string });
 
   if (cmd === 'status') {
-    const s = h.getSettings();
-    console.log(`Open Paw — ${dataDir()}`);
+    const [s, sessions, remote] = await Promise.all([client.getSettings(), client.listSessions(), client.remoteStatus()]);
+    if (json) {
+      console.log(JSON.stringify({
+        providers: s.providers.map((p) => ({ id: p.id, label: p.label, kind: p.kind })),
+        defaultModel: s.defaultModelId ?? null,
+        workspaces: s.workspaces.map((w) => ({ id: w.id, name: w.name })),
+        sessions: sessions.length,
+        remote,
+      }, null, 2));
+      return;
+    }
+    console.log(`Open Paw — ${flags.url || process.env.OPENPAW_URL || dataDir()}`);
     console.log(`Providers: ${s.providers.map((p) => `${p.label} (${p.id})`).join(', ') || 'none'}`);
     console.log(`Default model: ${s.defaultModelId ?? '—'}`);
     console.log(`Workspaces: ${s.workspaces.map((w) => w.name).join(', ') || 'none'}`);
-    console.log(`Sessions: ${h.listSessions().length}`);
-    const r = h.remoteStatus();
-    console.log(`Remote relay: ${r.enabled ? 'enabled' : 'off'}`);
+    console.log(`Sessions: ${sessions.length}`);
+    console.log(`Remote relay: ${remote.enabled ? 'enabled' : 'off'}`);
     return;
   }
 
   if (cmd === 'sessions') {
-    const list = h.listSessions();
+    const list = await client.listSessions();
+    if (json) return void console.log(JSON.stringify(list.map((s) => ({ id: s.id, title: s.title, messages: s.messages.length, updatedAt: s.updatedAt })), null, 2));
     if (!list.length) return void console.log('No sessions yet.');
     for (const s of list) {
       console.log(`${s.id}  ${new Date(s.updatedAt).toISOString().slice(0, 16).replace('T', ' ')}  ${s.messages.length}msg  ${s.title}`);
@@ -75,20 +91,19 @@ async function main() {
     const text = _[1];
     if (!text) throw new Error('Usage: opaw chat "<prompt>"');
     let sessionId = flags.session as string | undefined;
-    if (flags.new || !sessionId) {
-      if (!sessionId) sessionId = flags.new ? undefined : h.listSessions()[0]?.id;
-      if (!sessionId) sessionId = h.createSession(flags.workspace as string | undefined).id;
-    }
-    const session = h.getSession(sessionId);
+    if (!sessionId && !flags.new) sessionId = (await client.listSessions())[0]?.id;
+    if (!sessionId) sessionId = (await client.createSession(flags.workspace as string | undefined)).id;
+    const session = await client.getSession(sessionId);
     if (!session) throw new Error(`Session ${sessionId} not found`);
-    const { providerId, modelId } = resolveModel(h, {
+    const settings = await client.getSettings();
+    const { providerId, modelId } = resolveModel(settings, {
       provider: flags.provider as string,
       model: flags.model as string,
       sessionProvider: session.providerId,
       sessionModel: session.modelId,
     });
     process.stderr.write(`· session ${sessionId} · ${modelId}\n`);
-    await runChat(h, { sessionId, providerId, modelId, text, onText: (t) => process.stdout.write(t) });
+    await runChat(client, { sessionId, providerId, modelId, text, onText: (t) => process.stdout.write(t) });
     process.stdout.write('\n');
     return;
   }

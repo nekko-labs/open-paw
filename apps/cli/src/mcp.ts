@@ -1,5 +1,4 @@
-import type { Host } from '@open-paw/host';
-import { getHost, resolveModel, runChat } from './lib.js';
+import { getClient, resolveModel, runChat, type Client } from './lib.js';
 
 /**
  * MCP stdio server exposing Open Paw to other tools (Claude Code, Codex, …).
@@ -50,32 +49,33 @@ const TOOLS = [
   },
 ];
 
-async function callTool(h: Host, name: string, args: Record<string, any>): Promise<string> {
+async function callTool(client: Client, name: string, args: Record<string, any>): Promise<string> {
   switch (name) {
     case 'open_paw_chat': {
       let sessionId = args.sessionId as string | undefined;
-      if (!sessionId) sessionId = h.createSession(args.workspaceId).id;
-      const session = h.getSession(sessionId);
+      if (!sessionId) sessionId = (await client.createSession(args.workspaceId)).id;
+      const session = await client.getSession(sessionId);
       if (!session) throw new Error(`Session ${sessionId} not found`);
-      const { providerId, modelId } = resolveModel(h, {
+      const settings = await client.getSettings();
+      const { providerId, modelId } = resolveModel(settings, {
         provider: args.provider,
         model: args.model,
         sessionProvider: session.providerId,
         sessionModel: session.modelId,
       });
-      const reply = await runChat(h, { sessionId, providerId, modelId, text: String(args.prompt ?? '') });
+      const reply = await runChat(client, { sessionId, providerId, modelId, text: String(args.prompt ?? '') });
       return `session: ${sessionId}\n\n${reply}`;
     }
     case 'open_paw_list_sessions':
       return JSON.stringify(
-        h.listSessions().map((s) => ({ id: s.id, title: s.title, messages: s.messages.length, updatedAt: s.updatedAt })),
+        (await client.listSessions()).map((s) => ({ id: s.id, title: s.title, messages: s.messages.length, updatedAt: s.updatedAt })),
         null,
         2,
       );
     case 'open_paw_new_session':
-      return `Created session ${h.createSession(args.workspaceId).id}`;
+      return `Created session ${(await client.createSession(args.workspaceId)).id}`;
     case 'open_paw_get_session': {
-      const s = h.getSession(String(args.sessionId));
+      const s = await client.getSession(String(args.sessionId));
       if (!s) throw new Error('Session not found');
       return s.messages
         .filter((m) => m.role === 'user' || m.role === 'assistant')
@@ -83,14 +83,14 @@ async function callTool(h: Host, name: string, args: Record<string, any>): Promi
         .join('\n\n');
     }
     case 'open_paw_status': {
-      const s = h.getSettings();
+      const [s, sessions, remote] = await Promise.all([client.getSettings(), client.listSessions(), client.remoteStatus()]);
       return JSON.stringify(
         {
           providers: s.providers.map((p) => ({ id: p.id, label: p.label, kind: p.kind })),
           defaultModel: s.defaultModelId ?? null,
           workspaces: s.workspaces.map((w) => ({ id: w.id, name: w.name, path: w.path })),
-          sessions: h.listSessions().length,
-          remote: h.remoteStatus(),
+          sessions: sessions.length,
+          remote,
         },
         null,
         2,
@@ -101,10 +101,10 @@ async function callTool(h: Host, name: string, args: Record<string, any>): Promi
   }
 }
 
-export function runMcpServer(): void {
+export function runMcpServer(opts: { url?: string; token?: string } = {}): void {
   // Protect the stdout protocol stream: route any stray logs to stderr.
   console.log = (...a: unknown[]) => console.error(...a);
-  const h = getHost();
+  const client = getClient(opts);
   let buffer = '';
 
   const send = (msg: unknown) => process.stdout.write(JSON.stringify(msg) + '\n');
@@ -141,7 +141,7 @@ export function runMcpServer(): void {
       ok(id, { tools: TOOLS });
     } else if (method === 'tools/call') {
       try {
-        const text = await callTool(h, params?.name, params?.arguments ?? {});
+        const text = await callTool(client, params?.name, params?.arguments ?? {});
         ok(id, { content: [{ type: 'text', text }] });
       } catch (e) {
         ok(id, { content: [{ type: 'text', text: `Error: ${(e as Error).message}` }], isError: true });
