@@ -1,6 +1,6 @@
 {
   "name": "@open-paw/cli",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
   "type": "module",
   "description": "Open Paw CLI + MCP server — drive your local agent from the terminal or other tools (Claude Code, Codex, …).",

@@ -1,6 +1,6 @@
 {
   "name": "open-paw",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
   "description": "Local-first AI coding & cowork desktop app with first-class local model support.",
   "license": "MIT",
