@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import type { ContextBundle, ContextItem } from '@open-paw/shared';
 import { PinIcon, FolderIcon, FileIcon, PlusIcon, TrashIcon, ExternalIcon } from '../icons.js';
 import { useStore } from '../store.js';
+import { SpecPanel } from './SpecPanel.js';
 
 const SOURCE_LABEL: Record<ContextItem['source'], string> = {
   'attached-file': 'File',
@@ -39,13 +40,10 @@ export function ContextInspector({ sessionId }: { sessionId: string | null }) {
   const sessions = useStore((s) => s.sessions);
   const refreshSettings = useStore((s) => s.refreshSettings);
   const refreshSessions = useStore((s) => s.refreshSessions);
-  const pushToast = useStore((s) => s.pushToast);
 
   const [bundle, setBundle] = useState<ContextBundle | null>(null);
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
   const [pinned, setPinned] = useState<Set<string>>(new Set());
-  const [specPath, setSpecPath] = useState<string | null>(null);
-  const [building, setBuilding] = useState(false);
 
   const session = sessions.find((s) => s.id === sessionId) ?? null;
   const workspaces = settings?.workspaces ?? [];
@@ -63,11 +61,9 @@ export function ContextInspector({ sessionId }: { sessionId: string | null }) {
   useEffect(() => {
     if (!sessionId) {
       setBundle(null);
-      setSpecPath(null);
       return;
     }
     refreshBundle();
-    window.nekko.specPath(sessionId).then(setSpecPath);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, attached.length, session?.workspaceId]);
 
@@ -135,22 +131,6 @@ export function ContextInspector({ sessionId }: { sessionId: string | null }) {
   };
   const open = (target: string) => window.nekko.openPath(target);
 
-  const buildSpec = async () => {
-    setBuilding(true);
-    const res = await window.nekko.buildSpec(sessionId);
-    setBuilding(false);
-    if (res.ok) {
-      pushToast('success', 'spec.md updated from this chat.');
-      window.nekko.specPath(sessionId).then(setSpecPath);
-    } else {
-      pushToast('error', res.message ?? 'Could not build spec.');
-    }
-  };
-  const toggleSpecLinked = async () => {
-    await window.nekko.setSpecLinked(sessionId, !session?.specLinked);
-    await refreshSessions();
-  };
-
   const visible = (bundle?.items ?? []).map((i) => ({
     ...i,
     included: !excluded.has(i.id),
@@ -214,33 +194,8 @@ export function ContextInspector({ sessionId }: { sessionId: string | null }) {
           ))}
         </Section>
 
-        {/* Sources: spec.md */}
-        <Section title="Spec">
-          {specPath ? (
-            <Row
-              active
-              icon={<FileIcon className="h-3.5 w-3.5" />}
-              title="spec.md"
-              subtitle={specPath}
-              badge={session?.specLinked ? 'live' : undefined}
-              onClick={() => open(specPath)}
-            />
-          ) : (
-            <Hint>Build a living spec.md from this conversation.</Hint>
-          )}
-          <div className="mt-2 flex items-center gap-2">
-            <button className="btn btn-outline flex-1 text-[12px]" onClick={buildSpec} disabled={building}>
-              {building ? 'Building…' : specPath ? 'Rebuild from chat' : 'Build from chat'}
-            </button>
-            <button
-              className={`btn text-[12px] ${session?.specLinked ? 'btn-primary' : 'btn-outline'}`}
-              title="Keep spec.md updated after every turn"
-              onClick={toggleSpecLinked}
-            >
-              {session?.specLinked ? '● Live' : '○ Live'}
-            </button>
-          </div>
-        </Section>
+        {/* Spec-driven development */}
+        <SpecPanel sessionId={sessionId} session={session} />
 
         {/* Sources: guidelines & memory */}
         {(guidelineItems.length > 0 || memoryCount > 0) && (

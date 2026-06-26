@@ -59,6 +59,8 @@ export interface Session {
   attachedPaths?: string[];
   /** When set, the chat keeps a spec.md in the workspace updated each turn. */
   specLinked?: boolean;
+  /** Spec-driven methodology id for this chat (see SPEC_METHODOLOGIES). */
+  specMethodology?: string;
   /** Tool-execution policy for this chat. */
   mode?: ChatMode;
   /** Tool names the user disabled for this chat (subset of the builtins). */

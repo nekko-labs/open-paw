@@ -6,6 +6,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["-y", "http-server", "apps/website", "-p", "4599", "-c-1"],
       "port": 4599
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "start", "-w", "@open-paw/server"],
+      "port": 4317
     }
   ]
 }

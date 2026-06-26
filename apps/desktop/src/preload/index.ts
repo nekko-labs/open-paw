@@ -56,6 +56,10 @@ const api: NekkoApi = {
   setContextPrefs: (sessionId, prefs) => inv(IpcChannels.contextSetPrefs, sessionId, prefs),
 
   buildSpec: (sessionId) => inv(IpcChannels.specBuild, sessionId),
+  buildSpecDoc: (sessionId, docId) => inv(IpcChannels.specBuildDoc, sessionId, docId),
+  readSpecDocs: (sessionId) => inv(IpcChannels.specReadDocs, sessionId),
+  setSpecMethodology: (sessionId, methodologyId) => inv(IpcChannels.specSetMethodology, sessionId, methodologyId),
+  toggleSpecTask: (sessionId, lineIndex) => inv(IpcChannels.specToggleTask, sessionId, lineIndex),
   setSpecLinked: (sessionId, linked) => inv(IpcChannels.specSetLinked, sessionId, linked),
   specPath: (sessionId) => inv(IpcChannels.specPath, sessionId),
   setSessionOptions: (id, patch) => inv(IpcChannels.sessionSetOptions, id, patch),

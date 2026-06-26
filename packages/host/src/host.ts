@@ -21,6 +21,7 @@ import type {
   RemoteStatus,
   AppInfo,
   McpServerStatus,
+  SpecDocStatus,
   TerminalInfo,
   TerminalSnapshot,
 } from '@open-paw/shared';
@@ -39,7 +40,7 @@ import * as memory from './memory.js';
 import { usageSummary, clearUsage } from './usage.js';
 import { indexWorkspace, getIndexStatus, searchWorkspace, listIndexedFiles } from './workspace.js';
 import { sendChat, abortChat, resolveApproval, previewContext, setContextPrefs } from './chat.js';
-import { buildSpec, specPathForSession } from './spec.js';
+import { buildSpec, buildSpecDoc, readSpecDocs, setSpecMethodology, toggleSpecTask, specPathForSession } from './spec.js';
 import { connectRelayAgent, type RelayAgentHandle } from './relay.js';
 import { syncMcp, mcpStatus, mcpToolList } from './mcp.js';
 import {
@@ -103,6 +104,10 @@ export interface Host {
   setContextPrefs(sessionId: string, prefs: { excluded: string[]; pinned: string[] }): void;
 
   buildSpec(sessionId: string): Promise<{ ok: boolean; path?: string; message?: string }>;
+  buildSpecDoc(sessionId: string, docId?: string): Promise<{ ok: boolean; path?: string; docId?: string; message?: string }>;
+  readSpecDocs(sessionId: string): { methodologyId: string; docs: SpecDocStatus[] };
+  setSpecMethodology(sessionId: string, methodologyId: string): void;
+  toggleSpecTask(sessionId: string, lineIndex: number): { ok: boolean; message?: string };
   setSpecLinked(sessionId: string, linked: boolean): Session | null;
   specPath(sessionId: string): string | null;
   setSessionOptions(
@@ -227,6 +232,10 @@ export function createHost(opts: { dataDir: string }): Host {
     setSessionWorkspace: sessions.setSessionWorkspace,
     setSessionAttachments: sessions.setSessionAttachments,
     buildSpec,
+    buildSpecDoc,
+    readSpecDocs,
+    setSpecMethodology,
+    toggleSpecTask,
     setSpecLinked: sessions.setSpecLinked,
     specPath: specPathForSession,
     setSessionOptions: sessions.setSessionOptions,

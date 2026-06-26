@@ -60,6 +60,8 @@ export interface AppSettings {
   favoriteModels?: string[];
   /** Configured MCP servers (stdio). */
   mcpServers?: import('./mcp.js').McpServerConfig[];
+  /** Default spec-driven methodology id for new chats (see SPEC_METHODOLOGIES). */
+  specMethodology?: string;
 }
 
 /** One usage event appended to a JSONL log for analytics. */

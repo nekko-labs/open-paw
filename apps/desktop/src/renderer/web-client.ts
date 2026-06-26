@@ -191,6 +191,10 @@ function makeWebClient(): NekkoApi {
     setContextPrefs: (sessionId, prefs) => call(IpcChannels.contextSetPrefs, sessionId, prefs),
 
     buildSpec: (sessionId) => call(IpcChannels.specBuild, sessionId),
+    buildSpecDoc: (sessionId, docId) => call(IpcChannels.specBuildDoc, sessionId, docId),
+    readSpecDocs: (sessionId) => call(IpcChannels.specReadDocs, sessionId),
+    setSpecMethodology: (sessionId, methodologyId) => call(IpcChannels.specSetMethodology, sessionId, methodologyId),
+    toggleSpecTask: (sessionId, lineIndex) => call(IpcChannels.specToggleTask, sessionId, lineIndex),
     setSpecLinked: (sessionId, linked) => call(IpcChannels.specSetLinked, sessionId, linked),
     specPath: (sessionId) => call(IpcChannels.specPath, sessionId),
     setSessionOptions: (id, patch) => call(IpcChannels.sessionSetOptions, id, patch),

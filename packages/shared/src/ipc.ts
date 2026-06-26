@@ -49,6 +49,10 @@ export const IpcChannels = {
   contextSetPrefs: 'context:setPrefs',
   sessionSetAttachments: 'session:setAttachments',
   specBuild: 'spec:build',
+  specBuildDoc: 'spec:buildDoc',
+  specReadDocs: 'spec:readDocs',
+  specSetMethodology: 'spec:setMethodology',
+  specToggleTask: 'spec:toggleTask',
   specSetLinked: 'spec:setLinked',
   specPath: 'spec:path',
   sessionSetOptions: 'session:setOptions',
@@ -151,8 +155,16 @@ export interface NekkoApi {
   toggleContextItem(sessionId: string, itemId: string, included: boolean, pinned: boolean): Promise<ContextBundle>;
   setContextPrefs(sessionId: string, prefs: import('./chat.js').ContextPrefs): Promise<void>;
 
-  /** Build/refresh a spec.md in the chat's workspace from the conversation. */
+  /** Build/refresh the primary spec doc in the chat's workspace from the conversation. */
   buildSpec(sessionId: string): Promise<{ ok: boolean; path?: string; message?: string }>;
+  /** Build/refresh one artifact (by id) of the chat's spec methodology. */
+  buildSpecDoc(sessionId: string, docId?: string): Promise<{ ok: boolean; path?: string; docId?: string; message?: string }>;
+  /** Read the live status of every artifact in the chat's spec methodology. */
+  readSpecDocs(sessionId: string): Promise<{ methodologyId: string; docs: import('./spec.js').SpecDocStatus[] }>;
+  /** Set the spec methodology for a chat. */
+  setSpecMethodology(sessionId: string, methodologyId: string): Promise<void>;
+  /** Toggle a checklist item in the chat's tasks artifact. */
+  toggleSpecTask(sessionId: string, lineIndex: number): Promise<{ ok: boolean; message?: string }>;
   setSpecLinked(sessionId: string, linked: boolean): Promise<Session | null>;
   specPath(sessionId: string): Promise<string | null>;
   setSessionOptions(
