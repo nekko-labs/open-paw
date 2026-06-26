@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { AgentEvent, ProviderConfig, Session, TerminalInfo, UsageSummary } from '@open-paw/shared';
 import type { RemoteStatus } from '@open-paw/shared';
-import { estimateCostUSD, formatUSD } from '@open-paw/shared';
+import { estimateCostUSD, formatUSD, optimizationTips } from '@open-paw/shared';
+import type { OptimizationTip } from '@open-paw/shared';
 import { useStore } from '../store.js';
 import { Markdown } from '../components/Markdown.js';
 import { ChatIcon, FolderIcon, ServerIcon, PlusIcon, CheckIcon, TerminalIcon, RobotIcon } from '../icons.js';
@@ -158,6 +159,9 @@ export function CommandCenterView() {
             ))}
           </div>
         )}
+
+        {/* Optimization insights */}
+        <OptimizePanel usage={usage} sessions={sessions} providers={providers} onOpenModels={() => setView('models')} />
 
         {/* Terminals */}
         {terminals.length > 0 && (
@@ -488,6 +492,57 @@ function StatusPill({ state, onlineLabel = 'online', offlineLabel = 'offline' }:
     <span className="chip !text-white" style={{ background: online ? '#4ec98a' : '#8a8f98' }}>
       {online && <CheckIcon className="h-3 w-3" />} {online ? onlineLabel : offlineLabel}
     </span>
+  );
+}
+
+const TIP_STYLE: Record<OptimizationTip['severity'], { color: string; icon: string; label: string }> = {
+  warn: { color: '#e0a44a', icon: '!', label: 'Heads up' },
+  suggest: { color: '#4ec98a', icon: '↳', label: 'Suggestion' },
+  info: { color: '#5b9dd9', icon: 'i', label: 'Insight' },
+};
+
+function OptimizePanel({
+  usage, sessions, providers, onOpenModels,
+}: {
+  usage: UsageSummary | null; sessions: Session[]; providers: ProviderConfig[]; onOpenModels: () => void;
+}) {
+  const tips = useMemo(() => optimizationTips({ usage, sessions, providers }), [usage, sessions, providers]);
+  if (tips.length === 0) return null;
+  const totalSaving = tips.reduce((s, t) => s + (t.saving ?? 0), 0);
+  return (
+    <section className="mt-8">
+      <div className="flex items-center gap-2">
+        <h2 className="text-[15px] font-semibold">Optimize</h2>
+        {totalSaving > 0.01 && <span className="chip">~{formatUSD(totalSaving)} potential savings</span>}
+      </div>
+      <p className="mt-0.5 text-[12px] text-ink-faint">Ways to cut token spend and run leaner, from your own usage.</p>
+      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+        {tips.map((t) => {
+          const st = TIP_STYLE[t.severity];
+          return (
+            <div key={t.id} className="card flex gap-3 p-4">
+              <span
+                className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-white"
+                style={{ background: st.color }}
+                title={st.label}
+              >
+                {st.icon}
+              </span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[13px] font-semibold">{t.title}</span>
+                  {t.saving && t.saving > 0.01 && <span className="chip">~{formatUSD(t.saving)}</span>}
+                </div>
+                <p className="mt-0.5 text-[12px] text-ink-soft">{t.detail}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <button className="mt-3 text-[12px] text-accent hover:underline" onClick={onOpenModels}>
+        Manage models & providers →
+      </button>
+    </section>
   );
 }
 
