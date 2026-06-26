@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import type { ProviderConfig, Session, UsageSummary } from '@open-paw/shared';
+import type { AgentEvent, ProviderConfig, Session, TerminalInfo, UsageSummary } from '@open-paw/shared';
 import type { RemoteStatus } from '@open-paw/shared';
 import { estimateCostUSD, formatUSD } from '@open-paw/shared';
 import { useStore } from '../store.js';
 import { Markdown } from '../components/Markdown.js';
-import { ChatIcon, FolderIcon, ServerIcon, PlusIcon, CheckIcon } from '../icons.js';
+import { ChatIcon, FolderIcon, ServerIcon, PlusIcon, CheckIcon, TerminalIcon, RobotIcon } from '../icons.js';
 
 const LOCAL_KINDS = ['ollama', 'lmstudio', 'vllm', 'openai-compat'];
 const MIN = 60_000;
@@ -25,76 +25,100 @@ function laneOf(s: Session, now: number): Lane {
 }
 
 export function CommandCenterView() {
-  const { sessions, providers, settings, setView, setActiveSession, newChat, setActiveWorkspace } = useStore();
+  const { sessions, terminals, providers, settings, setView, newChat, openChatPane, openTerminalPane, newTerminal, setActiveWorkspace, refreshSessions, refreshTerminals } = useStore();
   const [usage, setUsage] = useState<UsageSummary | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [running, setRunning] = useState<Set<string>>(new Set());
+  const [, setTick] = useState(0);
   const now = Date.now();
 
   useEffect(() => {
     window.nekko.getUsageSummary().then(setUsage);
-  }, []);
+    refreshSessions();
+    refreshTerminals();
+  }, [refreshSessions, refreshTerminals]);
 
-  const recentSession = sessions[0]; // store keeps them sorted by updatedAt desc
+  // Track running sessions live; surface freshly spawned sub-agents.
+  useEffect(() => {
+    const known = new Set(sessions.map((s) => s.id));
+    const off = window.nekko.onAgentEvent((e: AgentEvent) => {
+      if (e.type === 'done' || e.type === 'error') {
+        setRunning((r) => { const n = new Set(r); n.delete(e.sessionId); return n; });
+        window.nekko.getUsageSummary().then(setUsage);
+      } else {
+        setRunning((r) => (r.has(e.sessionId) ? r : new Set(r).add(e.sessionId)));
+      }
+      if (!known.has(e.sessionId)) { known.add(e.sessionId); refreshSessions(); }
+    });
+    return off;
+  }, [sessions, refreshSessions]);
+
+  // Tick once a second so elapsed timers update while work is in flight.
+  useEffect(() => {
+    if (running.size === 0) return;
+    const t = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, [running.size]);
+
+  const childrenOf = useMemo(() => {
+    const m = new Map<string, Session[]>();
+    for (const s of sessions) if (s.parentSessionId) m.set(s.parentSessionId, [...(m.get(s.parentSessionId) ?? []), s]);
+    return m;
+  }, [sessions]);
+
+  const recentSession = sessions.find((s) => !s.parentSessionId);
   const recentWorkspace = settings?.workspaces?.[0];
   const todayKey = new Date().toISOString().slice(0, 10);
   const todayTokens = usage?.daily.find((d) => d.date === todayKey);
   const tokensToday = todayTokens ? todayTokens.input + todayTokens.output : 0;
 
+  // The prominent board: anything running, then anything touched recently. Top-
+  // level sessions only (sub-agents are shown nested on their parent's card).
+  const board = useMemo(() => {
+    const top = sessions.filter((s) => !s.parentSessionId);
+    return top
+      .map((s) => ({ s, isRunning: running.has(s.id) || (childrenOf.get(s.id) ?? []).some((k) => running.has(k.id)) }))
+      .filter(({ s, isRunning }) => isRunning || now - s.updatedAt < 60 * MIN)
+      .sort((a, b) => (Number(b.isRunning) - Number(a.isRunning)) || b.s.updatedAt - a.s.updatedAt)
+      .slice(0, 8);
+  }, [sessions, running, childrenOf, now]);
+
+  const openChat = (id: string) => { openChatPane(id); setView('chat'); };
+  const openTerminal = (id: string) => { openTerminalPane(id); setView('chat'); };
+
   const lanes = useMemo(() => {
     const m: Record<Lane, Session[]> = { active: [], recent: [], idle: [] };
-    for (const s of sessions) m[laneOf(s, now)].push(s);
+    for (const s of sessions.filter((x) => !x.parentSessionId)) m[laneOf(s, now)].push(s);
     return m;
   }, [sessions, now]);
-
-  const openChat = (id: string) => {
-    setActiveSession(id);
-    setView('chat');
-  };
 
   const totalCost = usage
     ? Object.entries(usage.byModel).reduce((sum, [model, v]) => sum + estimateCostUSD(model, v.input, v.output), 0)
     : 0;
+  const liveTerminals = terminals.filter((t) => t.running).length;
   const stats = [
-    { label: 'Projects', value: settings?.workspaces.length ?? 0 },
-    { label: 'Chats', value: sessions.length },
+    { label: 'Running agents', value: running.size },
+    { label: 'Live terminals', value: liveTerminals },
     { label: 'Tokens today', value: tokensToday.toLocaleString() },
     { label: 'Cost (est.)', value: formatUSD(totalCost) },
   ];
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="mx-auto max-w-5xl px-8 py-8">
-        <h1 className="text-2xl font-semibold">Command Center</h1>
-        <p className="mt-1 text-[13px] text-ink-faint">Everything in flight, at a glance.</p>
-
-        {/* Suggestions */}
-        <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-3">
-          <Suggestion
-            icon={<PlusIcon className="h-4 w-4" />}
-            title="Start a new chat"
-            sub="Ask Nekko anything or kick off a task"
-            onClick={() => { newChat(); setView('chat'); }}
-          />
-          {recentWorkspace && (
-            <Suggestion
-              icon={<FolderIcon className="h-4 w-4" />}
-              title={`Continue ${recentWorkspace.name}`}
-              sub="New chat scoped to this project"
-              onClick={() => { setActiveWorkspace(recentWorkspace.id); newChat(); setView('chat'); }}
-            />
-          )}
-          {recentSession && (
-            <Suggestion
-              icon={<ChatIcon className="h-4 w-4" />}
-              title={`Respond to “${recentSession.title}”`}
-              sub="Pick up your most recent conversation"
-              onClick={() => openChat(recentSession.id)}
-            />
-          )}
+      <div className="mx-auto max-w-6xl px-8 py-8">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold">Command Center</h1>
+            <p className="mt-1 text-[13px] text-ink-faint">Everything in flight, at a glance.</p>
+          </div>
+          <div className="flex gap-2">
+            <button className="btn btn-outline" onClick={() => { newTerminal(); }}><TerminalIcon className="h-4 w-4" /> Terminal</button>
+            <button className="btn btn-primary" onClick={() => { newChat(); }}><PlusIcon className="h-4 w-4" /> New chat</button>
+          </div>
         </div>
 
         {/* Stats */}
-        <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
           {stats.map((s) => (
             <div key={s.label} className="card p-4">
               <div className="text-2xl font-semibold">{s.value}</div>
@@ -103,9 +127,65 @@ export function CommandCenterView() {
           ))}
         </div>
 
-        {/* Kanban of agent chats */}
-        <h2 className="mt-8 text-[15px] font-semibold">Agent chats</h2>
-        <p className="mt-0.5 text-[12px] text-ink-faint">Click a card to expand the conversation.</p>
+        {/* THE BOARD — prominent live agent work */}
+        <div className="mt-7 flex items-center gap-2">
+          <h2 className="text-[15px] font-semibold">Active agent work</h2>
+          {running.size > 0 && (
+            <span className="chip !text-white" style={{ background: '#4ec98a' }}>
+              <span className="mr-1 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-white align-middle" />{running.size} running
+            </span>
+          )}
+        </div>
+        <p className="mt-0.5 text-[12px] text-ink-faint">Live status of every agent and its sub-agents. Open one to take over, or stop a run.</p>
+        {board.length === 0 ? (
+          <div className="card mt-3 p-6 text-center text-[13px] text-ink-faint">
+            No agent work in flight. <button className="text-accent hover:underline" onClick={() => newChat()}>Start a chat</button> to kick one off.
+          </div>
+        ) : (
+          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+            {board.map(({ s, isRunning }) => (
+              <AgentCard
+                key={s.id}
+                session={s}
+                provider={providers.find((p) => p.id === s.providerId)}
+                subAgents={childrenOf.get(s.id) ?? []}
+                running={running}
+                isRunning={isRunning}
+                tokens={usage?.bySession[s.id]}
+                now={now}
+                onOpen={openChat}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Terminals */}
+        {terminals.length > 0 && (
+          <section className="mt-8">
+            <h2 className="text-[15px] font-semibold">Terminals</h2>
+            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-3">
+              {terminals.map((t) => (
+                <TerminalCard key={t.id} term={t} workspaceName={settings?.workspaces.find((w) => w.id === t.workspaceId)?.name} onOpen={openTerminal} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Quick suggestions */}
+        <div className="mt-8 grid grid-cols-1 gap-3 md:grid-cols-3">
+          {recentWorkspace && (
+            <Suggestion icon={<FolderIcon className="h-4 w-4" />} title={`Continue ${recentWorkspace.name}`} sub="New chat scoped to this project"
+              onClick={() => { setActiveWorkspace(recentWorkspace.id); newChat(); }} />
+          )}
+          {recentSession && (
+            <Suggestion icon={<ChatIcon className="h-4 w-4" />} title={`Respond to “${recentSession.title}”`} sub="Pick up your most recent conversation"
+              onClick={() => openChat(recentSession.id)} />
+          )}
+          <Suggestion icon={<TerminalIcon className="h-4 w-4" />} title="Open a terminal" sub="Run commands in Warp-style blocks" onClick={() => newTerminal()} />
+        </div>
+
+        {/* Full backlog as lanes (secondary) */}
+        <h2 className="mt-8 text-[15px] font-semibold">All chats</h2>
         <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-3">
           {LANES.map((lane) => (
             <div key={lane.key}>
@@ -115,19 +195,10 @@ export function CommandCenterView() {
                 <span className="chip">{lanes[lane.key].length}</span>
               </div>
               <div className="space-y-2">
-                {lanes[lane.key].length === 0 && (
-                  <p className="px-1 text-[11px] text-ink-faint">{`Nothing ${lane.hint}.`}</p>
-                )}
+                {lanes[lane.key].length === 0 && <p className="px-1 text-[11px] text-ink-faint">{`Nothing ${lane.hint}.`}</p>}
                 {lanes[lane.key].map((s) => (
-                  <KanbanCard
-                    key={s.id}
-                    session={s}
-                    provider={providers.find((p) => p.id === s.providerId)}
-                    laneColor={lane.color}
-                    expanded={expanded === s.id}
-                    onToggle={() => setExpanded(expanded === s.id ? null : s.id)}
-                    onOpen={() => openChat(s.id)}
-                  />
+                  <KanbanCard key={s.id} session={s} provider={providers.find((p) => p.id === s.providerId)} laneColor={lane.color}
+                    expanded={expanded === s.id} onToggle={() => setExpanded(expanded === s.id ? null : s.id)} onOpen={() => openChat(s.id)} />
                 ))}
               </div>
             </div>
@@ -137,10 +208,94 @@ export function CommandCenterView() {
         {/* Background workers */}
         <WorkersDashboard providers={providers} usage={usage} />
 
-        {/* Token usage (moved here from Models) */}
+        {/* Token usage */}
         <UsagePanel usage={usage} />
       </div>
     </div>
+  );
+}
+
+function relTime(ms: number): string {
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s}s ago`;
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.round(h / 24)}d ago`;
+}
+
+function AgentCard({
+  session, provider, subAgents, running, isRunning, tokens, now, onOpen,
+}: {
+  session: Session; provider?: ProviderConfig; subAgents: Session[]; running: Set<string>;
+  isRunning: boolean; tokens?: { input: number; output: number }; now: number; onOpen: (id: string) => void;
+}) {
+  const msgs = session.messages.filter((m) => m.role === 'user' || m.role === 'assistant');
+  const lastAssistant = [...session.messages].reverse().find((m) => m.role === 'assistant' && m.content.trim());
+  const tok = tokens ? tokens.input + tokens.output : 0;
+  return (
+    <div className={`card overflow-hidden p-4 ${isRunning ? 'border-accent' : ''}`} style={isRunning ? { boxShadow: '0 0 0 1px var(--accent)' } : undefined}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${isRunning ? 'animate-pulse' : ''}`} style={{ background: isRunning ? '#4ec98a' : '#8a8f98' }} />
+          <span className="truncate text-[14px] font-semibold">{session.title}</span>
+        </div>
+        <span className="shrink-0 text-[11px] text-ink-faint">{isRunning ? 'working…' : relTime(now - session.updatedAt)}</span>
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10.5px] text-ink-faint">
+        <span className="chip">{provider?.label ?? 'no model'}</span>
+        {session.modelId && <span className="chip max-w-[140px] truncate">{session.modelId}</span>}
+        <span className="chip">{msgs.length} msg{msgs.length === 1 ? '' : 's'}</span>
+        {tok > 0 && <span className="chip">{tok.toLocaleString()} tok</span>}
+        {session.mode && <span className="chip">{session.mode}</span>}
+        {session.incognito && <span className="chip">🕶</span>}
+      </div>
+
+      {lastAssistant && (
+        <p className="mt-2 line-clamp-2 text-[12px] text-ink-soft">{lastAssistant.content.slice(0, 180)}</p>
+      )}
+
+      {subAgents.length > 0 && (
+        <div className="mt-2.5 border-t border-line pt-2">
+          <div className="mb-1 flex items-center gap-1.5 text-[10.5px] uppercase tracking-wide text-ink-faint">
+            <RobotIcon className="h-3.5 w-3.5" /> {subAgents.length} sub-agent{subAgents.length === 1 ? '' : 's'}
+          </div>
+          <div className="space-y-1">
+            {subAgents.slice(0, 4).map((k) => (
+              <button key={k.id} className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-[12px] hover:bg-surface-2" onClick={() => onOpen(k.id)}>
+                <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${running.has(k.id) ? 'animate-pulse bg-accent' : 'bg-ink-faint'}`} />
+                <span className="min-w-0 flex-1 truncate text-ink-soft">{k.title}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="mt-3 flex justify-end gap-2">
+        {isRunning && (
+          <button className="btn btn-outline py-1.5 text-[12px]" onClick={() => window.nekko.abortChat(session.id)}>Stop</button>
+        )}
+        <button className="btn btn-primary py-1.5 text-[12px]" onClick={() => onOpen(session.id)}>Open →</button>
+      </div>
+    </div>
+  );
+}
+
+function TerminalCard({ term, workspaceName, onOpen }: { term: TerminalInfo; workspaceName?: string; onOpen: (id: string) => void }) {
+  return (
+    <button className="card p-4 text-left transition-colors hover:border-accent" onClick={() => onOpen(term.id)}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <TerminalIcon className="h-4 w-4 text-ink-faint" />
+          <span className="text-[13px] font-medium">{term.title}</span>
+        </div>
+        <StatusPill state={term.running ? 'online' : 'offline'} onlineLabel="live" offlineLabel="exited" />
+      </div>
+      <div className="mt-2 truncate font-mono text-[11px] text-ink-faint">{term.cwd}</div>
+      {workspaceName && <div className="mt-0.5 text-[11px] text-ink-faint">{workspaceName}</div>}
+    </button>
   );
 }
 

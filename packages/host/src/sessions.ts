@@ -108,12 +108,13 @@ export function setSessionOptions(
   return s;
 }
 
-export function createSession(workspaceId?: string): Session {
+export function createSession(workspaceId?: string, parentSessionId?: string): Session {
   const now = Date.now();
   const s: Session = {
-    id: `s_${now.toString(36)}`,
-    title: 'New chat',
+    id: `s_${now.toString(36)}_${Math.floor(Math.random() * 1e6).toString(36)}`,
+    title: parentSessionId ? 'Sub-agent' : 'New chat',
     workspaceId,
+    parentSessionId,
     messages: [],
     createdAt: now,
     updatedAt: now,

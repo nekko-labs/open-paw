@@ -1,5 +1,5 @@
 import { IpcChannels, IpcEvents, deriveKey, seal, open, RELEASE_NOTES_URL } from '@open-paw/shared';
-import type { AppSettings, AgentEvent, IndexStatus, NekkoApi, AppInfo, UpdateInfo } from '@open-paw/shared';
+import type { AppSettings, AgentEvent, IndexStatus, NekkoApi, AppInfo, UpdateInfo, TerminalEvent } from '@open-paw/shared';
 
 /**
  * Browser transport for the web/Docker editions: implements the same NekkoApi
@@ -16,11 +16,13 @@ function makeWebClient(): NekkoApi {
 
   const agentCbs = new Set<(e: AgentEvent) => void>();
   const indexCbs = new Set<(s: IndexStatus) => void>();
+  const terminalCbs = new Set<(e: TerminalEvent) => void>();
   // Server build version captured when this tab loaded (for refresh detection).
   let loadVersion: string | null = null;
   const dispatchEvent = (channel: string, payload: any) => {
     if (channel === IpcEvents.agentEvent) agentCbs.forEach((cb) => cb(payload));
     else if (channel === IpcEvents.indexProgress) indexCbs.forEach((cb) => cb(payload));
+    else if (channel === IpcEvents.terminalEvent) terminalCbs.forEach((cb) => cb(payload));
   };
 
   // Relay transport: when the page is opened with ?relay=&room=&key=, talk to a
@@ -176,6 +178,13 @@ function makeWebClient(): NekkoApi {
     abortChat: (sessionId) => call(IpcChannels.chatAbort, sessionId),
     approveTool: (sessionId, toolCallId, approved) => call(IpcChannels.toolApprove, sessionId, toolCallId, approved),
 
+    listTerminals: () => call(IpcChannels.terminalsList),
+    createTerminal: (opts) => call(IpcChannels.terminalCreate, opts),
+    terminalSnapshot: (id) => call(IpcChannels.terminalSnapshot, id),
+    runInTerminal: (id, command) => call(IpcChannels.terminalRun, id, command),
+    signalTerminal: (id, signal) => call(IpcChannels.terminalSignal, id, signal),
+    closeTerminal: (id) => call(IpcChannels.terminalClose, id),
+
     previewContext: (sessionId, attachedPaths) => call(IpcChannels.contextPreview, sessionId, attachedPaths),
     toggleContextItem: (sessionId, itemId, included, pinned) =>
       call(IpcChannels.contextToggle, sessionId, itemId, included, pinned),
@@ -267,6 +276,10 @@ function makeWebClient(): NekkoApi {
     onIndexProgress: (cb) => {
       indexCbs.add(cb);
       return () => indexCbs.delete(cb);
+    },
+    onTerminalEvent: (cb) => {
+      terminalCbs.add(cb);
+      return () => terminalCbs.delete(cb);
     },
     onUpdateEvent: (cb) => {
       // Poll the server version; emit 'available' once it differs from load.

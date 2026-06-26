@@ -53,3 +53,7 @@ export const DotsIcon = (p: P) => (<S {...p}><circle cx="5" cy="12" r="1.4" fill
 export const PinIcon2 = (p: P) => (<S {...p}><path d="M9 4h6l-1 5 3 2v2H7v-2l3-2-1-5zM12 13v7" /></S>);
 export const CheckIcon = (p: P) => (<S {...p}><path d="M20 6 9 17l-5-5" /></S>);
 export const SunIcon = (p: P) => (<S {...p}><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></S>);
+export const TerminalIcon = (p: P) => (<S {...p}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="m7 9 3 3-3 3M13 15h4" /></S>);
+export const SplitIcon = (p: P) => (<S {...p}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M12 4v16" /></S>);
+export const CloseIcon = (p: P) => (<S {...p}><path d="M18 6 6 18M6 6l12 12" /></S>);
+export const RobotIcon = (p: P) => (<S {...p}><rect x="4" y="8" width="16" height="11" rx="2" /><path d="M12 8V4M9 13h.01M15 13h.01M2 13h2M20 13h2" /></S>);

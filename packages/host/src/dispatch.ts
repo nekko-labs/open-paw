@@ -37,6 +37,13 @@ export function createDispatcher(host: Host): (channel: string, args: any[]) => 
     [C.chatAbort]: ([id]) => host.abortChat(id),
     [C.toolApprove]: ([sid, tid, ok]) => host.approveTool(sid, tid, ok),
 
+    [C.terminalsList]: () => host.listTerminals(),
+    [C.terminalCreate]: ([opts]) => host.createTerminal(opts),
+    [C.terminalSnapshot]: ([id]) => host.terminalSnapshot(id),
+    [C.terminalRun]: ([id, cmd]) => host.runInTerminal(id, cmd),
+    [C.terminalSignal]: ([id, sig]) => host.signalTerminal(id, sig),
+    [C.terminalClose]: ([id]) => host.closeTerminal(id),
+
     [C.contextPreview]: ([sid, paths]) => host.previewContext(sid, paths),
     [C.contextToggle]: ([sid]) => host.previewContext(sid, []),
     [C.contextSetPrefs]: ([sid, prefs]) => host.setContextPrefs(sid, prefs),

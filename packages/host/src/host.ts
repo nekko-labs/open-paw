@@ -21,6 +21,8 @@ import type {
   RemoteStatus,
   AppInfo,
   McpServerStatus,
+  TerminalInfo,
+  TerminalSnapshot,
 } from '@open-paw/shared';
 import {
   createProvider,
@@ -40,6 +42,15 @@ import { sendChat, abortChat, resolveApproval, previewContext, setContextPrefs }
 import { buildSpec, specPathForSession } from './spec.js';
 import { connectRelayAgent, type RelayAgentHandle } from './relay.js';
 import { syncMcp, mcpStatus, mcpToolList } from './mcp.js';
+import {
+  setTerminalSender,
+  listTerminals,
+  createTerminal,
+  terminalSnapshot,
+  runInTerminal,
+  signalTerminal,
+  closeTerminal,
+} from './terminal.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -80,6 +91,13 @@ export interface Host {
   sendChat(opts: SendOptions): Promise<void>;
   abortChat(sessionId: string): void;
   approveTool(sessionId: string, toolCallId: string, approved: boolean): void;
+
+  listTerminals(): TerminalInfo[];
+  createTerminal(opts?: { workspaceId?: string; cwd?: string; title?: string }): TerminalInfo;
+  terminalSnapshot(id: string): TerminalSnapshot | null;
+  runInTerminal(id: string, command: string): void;
+  signalTerminal(id: string, signal: 'interrupt'): void;
+  closeTerminal(id: string): void;
 
   previewContext(sessionId: string, attachedPaths: string[]): Promise<ContextBundle>;
   setContextPrefs(sessionId: string, prefs: { excluded: string[]; pinned: string[] }): void;
@@ -130,6 +148,8 @@ export function createHost(opts: { dataDir: string }): Host {
   setDataDir(opts.dataDir);
   const events = new EventEmitter();
   const onIndexProgress = (s: IndexStatus) => events.emit('indexProgress', s);
+  // Fan terminal output out to renderers over the same event bus.
+  setTerminalSender((e) => events.emit('terminalEvent', e));
 
   const findProvider = (id: string) => getSettings().providers.find((p) => p.id === id);
 
@@ -223,6 +243,13 @@ export function createHost(opts: { dataDir: string }): Host {
     sendChat: (o) => sendChat(o, (e) => events.emit('agentEvent', e)),
     abortChat,
     approveTool: (_sessionId, toolCallId, approved) => resolveApproval(toolCallId, approved),
+
+    listTerminals,
+    createTerminal,
+    terminalSnapshot,
+    runInTerminal,
+    signalTerminal,
+    closeTerminal,
 
     previewContext,
     setContextPrefs,

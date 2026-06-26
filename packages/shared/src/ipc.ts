@@ -3,6 +3,7 @@
 import type { AppSettings, UsageSummary } from './settings.js';
 import type { ProviderConfig, ModelInfo } from './models.js';
 import type { Session, SendOptions, AgentEvent } from './chat.js';
+import type { TerminalInfo, TerminalSnapshot } from './terminal.js';
 import type { ContextBundle } from './context.js';
 import type { MemoryEntry, MemoryScope } from './memory.js';
 import type { WorkspaceFolder, IndexStatus, SearchHit, IndexedFile } from './workspace.js';
@@ -35,6 +36,13 @@ export const IpcChannels = {
   chatSend: 'chat:send',
   chatAbort: 'chat:abort',
   toolApprove: 'tool:approve',
+
+  terminalsList: 'terminals:list',
+  terminalCreate: 'terminal:create',
+  terminalSnapshot: 'terminal:snapshot',
+  terminalRun: 'terminal:run',
+  terminalSignal: 'terminal:signal',
+  terminalClose: 'terminal:close',
 
   contextPreview: 'context:preview',
   contextToggle: 'context:toggle',
@@ -95,6 +103,7 @@ export const IpcEvents = {
   agentEvent: 'agent:event',
   indexProgress: 'index:progress',
   updateEvent: 'update:event',
+  terminalEvent: 'terminal:event',
 } as const;
 
 /** The typed API the preload bridge exposes as window.nekko. */
@@ -124,6 +133,19 @@ export interface NekkoApi {
   sendChat(opts: SendOptions): Promise<void>;
   abortChat(sessionId: string): Promise<void>;
   approveTool(sessionId: string, toolCallId: string, approved: boolean): Promise<void>;
+
+  /** Live terminal sessions (in-memory; they don't persist across restarts). */
+  listTerminals(): Promise<TerminalInfo[]>;
+  /** Spawn a persistent shell, optionally scoped to a project / cwd. */
+  createTerminal(opts?: { workspaceId?: string; cwd?: string; title?: string }): Promise<TerminalInfo>;
+  /** Fetch current info + retained command blocks (for reattaching a renderer). */
+  terminalSnapshot(id: string): Promise<TerminalSnapshot | null>;
+  /** Run a command in the terminal as a new block. */
+  runInTerminal(id: string, command: string): Promise<void>;
+  /** Send a control signal to the running command (e.g. interrupt). */
+  signalTerminal(id: string, signal: 'interrupt'): Promise<void>;
+  /** Kill the shell and forget the terminal. */
+  closeTerminal(id: string): Promise<void>;
 
   previewContext(sessionId: string, attachedPaths: string[]): Promise<ContextBundle>;
   toggleContextItem(sessionId: string, itemId: string, included: boolean, pinned: boolean): Promise<ContextBundle>;
@@ -194,4 +216,5 @@ export interface NekkoApi {
   onAgentEvent(cb: (e: AgentEvent) => void): () => void;
   onIndexProgress(cb: (s: IndexStatus) => void): () => void;
   onUpdateEvent(cb: (u: UpdateInfo) => void): () => void;
+  onTerminalEvent(cb: (e: import('./terminal.js').TerminalEvent) => void): () => void;
 }

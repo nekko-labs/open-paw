@@ -85,4 +85,17 @@ export const BUILTIN_TOOLS: ToolSpec[] = [
       required: ['command'],
     },
   },
+  {
+    name: 'spawn_agent',
+    description:
+      'Delegate a self-contained sub-task to a fresh sub-agent that works in the same project with its own context, then returns its final answer. Use for parallelizable or well-scoped work (e.g. "investigate X", "implement Y in file Z"). The sub-agent appears as a nested tab in the workbench.',
+    parameters: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Short label for the sub-agent tab.' },
+        task: { type: 'string', description: 'The full, standalone instruction for the sub-agent.' },
+      },
+      required: ['task'],
+    },
+  },
 ];

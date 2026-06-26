@@ -120,11 +120,14 @@ export function createCloudServer(opts: CloudServerOptions): { app: FastifyInsta
       const host = hostFor(account);
       const onAgent = (e: unknown) => socket.send(JSON.stringify({ channel: IpcEvents.agentEvent, payload: e }));
       const onIndex = (s: unknown) => socket.send(JSON.stringify({ channel: IpcEvents.indexProgress, payload: s }));
+      const onTerminal = (e: unknown) => socket.send(JSON.stringify({ channel: IpcEvents.terminalEvent, payload: e }));
       host.events.on('agentEvent', onAgent);
       host.events.on('indexProgress', onIndex);
+      host.events.on('terminalEvent', onTerminal);
       socket.on('close', () => {
         host.events.off('agentEvent', onAgent);
         host.events.off('indexProgress', onIndex);
+        host.events.off('terminalEvent', onTerminal);
       });
     });
   });

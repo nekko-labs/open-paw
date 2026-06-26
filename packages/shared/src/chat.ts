@@ -45,6 +45,12 @@ export interface Session {
   id: string;
   title: string;
   workspaceId?: string;
+  /**
+   * When set, this session was spawned as a sub-agent by another session. The
+   * workbench nests it as a sub-tab under its parent; the agent loop reports its
+   * final answer back to the parent's `spawn_agent` tool call.
+   */
+  parentSessionId?: string;
   providerId?: string;
   modelId?: string;
   messages: ChatMessage[];

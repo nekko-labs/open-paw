@@ -5,6 +5,7 @@
 
 export * from './models.js';
 export * from './chat.js';
+export * from './terminal.js';
 export * from './guardrails.js';
 export * from './context.js';
 export * from './memory.js';

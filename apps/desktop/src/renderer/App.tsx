@@ -6,7 +6,7 @@ import { Toasts } from './components/Toasts.js';
 import { CommandPalette } from './components/CommandPalette.js';
 import { UpdateBanner } from './components/UpdateBanner.js';
 import { RelayPairing } from './components/RelayPairing.js';
-import { ChatView } from './views/ChatView.js';
+import { WorkbenchView } from './views/WorkbenchView.js';
 import { CommandCenterView } from './views/CommandCenterView.js';
 import { ModelsView } from './views/ModelsView.js';
 import { ProjectsView } from './views/ProjectsView.js';
@@ -34,13 +34,14 @@ const NAV: Array<{ view: View; labelKey: string; Icon: (p: { className?: string 
 ];
 
 export function App() {
-  const { view, setView, mascotMood, settings, providers, refreshSettings, refreshProviders, refreshSessions } = useStore();
+  const { view, setView, mascotMood, settings, providers, refreshSettings, refreshProviders, refreshSessions, refreshTerminals } = useStore();
   const t = useT();
 
   useEffect(() => {
     refreshSettings();
     refreshProviders();
     refreshSessions();
+    refreshTerminals();
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
     const onChange = () => useStore.getState().applyTheme();
     mq.addEventListener('change', onChange);
@@ -54,6 +55,9 @@ export function App() {
       } else if (mod && e.key.toLowerCase() === 'n') {
         e.preventDefault();
         useStore.getState().newChat();
+      } else if (mod && e.key.toLowerCase() === 'j') {
+        e.preventDefault();
+        useStore.getState().newTerminal();
       } else if (mod && e.key === '\\') {
         e.preventDefault();
         useStore.getState().toggleContextPanel();
@@ -146,7 +150,7 @@ export function App() {
           </button>
         )}
         {view === 'command' && <CommandCenterView />}
-        {view === 'chat' && <ChatView />}
+        {view === 'chat' && <WorkbenchView />}
         {view === 'models' && <ModelsView />}
         {view === 'projects' && <ProjectsView />}
         {view === 'connectors' && <ConnectorsView />}

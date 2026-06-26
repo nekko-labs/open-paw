@@ -11,6 +11,7 @@ import type {
   AgentEvent,
   IndexStatus,
   UpdateInfo,
+  TerminalEvent,
 } from '@open-paw/shared';
 import { IpcChannels, IpcEvents } from '@open-paw/shared';
 
@@ -41,6 +42,13 @@ const api: NekkoApi = {
   sendChat: (opts: SendOptions) => inv(IpcChannels.chatSend, opts),
   abortChat: (sessionId) => inv(IpcChannels.chatAbort, sessionId),
   approveTool: (sessionId, toolCallId, approved) => inv(IpcChannels.toolApprove, sessionId, toolCallId, approved),
+
+  listTerminals: () => inv(IpcChannels.terminalsList),
+  createTerminal: (opts) => inv(IpcChannels.terminalCreate, opts),
+  terminalSnapshot: (id) => inv(IpcChannels.terminalSnapshot, id),
+  runInTerminal: (id, command) => inv(IpcChannels.terminalRun, id, command),
+  signalTerminal: (id, signal) => inv(IpcChannels.terminalSignal, id, signal),
+  closeTerminal: (id) => inv(IpcChannels.terminalClose, id),
 
   previewContext: (sessionId, attachedPaths) => inv(IpcChannels.contextPreview, sessionId, attachedPaths),
   toggleContextItem: (sessionId, itemId, included, pinned) =>
@@ -114,6 +122,11 @@ const api: NekkoApi = {
     const listener = (_: unknown, u: UpdateInfo) => cb(u);
     ipcRenderer.on(IpcEvents.updateEvent, listener);
     return () => ipcRenderer.removeListener(IpcEvents.updateEvent, listener);
+  },
+  onTerminalEvent: (cb: (e: TerminalEvent) => void) => {
+    const listener = (_: unknown, e: TerminalEvent) => cb(e);
+    ipcRenderer.on(IpcEvents.terminalEvent, listener);
+    return () => ipcRenderer.removeListener(IpcEvents.terminalEvent, listener);
   },
 };
 

@@ -13,7 +13,7 @@ import {
   BUILTIN_TOOLS,
 } from '@open-paw/core';
 import { getSettings } from './store.js';
-import { getSession, saveSession } from './sessions.js';
+import { getSession, saveSession, createSession } from './sessions.js';
 import { executeTool } from './tools.js';
 import { recordUsage } from './usage.js';
 import { listMemory } from './memory.js';
@@ -156,6 +156,51 @@ export function setContextPrefs(sessionId: string, prefs: { excluded: string[]; 
   saveSession(session);
 }
 
+/** How deep in the sub-agent tree a session sits (root = 0). */
+function sessionDepth(sessionId: string): number {
+  let depth = 0;
+  let cur = getSession(sessionId);
+  while (cur?.parentSessionId && depth < 16) {
+    depth++;
+    cur = getSession(cur.parentSessionId);
+  }
+  return depth;
+}
+
+/** Maximum sub-agent nesting (a root agent may spawn children, they may spawn one more). */
+const MAX_AGENT_DEPTH = 2;
+
+/**
+ * Run a delegated sub-task as a fresh child session and return its final answer.
+ * The child streams its own agent events (under its own sessionId) so the
+ * workbench can show it as a nested tab; we read back its last assistant message
+ * as the tool result for the parent.
+ */
+async function runSubAgent(
+  parentId: string,
+  providerId: string,
+  modelId: string,
+  title: string | undefined,
+  task: string,
+  send: Sender,
+): Promise<string> {
+  if (sessionDepth(parentId) >= MAX_AGENT_DEPTH) {
+    return 'Sub-agent depth limit reached — handle this part of the task directly instead of delegating further.';
+  }
+  if (!task.trim()) return 'No task was provided to the sub-agent.';
+  const parent = getSession(parentId);
+  const child = createSession(parent?.workspaceId, parentId);
+  child.title = (title?.trim() || task.trim().slice(0, 40)) || 'Sub-agent';
+  child.providerId = providerId;
+  child.modelId = modelId;
+  child.mode = parent?.mode; // inherit the parent's tool-execution policy
+  saveSession(child);
+  await sendChat({ sessionId: child.id, providerId, modelId, text: task }, send);
+  const done = getSession(child.id);
+  const last = [...(done?.messages ?? [])].reverse().find((m) => m.role === 'assistant' && m.content.trim());
+  return last?.content ?? 'Sub-agent finished without producing a written answer.';
+}
+
 /** Run a chat turn end to end. */
 export async function sendChat(opts: SendOptions, send: Sender): Promise<void> {
   const settings = getSettings();
@@ -245,15 +290,24 @@ export async function sendChat(opts: SendOptions, send: Sender): Promise<void> {
       system,
       history: session.messages,
       tools,
-      executeTool: (call) =>
-        isMcpTool(call.name)
+      executeTool: (call) => {
+        if (call.name === 'spawn_agent') {
+          const inp = call.input as { title?: string; task?: string };
+          return runSubAgent(opts.sessionId, opts.providerId, opts.modelId, inp.title, String(inp.task ?? ''), send)
+            .then((output) => ({ toolCallId: call.id, output }))
+            .catch((e) => ({ toolCallId: call.id, output: `Sub-agent failed: ${(e as Error).message}`, isError: true }));
+        }
+        return isMcpTool(call.name)
           ? callMcpTool(call)
           : executeTool(call, {
               settings,
-              defaultCwd: settings.workspaces[0]?.path,
+              defaultCwd: session.workspaceId
+                ? settings.workspaces.find((w) => w.id === session.workspaceId)?.path ?? settings.workspaces[0]?.path
+                : settings.workspaces[0]?.path,
               requestApproval,
               mode,
-            }),
+            });
+      },
       temperature: EFFORT_TEMPERATURE[settings.effort ?? 'normal'],
       signal: abort.signal,
     })) {
