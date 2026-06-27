@@ -6,6 +6,7 @@ import { TerminalPane } from '../components/TerminalPane.js';
 import { FilePane } from '../components/FilePane.js';
 import { BrowserPane } from '../components/BrowserPane.js';
 import { DiffPane } from '../components/DiffPane.js';
+import { ProjectFiles } from '../components/FileTree.js';
 import { ChatIcon, TerminalIcon, PlusIcon, SplitIcon, CloseIcon, FolderIcon, FileIcon, ExternalIcon } from '../icons.js';
 
 /** Short label for a pane's tab/title. */
@@ -97,7 +98,7 @@ export function WorkbenchView() {
     sessions, terminals, groups, activeGroupId, settings, activeSessionId,
     refreshSessions, refreshTerminals, openChatPane, openTerminalPane, newTerminal,
     setActivePane, closePane, focusGroup, splitRight, newChat, setActiveWorkspace,
-    reorderWorkspaces, layoutChats, layoutTerminals,
+    reorderWorkspaces, layoutChats, layoutTerminals, openFilePane,
   } = useStore();
 
   const [statuses, setStatuses] = useState<Map<string, AgentStatus>>(new Map());
@@ -336,6 +337,7 @@ export function WorkbenchView() {
                       <TerminalRow term={t} onOpen={openTerminalPane} />
                     </div>
                   ))}
+                  {b.ws && <ProjectFiles root={b.ws.path} onOpen={openFilePane} />}
                 </div>
               )}
             </div>
