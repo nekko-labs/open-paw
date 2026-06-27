@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { AgentEvent, Session, TerminalInfo, WorkspaceFolder } from '@open-paw/shared';
 import { useStore, type WbGroup, type WbPane } from '../store.js';
 import { ChatPane } from '../components/ChatPane.js';
@@ -21,8 +21,19 @@ export function WorkbenchView() {
   const [running, setRunning] = useState<Set<string>>(new Set());
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [mobileNav, setMobileNav] = useState(false);
+  const [newMenuOpen, setNewMenuOpen] = useState(false);
+  const newMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { refreshTerminals(); }, [refreshTerminals]);
+
+  // Close the "+" create menu on an outside click.
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (newMenuRef.current && !newMenuRef.current.contains(e.target as Node)) setNewMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDoc);
+    return () => document.removeEventListener('mousedown', onDoc);
+  }, []);
 
   // Open the active session as a pane if the workbench is empty (e.g. arriving
   // from the Command Center or command palette).
@@ -79,7 +90,34 @@ export function WorkbenchView() {
     <div className="flex h-full w-64 flex-col border-r border-line" style={{ background: 'var(--paper)' }}>
       <div className="flex items-center justify-between px-3 py-2.5">
         <span className="text-sm font-semibold">Workbench</span>
-        <button className="btn btn-ghost px-2 py-1" title="New chat" onClick={() => newChat()}><PlusIcon /></button>
+        <div className="relative" ref={newMenuRef}>
+          <button className="btn btn-ghost px-2 py-1" title="New agent or terminal"
+            onClick={() => setNewMenuOpen((o) => !o)}><PlusIcon /></button>
+          {newMenuOpen && (
+            <div className="card absolute right-0 top-9 z-40 w-56 p-1.5 shadow-lg">
+              <button
+                className="flex w-full items-start gap-2 rounded-lg px-2.5 py-1.5 text-left hover:bg-surface-2"
+                onClick={() => { setNewMenuOpen(false); newChat(); }}
+              >
+                <ChatIcon className="mt-0.5 h-4 w-4 shrink-0 text-ink-faint" />
+                <span className="min-w-0">
+                  <span className="block text-[12.5px] font-medium">New agent</span>
+                  <span className="block text-[11px] text-ink-faint">Chat that drives an agent</span>
+                </span>
+              </button>
+              <button
+                className="flex w-full items-start gap-2 rounded-lg px-2.5 py-1.5 text-left hover:bg-surface-2"
+                onClick={() => { setNewMenuOpen(false); newTerminal(); }}
+              >
+                <TerminalIcon className="mt-0.5 h-4 w-4 shrink-0 text-ink-faint" />
+                <span className="min-w-0">
+                  <span className="block text-[12.5px] font-medium">New terminal</span>
+                  <span className="block text-[11px] text-ink-faint">Run shell commands</span>
+                </span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
       <div className="flex-1 space-y-1 overflow-y-auto px-2 pb-3">
         {buckets.map((b) => {
