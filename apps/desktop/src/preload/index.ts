@@ -89,6 +89,10 @@ const api: NekkoApi = {
   searchWorkspace: (id, query) => inv(IpcChannels.workspaceSearch, id, query),
   listFiles: (id) => inv(IpcChannels.workspaceFiles, id),
 
+  readFile: (path) => inv(IpcChannels.fileRead, path),
+  writeFile: (path, content) => inv(IpcChannels.fileWrite, path, content),
+  listDir: (path) => inv(IpcChannels.dirList, path),
+
   listConnectors: () => inv(IpcChannels.connectorsList),
   connectConnector: (kind: ConnectorKind, token, settings) => inv(IpcChannels.connectorConnect, kind, token, settings),
   disconnectConnector: (kind: ConnectorKind) => inv(IpcChannels.connectorDisconnect, kind),

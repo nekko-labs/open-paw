@@ -79,6 +79,10 @@ export function createDispatcher(host: Host): (channel: string, args: any[]) => 
     [C.workspaceSearch]: ([id, q]) => host.searchWorkspace(id, q),
     [C.workspaceFiles]: ([id]) => host.listFiles(id),
 
+    [C.fileRead]: ([p]) => host.readFile(p),
+    [C.fileWrite]: ([p, content]) => host.writeFile(p, content),
+    [C.dirList]: ([p]) => host.listDir(p),
+
     [C.connectorsList]: () => host.listConnectors(),
     [C.connectorConnect]: ([kind, token, settings]) => host.connectConnector(kind, token, settings),
     [C.connectorDisconnect]: ([kind]) => host.disconnectConnector(kind),

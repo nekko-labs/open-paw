@@ -7,6 +7,7 @@ import type { TerminalInfo, TerminalSnapshot, ShellOption } from './terminal.js'
 import type { ContextBundle } from './context.js';
 import type { MemoryEntry, MemoryScope } from './memory.js';
 import type { WorkspaceFolder, IndexStatus, SearchHit, IndexedFile } from './workspace.js';
+import type { DirEntry, FileContent } from './files.js';
 import type { ConnectorConfig, ConnectorKind, ConnectorResource } from './connectors.js';
 import type { GuardrailRule } from './guardrails.js';
 import type { AppInfo, UpdateInfo } from './update.js';
@@ -82,6 +83,10 @@ export const IpcChannels = {
   workspaceIndexStatus: 'workspace:indexStatus',
   workspaceSearch: 'workspace:search',
   workspaceFiles: 'workspace:files',
+
+  fileRead: 'file:read',
+  fileWrite: 'file:write',
+  dirList: 'dir:list',
 
   connectorsList: 'connectors:list',
   connectorConnect: 'connector:connect',
@@ -209,6 +214,13 @@ export interface NekkoApi {
   getIndexStatus(id: string): Promise<IndexStatus | null>;
   searchWorkspace(id: string, query: string): Promise<SearchHit[]>;
   listFiles(id: string): Promise<IndexedFile[]>;
+
+  /** Read a file as text (for the in-app viewer/editor). */
+  readFile(path: string): Promise<FileContent>;
+  /** Write text to a file (in-app editor save). */
+  writeFile(path: string, content: string): Promise<void>;
+  /** List a directory's immediate entries (file explorer). */
+  listDir(path: string): Promise<DirEntry[]>;
 
   listConnectors(): Promise<ConnectorConfig[]>;
   connectConnector(kind: ConnectorKind, token: string, settings?: Record<string, string>): Promise<ConnectorConfig[]>;

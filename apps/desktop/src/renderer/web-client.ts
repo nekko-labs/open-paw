@@ -234,6 +234,10 @@ function makeWebClient(): NekkoApi {
     searchWorkspace: (id, query) => call(IpcChannels.workspaceSearch, id, query),
     listFiles: (id) => call(IpcChannels.workspaceFiles, id),
 
+    readFile: (path) => call(IpcChannels.fileRead, path),
+    writeFile: (path, content) => call(IpcChannels.fileWrite, path, content),
+    listDir: (path) => call(IpcChannels.dirList, path),
+
     listConnectors: () => call(IpcChannels.connectorsList),
     connectConnector: (kind, t, settings) => call(IpcChannels.connectorConnect, kind, t, settings),
     disconnectConnector: (kind) => call(IpcChannels.connectorDisconnect, kind),

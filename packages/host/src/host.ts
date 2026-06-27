@@ -13,6 +13,8 @@ import type {
   IndexStatus,
   SearchHit,
   IndexedFile,
+  DirEntry,
+  FileContent,
   ConnectorConfig,
   ConnectorKind,
   ConnectorResource,
@@ -40,6 +42,7 @@ import * as sessions from './sessions.js';
 import * as memory from './memory.js';
 import { usageSummary, clearUsage } from './usage.js';
 import { indexWorkspace, getIndexStatus, searchWorkspace, listIndexedFiles } from './workspace.js';
+import { readFile, writeFile, listDir } from './files.js';
 import { sendChat, abortChat, resolveApproval, previewContext, setContextPrefs } from './chat.js';
 import { buildSpec, buildSpecDoc, readSpecDocs, setSpecMethodology, toggleSpecTask, specPathForSession } from './spec.js';
 import { connectRelayAgent, type RelayAgentHandle } from './relay.js';
@@ -140,6 +143,10 @@ export interface Host {
   getIndexStatus(id: string): IndexStatus | null;
   searchWorkspace(id: string, query: string): SearchHit[];
   listFiles(id: string): IndexedFile[];
+
+  readFile(path: string): FileContent;
+  writeFile(path: string, content: string): void;
+  listDir(path: string): DirEntry[];
 
   listConnectors(): ConnectorConfig[];
   connectConnector(kind: ConnectorKind, token: string, settings?: Record<string, string>): ConnectorConfig[];
@@ -311,6 +318,9 @@ export function createHost(opts: { dataDir: string }): Host {
       return folder ? searchWorkspace(folder, query) : [];
     },
     listFiles: listIndexedFiles,
+    readFile,
+    writeFile,
+    listDir,
 
     listConnectors: () => getSettings().connectors,
     connectConnector: (kind, token, settings) => {
