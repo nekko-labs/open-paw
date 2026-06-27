@@ -11,6 +11,36 @@ import { ChatIcon, TerminalIcon, PlusIcon, SplitIcon, CloseIcon, FolderIcon } fr
  * tabbed panes that can be split side by side so many agents and terminals run
  * at once.
  */
+
+/** Live state of an agent, surfaced as a dot on its sidebar row and tab. */
+type AgentStatus = 'working' | 'input' | 'error';
+const STATUS_META: Record<AgentStatus, { color: string; label: string; pulse: boolean }> = {
+  working: { color: 'var(--accent)', label: 'Working…', pulse: true },
+  input: { color: '#e0a23a', label: 'Needs your input', pulse: true },
+  error: { color: '#e0574a', label: 'Stopped on an error', pulse: false },
+};
+
+function StatusDot({ status, className = '' }: { status: AgentStatus; className?: string }) {
+  const m = STATUS_META[status];
+  return (
+    <span
+      className={`h-1.5 w-1.5 shrink-0 rounded-full ${m.pulse ? 'animate-pulse' : ''} ${className}`}
+      style={{ background: m.color }}
+      title={m.label}
+    />
+  );
+}
+
+/** Fold an agent event into the per-session status (undefined = idle). */
+function statusFromEvent(type: AgentEvent['type']): AgentStatus | null {
+  switch (type) {
+    case 'tool_approval_required': return 'input';
+    case 'error': return 'error';
+    case 'done': return null;
+    default: return 'working';
+  }
+}
+
 export function WorkbenchView() {
   const {
     sessions, terminals, groups, activeGroupId, settings, activeSessionId,
@@ -18,7 +48,7 @@ export function WorkbenchView() {
     setActivePane, closePane, focusGroup, splitRight, newChat, setActiveWorkspace,
   } = useStore();
 
-  const [running, setRunning] = useState<Set<string>>(new Set());
+  const [statuses, setStatuses] = useState<Map<string, AgentStatus>>(new Map());
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [mobileNav, setMobileNav] = useState(false);
   const [newMenuOpen, setNewMenuOpen] = useState(false);
@@ -44,16 +74,19 @@ export function WorkbenchView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Track which sessions are mid-run (for sidebar/tab activity dots) and surface
-  // freshly spawned sub-agents by refreshing the list when an unknown id appears.
+  // Derive each session's status (working / needs-input / error / idle) from its
+  // agent events for the sidebar + tab dots, and surface freshly spawned
+  // sub-agents by refreshing the list when an unknown id appears.
   useEffect(() => {
     const known = new Set(sessions.map((s) => s.id));
     const off = window.nekko.onAgentEvent((e: AgentEvent) => {
-      if (e.type === 'done' || e.type === 'error') {
-        setRunning((r) => { const n = new Set(r); n.delete(e.sessionId); return n; });
-      } else {
-        setRunning((r) => (r.has(e.sessionId) ? r : new Set(r).add(e.sessionId)));
-      }
+      const next = statusFromEvent(e.type);
+      setStatuses((prev) => {
+        const m = new Map(prev);
+        if (next === null) m.delete(e.sessionId);
+        else m.set(e.sessionId, next);
+        return m;
+      });
       if (!known.has(e.sessionId)) { known.add(e.sessionId); refreshSessions(); }
     });
     return off;
@@ -162,7 +195,7 @@ export function WorkbenchView() {
                     <p className="px-3 py-1 text-[11px] text-ink-faint">Empty — start a chat or terminal.</p>
                   )}
                   {chats.map((s) => (
-                    <ChatRow key={s.id} session={s} depth={0} running={running} childrenOf={childrenOf}
+                    <ChatRow key={s.id} session={s} depth={0} statuses={statuses} childrenOf={childrenOf}
                       activeSessionId={activeSessionId} onOpen={openChatPane} />
                   ))}
                   {terms.map((t) => (
@@ -200,7 +233,7 @@ export function WorkbenchView() {
                 group={g}
                 isActive={g.id === activeGroupId}
                 canSplit={groups.length < 3}
-                running={running}
+                statuses={statuses}
                 sessions={sessions}
                 titleFor={titleFor}
                 onFocus={() => focusGroup(g.id)}
@@ -219,13 +252,13 @@ export function WorkbenchView() {
 }
 
 function ChatRow({
-  session, depth, running, childrenOf, activeSessionId, onOpen,
+  session, depth, statuses, childrenOf, activeSessionId, onOpen,
 }: {
-  session: Session; depth: number; running: Set<string>;
+  session: Session; depth: number; statuses: Map<string, AgentStatus>;
   childrenOf: Map<string, Session[]>; activeSessionId: string | null; onOpen: (id: string) => void;
 }) {
   const kids = childrenOf.get(session.id) ?? [];
-  const isRunning = running.has(session.id);
+  const status = statuses.get(session.id);
   const isActive = session.id === activeSessionId;
   const nested = depth > 0;
   return (
@@ -249,10 +282,10 @@ function ChatRow({
           style={{ width: nested ? 5 : 6, height: nested ? 5 : 6, marginLeft: nested ? 1 : 0 }}
         />
         <span className="min-w-0 flex-1 truncate">{session.title}</span>
-        {isRunning && <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-accent" title="Running" />}
+        {status && <StatusDot status={status} />}
       </button>
       {kids.map((k) => (
-        <ChatRow key={k.id} session={k} depth={depth + 1} running={running} childrenOf={childrenOf} activeSessionId={activeSessionId} onOpen={onOpen} />
+        <ChatRow key={k.id} session={k} depth={depth + 1} statuses={statuses} childrenOf={childrenOf} activeSessionId={activeSessionId} onOpen={onOpen} />
       ))}
     </>
   );
@@ -273,10 +306,10 @@ function TerminalRow({ term, onOpen }: { term: TerminalInfo; onOpen: (id: string
 }
 
 function PaneGroupView({
-  group, isActive, canSplit, running, sessions, titleFor,
+  group, isActive, canSplit, statuses, sessions, titleFor,
   onFocus, onSelect, onClose, onSplit, onNewChat, onNewTerminal,
 }: {
-  group: WbGroup; isActive: boolean; canSplit: boolean; running: Set<string>;
+  group: WbGroup; isActive: boolean; canSplit: boolean; statuses: Map<string, AgentStatus>;
   sessions: Session[]; titleFor: (p: WbPane) => string;
   onFocus: () => void; onSelect: (paneId: string) => void; onClose: (paneId: string) => void;
   onSplit: (paneId: string) => void; onNewChat: () => void; onNewTerminal: () => void;
@@ -288,7 +321,7 @@ function PaneGroupView({
       <div className="flex items-center gap-1 overflow-x-auto border-b border-line px-1.5 py-1" style={{ background: 'var(--surface-2)' }}>
         {group.panes.map((p) => {
           const isActiveTab = p.id === active?.id;
-          const isRunning = p.kind === 'chat' && running.has(p.refId);
+          const status = p.kind === 'chat' ? statuses.get(p.refId) : undefined;
           return (
             <div
               key={p.id}
@@ -300,7 +333,7 @@ function PaneGroupView({
             >
               {p.kind === 'terminal' ? <TerminalIcon className="h-3.5 w-3.5 shrink-0 text-ink-faint" /> : <ChatIcon className="h-3.5 w-3.5 shrink-0 text-ink-faint" />}
               <span className="max-w-[140px] truncate">{titleFor(p)}</span>
-              {isRunning && <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-accent" />}
+              {status && <StatusDot status={status} />}
               <button
                 className="ml-0.5 rounded p-0.5 text-ink-faint opacity-0 hover:text-ink group-hover:opacity-100"
                 title="Close tab"
