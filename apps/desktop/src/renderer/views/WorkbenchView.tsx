@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import type { AgentEvent, Session, TerminalInfo, WorkspaceFolder } from '@open-paw/shared';
+import type { AgentEvent, Session, ShellOption, TerminalInfo, WorkspaceFolder } from '@open-paw/shared';
 import { useStore, type WbGroup, type WbPane } from '../store.js';
 import { ChatPane } from '../components/ChatPane.js';
 import { TerminalPane } from '../components/TerminalPane.js';
@@ -22,9 +22,11 @@ export function WorkbenchView() {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [mobileNav, setMobileNav] = useState(false);
   const [newMenuOpen, setNewMenuOpen] = useState(false);
+  const [shells, setShells] = useState<ShellOption[]>([]);
   const newMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { refreshTerminals(); }, [refreshTerminals]);
+  useEffect(() => { window.nekko.listShells().then(setShells).catch(() => {}); }, []);
 
   // Close the "+" create menu on an outside click.
   useEffect(() => {
@@ -94,7 +96,7 @@ export function WorkbenchView() {
           <button className="btn btn-ghost px-2 py-1" title="New agent or terminal"
             onClick={() => setNewMenuOpen((o) => !o)}><PlusIcon /></button>
           {newMenuOpen && (
-            <div className="card absolute right-0 top-9 z-40 w-56 p-1.5 shadow-lg">
+            <div className="card absolute right-0 top-9 z-40 w-60 p-1.5 shadow-lg">
               <button
                 className="flex w-full items-start gap-2 rounded-lg px-2.5 py-1.5 text-left hover:bg-surface-2"
                 onClick={() => { setNewMenuOpen(false); newChat(); }}
@@ -105,16 +107,30 @@ export function WorkbenchView() {
                   <span className="block text-[11px] text-ink-faint">Chat that drives an agent</span>
                 </span>
               </button>
-              <button
-                className="flex w-full items-start gap-2 rounded-lg px-2.5 py-1.5 text-left hover:bg-surface-2"
-                onClick={() => { setNewMenuOpen(false); newTerminal(); }}
-              >
-                <TerminalIcon className="mt-0.5 h-4 w-4 shrink-0 text-ink-faint" />
-                <span className="min-w-0">
-                  <span className="block text-[12.5px] font-medium">New terminal</span>
-                  <span className="block text-[11px] text-ink-faint">Run shell commands</span>
-                </span>
-              </button>
+
+              <div className="my-1 border-t border-line" />
+              <p className="px-2.5 pb-0.5 pt-1 text-[10px] font-semibold uppercase tracking-wide text-ink-faint">Terminal</p>
+              {shells.length === 0 ? (
+                <button
+                  className="flex w-full items-start gap-2 rounded-lg px-2.5 py-1.5 text-left hover:bg-surface-2"
+                  onClick={() => { setNewMenuOpen(false); newTerminal(); }}
+                >
+                  <TerminalIcon className="mt-0.5 h-4 w-4 shrink-0 text-ink-faint" />
+                  <span className="text-[12.5px] font-medium">New terminal</span>
+                </button>
+              ) : (
+                shells.map((sh) => (
+                  <button
+                    key={sh.id}
+                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left hover:bg-surface-2"
+                    title={sh.path}
+                    onClick={() => { setNewMenuOpen(false); newTerminal(undefined, sh.path); }}
+                  >
+                    <TerminalIcon className="h-4 w-4 shrink-0 text-ink-faint" />
+                    <span className="min-w-0 flex-1 truncate text-[12.5px]">{sh.label}</span>
+                  </button>
+                ))
+              )}
             </div>
           )}
         </div>

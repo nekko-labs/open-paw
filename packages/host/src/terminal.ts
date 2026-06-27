@@ -1,50 +1,85 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
+import * as nodePty from '@lydell/node-pty';
 import { existsSync } from 'fs';
-import type { TerminalInfo, TerminalBlock, TerminalEvent, TerminalSnapshot } from '@open-paw/shared';
+import type { TerminalInfo, TerminalEvent, TerminalSnapshot, ShellOption } from '@open-paw/shared';
 import { getSettings } from './store.js';
 
 /**
- * Terminal sessions are persistent shells the user runs commands in, rendered as
- * Warp-style command blocks. We deliberately avoid a native PTY (the project
- * bans native modules — no node-pty); instead one long-lived shell process per
- * terminal keeps cwd/env across commands, and a per-command marker echo delimits
- * each block and carries its exit code. Terminals live in memory only.
+ * Terminal sessions are real pseudo-terminals (PTYs), one shell per terminal.
+ * Because there's a genuine TTY behind them, everything a native terminal does
+ * works: tab-completion, powerline prompts, zsh plugins, and full-screen TUIs
+ * (vim, htop, lazygit). The host streams raw bytes both ways and retains a
+ * rolling scrollback buffer so a reattaching renderer can restore the screen.
+ *
+ * Backed by @lydell/node-pty: an N-API, prebuilt PTY whose binary loads under
+ * both Node (server/cloud editions) and Electron (desktop) with no native
+ * toolchain or electron-rebuild — which is why we can use it without breaking
+ * the project's "builds everywhere" footprint. Terminals live in memory only.
  */
 
 type Sender = (e: TerminalEvent) => void;
 
-const MAX_BLOCKS = 60;
-const MAX_BLOCK_OUTPUT = 100_000;
+/** Rolling raw scrollback retained per terminal (bytes, for reattach). */
+const MAX_BUFFER = 256_000;
 
 interface TermState {
   info: TerminalInfo;
-  proc: ChildProcessWithoutNullStreams;
-  /** Unique-per-terminal sentinel the shell echoes after each command. */
-  marker: string;
-  blocks: TerminalBlock[];
-  /** Commands waiting to run (one block executes at a time). */
-  queue: string[];
-  active: TerminalBlock | null;
-  /** stdout carry-over, so a marker split across chunks is still detected. */
-  buf: string;
-  send: Sender;
+  proc: nodePty.IPty;
+  /** Raw output retained verbatim (escape sequences included) for snapshots. */
+  buffer: string;
+  cols: number;
+  rows: number;
 }
 
 const terms = new Map<string, TermState>();
 let senders: Sender[] = [];
 
-/** Register the host event sink that fans terminal events out to renderers. */
+/** Register the host event sink that fans terminal output out to renderers. */
 export function setTerminalSender(send: Sender): void {
   if (!senders.includes(send)) senders.push(send);
 }
 const emit: Sender = (e) => senders.forEach((s) => s(e));
 
-function defaultShell(): { shell: string; args: string[] } {
+/** Detect shells installed on this machine, best first. */
+function detectShells(): ShellOption[] {
+  const out: ShellOption[] = [];
+  const add = (id: string, label: string, paths: string[], args?: string[]) => {
+    if (out.some((o) => o.id === id)) return;
+    const hit = paths.find((p) => p && existsSync(p));
+    if (hit) out.push({ id, label, path: hit, args });
+  };
   if (process.platform === 'win32') {
-    return { shell: 'powershell.exe', args: ['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', '-'] };
+    const pf = process.env.ProgramFiles ?? 'C:\\Program Files';
+    const sys = process.env.SystemRoot ?? 'C:\\Windows';
+    add('pwsh', 'PowerShell 7', [`${pf}\\PowerShell\\7\\pwsh.exe`]);
+    add('powershell', 'Windows PowerShell', [`${sys}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`]);
+    add('cmd', 'Command Prompt', [`${sys}\\System32\\cmd.exe`]);
+    add('gitbash', 'Git Bash', [`${pf}\\Git\\bin\\bash.exe`], ['--login', '-i']);
+  } else {
+    const env = process.env.SHELL;
+    if (env && existsSync(env)) add('login', 'Login shell', [env], ['-l']);
+    add('zsh', 'zsh', ['/bin/zsh', '/usr/bin/zsh']);
+    add('bash', 'bash', ['/bin/bash', '/usr/bin/bash']);
+    add('fish', 'fish', ['/opt/homebrew/bin/fish', '/usr/local/bin/fish', '/usr/bin/fish']);
   }
-  const shell = process.env.SHELL && existsSync(process.env.SHELL) ? process.env.SHELL : '/bin/bash';
-  return { shell, args: [] };
+  return out;
+}
+
+export function listShells(): ShellOption[] {
+  return detectShells();
+}
+
+/** The shell a new terminal launches absent an explicit choice. */
+function resolveShell(explicit?: string): ShellOption {
+  const shells = detectShells();
+  const wanted = explicit ?? getSettings().defaultShellPath;
+  const found = wanted ? shells.find((s) => s.path === wanted) : undefined;
+  if (found) return found;
+  if (wanted && existsSync(wanted)) return { id: 'custom', label: 'Shell', path: wanted };
+  if (shells[0]) return shells[0];
+  // Absolute fallback if detection found nothing.
+  return process.platform === 'win32'
+    ? { id: 'cmd', label: 'Command Prompt', path: 'cmd.exe' }
+    : { id: 'sh', label: 'sh', path: '/bin/sh' };
 }
 
 function resolveCwd(workspaceId?: string, cwd?: string): string {
@@ -63,161 +98,95 @@ export function listTerminals(): TerminalInfo[] {
 
 export function terminalSnapshot(id: string): TerminalSnapshot | null {
   const t = terms.get(id);
-  return t ? { info: t.info, blocks: t.blocks } : null;
+  return t ? { info: t.info, buffer: t.buffer, cols: t.cols, rows: t.rows } : null;
 }
 
-export function createTerminal(opts?: { workspaceId?: string; cwd?: string; title?: string }): TerminalInfo {
+export function createTerminal(opts?: { workspaceId?: string; cwd?: string; title?: string; shell?: string; cols?: number; rows?: number }): TerminalInfo {
   const id = `term_${Date.now().toString(36)}_${Math.floor(Math.random() * 1e6).toString(36)}`;
   const cwd = resolveCwd(opts?.workspaceId, opts?.cwd);
-  const { shell, args } = defaultShell();
-  const proc = spawn(shell, args, {
-    cwd,
-    env: { ...process.env, TERM: 'dumb', GIT_PAGER: 'cat', PAGER: 'cat' },
-    windowsHide: true,
-  });
+  const shell = resolveShell(opts?.shell);
+  const cols = opts?.cols ?? 80;
+  const rows = opts?.rows ?? 24;
+
   const info: TerminalInfo = {
     id,
-    title: opts?.title || 'Terminal',
+    title: opts?.title || shell.label || 'Terminal',
     workspaceId: opts?.workspaceId,
     cwd,
-    shell,
+    shell: shell.path,
     createdAt: Date.now(),
     running: true,
   };
-  const state: TermState = {
-    info,
-    proc,
-    marker: `__OPAW_${id}__`,
-    blocks: [],
-    queue: [],
-    active: null,
-    buf: '',
-    send: emit,
-  };
+
+  let proc: nodePty.IPty;
+  try {
+    proc = nodePty.spawn(shell.path, shell.args ?? [], {
+      name: 'xterm-256color',
+      cols,
+      rows,
+      cwd,
+      // A real TTY — leave TERM/PAGER alone so prompts and pagers render normally.
+      env: { ...process.env } as Record<string, string>,
+    });
+  } catch (err) {
+    info.running = false;
+    info.exitCode = -1;
+    const state: TermState = { info, proc: null as unknown as nodePty.IPty, buffer: `Failed to start ${shell.path}: ${String(err)}\r\n`, cols, rows };
+    terms.set(id, state);
+    queueMicrotask(() => emit({ type: 'exit', terminalId: id, code: -1 }));
+    return info;
+  }
+
+  const state: TermState = { info, proc, buffer: '', cols, rows };
   terms.set(id, state);
 
-  proc.stdout.setEncoding('utf8');
-  proc.stderr.setEncoding('utf8');
-  proc.stdout.on('data', (chunk: string) => onStdout(state, chunk));
-  proc.stderr.on('data', (chunk: string) => {
-    if (state.active) appendOutput(state, state.active, chunk, 'err');
+  proc.onData((data: string) => {
+    state.buffer = (state.buffer + data).slice(-MAX_BUFFER);
+    emit({ type: 'data', terminalId: id, data });
   });
-  proc.on('exit', (code) => {
+  proc.onExit(({ exitCode }) => {
     info.running = false;
-    info.exitCode = code ?? undefined;
-    if (state.active) finishBlock(state, code ?? -1);
-    emit({ type: 'exit', terminalId: id, code });
-  });
-  proc.on('error', (err) => {
-    info.running = false;
-    emit({ type: 'exit', terminalId: id, code: -1 });
-    // Surface the spawn failure as a synthetic block so the user sees why.
-    const blk: TerminalBlock = { id: `blk_${Date.now().toString(36)}`, command: '', output: String(err), startedAt: Date.now(), endedAt: Date.now(), exitCode: -1 };
-    state.blocks.push(blk);
+    info.exitCode = exitCode;
+    emit({ type: 'exit', terminalId: id, code: exitCode });
   });
 
   return info;
 }
 
-/** Queue a command to run as its own block; drains FIFO. */
-export function runInTerminal(id: string, command: string): void {
+/** Write raw input (keystrokes) to the PTY. */
+export function writeTerminal(id: string, data: string): void {
+  const t = terms.get(id);
+  if (t && t.info.running) t.proc.write(data);
+}
+
+/** Resize the PTY so the shell reflows to the renderer's viewport. */
+export function resizeTerminal(id: string, cols: number, rows: number): void {
   const t = terms.get(id);
   if (!t || !t.info.running) return;
-  t.queue.push(command);
-  if (!t.active) drain(t);
-}
-
-function drain(t: TermState): void {
-  if (t.active || t.queue.length === 0) return;
-  const command = t.queue.shift()!;
-  const block: TerminalBlock = {
-    id: `blk_${Date.now().toString(36)}_${Math.floor(Math.random() * 1e6).toString(36)}`,
-    command,
-    output: '',
-    startedAt: Date.now(),
-  };
-  t.active = block;
-  t.blocks.push(block);
-  if (t.blocks.length > MAX_BLOCKS) t.blocks.splice(0, t.blocks.length - MAX_BLOCKS);
-  emit({ type: 'block_start', terminalId: t.info.id, blockId: block.id, command });
-
-  // Write the command, then echo the marker + exit code on its own line so we
-  // can delimit the block and capture the status. A leading newline guarantees
-  // the marker isn't glued onto a command's trailing partial line.
-  const nl = '\n';
-  if (process.platform === 'win32') {
-    // $LASTEXITCODE only tracks native executables; capture $? first (it reflects
-    // cmdlet/parse failures too) so a failed PowerShell command reports non-zero.
-    t.proc.stdin.write(`${command}${nl}`);
-    t.proc.stdin.write(`$ok=$?; $c=$LASTEXITCODE; if(-not $ok){if($null -eq $c){$c=1}}; Write-Output "\`n${t.marker} $c"${nl}`);
-  } else {
-    t.proc.stdin.write(`${command}${nl}`);
-    t.proc.stdin.write(`printf '\\n%s %s\\n' '${t.marker}' "$?"${nl}`);
+  t.cols = cols;
+  t.rows = rows;
+  try {
+    t.proc.resize(Math.max(1, cols), Math.max(1, rows));
+  } catch {
+    /* pty gone */
   }
 }
 
-function onStdout(t: TermState, chunk: string): void {
-  t.buf += chunk;
-  // Process all complete markers currently in the buffer.
-  for (;;) {
-    const idx = t.buf.indexOf(t.marker);
-    if (idx === -1) break;
-    // Output preceding the marker belongs to the active block.
-    const pre = t.buf.slice(0, idx);
-    if (t.active && pre) appendOutput(t, t.active, pre, 'out');
-    // Read the exit code that follows the marker, up to the next newline.
-    const rest = t.buf.slice(idx + t.marker.length);
-    const nlAt = rest.indexOf('\n');
-    if (nlAt === -1) {
-      // Exit code line not fully arrived yet; stash and wait.
-      t.buf = t.buf.slice(idx);
-      return;
-    }
-    const code = parseInt(rest.slice(0, nlAt).trim(), 10);
-    t.buf = rest.slice(nlAt + 1);
-    finishBlock(t, Number.isFinite(code) ? code : 0);
-  }
-  // Emit everything except a tail that might be the start of a marker.
-  const hold = t.marker.length - 1;
-  if (t.buf.length > hold) {
-    const flush = t.buf.slice(0, t.buf.length - hold);
-    t.buf = t.buf.slice(t.buf.length - hold);
-    if (t.active && flush) appendOutput(t, t.active, flush, 'out');
-  }
-}
-
-function appendOutput(t: TermState, block: TerminalBlock, chunk: string, stream: 'out' | 'err'): void {
-  block.output = (block.output + chunk).slice(-MAX_BLOCK_OUTPUT);
-  emit({ type: 'data', terminalId: t.info.id, blockId: block.id, stream, chunk });
-}
-
-function finishBlock(t: TermState, exitCode: number): void {
-  const block = t.active;
-  if (!block) return;
-  block.exitCode = exitCode;
-  block.endedAt = Date.now();
-  t.active = null;
-  emit({ type: 'block_end', terminalId: t.info.id, blockId: block.id, exitCode });
-  drain(t);
+/** Convenience: type a command line and press Enter. */
+export function runInTerminal(id: string, command: string): void {
+  writeTerminal(id, command + '\r');
 }
 
 export function signalTerminal(id: string, _signal: 'interrupt'): void {
-  const t = terms.get(id);
-  if (!t || !t.info.running) return;
-  // No PTY → no real SIGINT delivery. Best-effort: send an ETX so shells/REPLs
-  // that read it from stdin abort the current line.
-  try {
-    t.proc.stdin.write('\x03');
-  } catch {
-    /* stream closed */
-  }
+  // Real PTY: Ctrl-C is just ETX on the input stream; the tty delivers SIGINT.
+  writeTerminal(id, '\x03');
 }
 
 export function closeTerminal(id: string): void {
   const t = terms.get(id);
   if (!t) return;
   try {
-    t.proc.kill();
+    t.proc?.kill();
   } catch {
     /* already gone */
   }

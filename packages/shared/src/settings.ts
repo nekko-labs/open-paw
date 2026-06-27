@@ -54,6 +54,8 @@ export interface AppSettings {
   language?: string;
   /** Default tool-execution policy for new chats. */
   defaultChatMode?: import('./chat.js').ChatMode;
+  /** Path to the shell new terminals launch by default (undefined = auto-detect). */
+  defaultShellPath?: string;
   /** Reusable prompts invokable as `/name` in the composer. */
   prompts?: PromptTemplate[];
   /** Favorited models as `${providerId}::${modelId}`; sorted to the top. */

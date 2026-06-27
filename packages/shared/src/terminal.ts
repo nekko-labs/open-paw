@@ -1,6 +1,14 @@
-/** Terminal session types — Warp-style command blocks over a persistent shell. */
+/**
+ * Terminal session types — a real PTY (pseudo-terminal) per session.
+ *
+ * Each terminal is a live shell attached to a pseudo-terminal, so it behaves
+ * like a native terminal: tab-completion, powerline prompts, zsh plugins, and
+ * full-screen TUIs (vim, htop, lazygit) all work. The renderer is xterm.js; the
+ * host streams raw bytes both ways. (Backed by @lydell/node-pty — an N-API,
+ * prebuilt PTY that needs no native toolchain or electron-rebuild.)
+ */
 
-/** A persistent shell session the user can run commands in. */
+/** A live shell session attached to a PTY. */
 export interface TerminalInfo {
   id: string;
   title: string;
@@ -8,7 +16,7 @@ export interface TerminalInfo {
   workspaceId?: string;
   /** Working directory the shell started in. */
   cwd: string;
-  /** Shell binary (e.g. powershell.exe, /bin/bash). */
+  /** Shell binary the PTY is running (e.g. powershell.exe, /bin/zsh). */
   shell: string;
   createdAt: number;
   /** False once the shell process has exited. */
@@ -16,31 +24,31 @@ export interface TerminalInfo {
   exitCode?: number;
 }
 
-/**
- * One command-and-output unit (a "block", à la Warp). The renderer assembles
- * these from the stream of {@link TerminalEvent}s; the host also retains the
- * most recent blocks so a reattaching renderer can restore scrollback.
- */
-export interface TerminalBlock {
+/** A shell the host detected as available to launch. */
+export interface ShellOption {
+  /** Stable id (e.g. 'pwsh', 'bash', 'zsh'). */
   id: string;
-  command: string;
-  /** Interleaved stdout/stderr text as it streamed. */
-  output: string;
-  /** Process exit code for the command (undefined while still running). */
-  exitCode?: number;
-  startedAt: number;
-  endedAt?: number;
+  /** Human label shown in the picker (e.g. 'PowerShell', 'zsh'). */
+  label: string;
+  /** Absolute path to the shell binary. */
+  path: string;
+  /** Extra launch args (e.g. login flags). */
+  args?: string[];
 }
 
-/** Snapshot returned when a renderer (re)attaches to a terminal. */
+/**
+ * Snapshot returned when a renderer (re)attaches to a terminal. `buffer` is the
+ * raw retained output (escape sequences included) which xterm.js replays
+ * verbatim to restore scrollback.
+ */
 export interface TerminalSnapshot {
   info: TerminalInfo;
-  blocks: TerminalBlock[];
+  buffer: string;
+  cols: number;
+  rows: number;
 }
 
 /** Streaming events emitted by a terminal, mirrored to every renderer. */
 export type TerminalEvent =
-  | { type: 'block_start'; terminalId: string; blockId: string; command: string }
-  | { type: 'data'; terminalId: string; blockId: string; stream: 'out' | 'err'; chunk: string }
-  | { type: 'block_end'; terminalId: string; blockId: string; exitCode: number }
+  | { type: 'data'; terminalId: string; data: string }
   | { type: 'exit'; terminalId: string; code: number | null };

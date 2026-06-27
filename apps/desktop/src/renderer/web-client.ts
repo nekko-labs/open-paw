@@ -179,8 +179,11 @@ function makeWebClient(): NekkoApi {
     approveTool: (sessionId, toolCallId, approved) => call(IpcChannels.toolApprove, sessionId, toolCallId, approved),
 
     listTerminals: () => call(IpcChannels.terminalsList),
+    listShells: () => call(IpcChannels.terminalShells),
     createTerminal: (opts) => call(IpcChannels.terminalCreate, opts),
     terminalSnapshot: (id) => call(IpcChannels.terminalSnapshot, id),
+    writeTerminal: (id, data) => call(IpcChannels.terminalWrite, id, data),
+    resizeTerminal: (id, cols, rows) => call(IpcChannels.terminalResize, id, cols, rows),
     runInTerminal: (id, command) => call(IpcChannels.terminalRun, id, command),
     signalTerminal: (id, signal) => call(IpcChannels.terminalSignal, id, signal),
     closeTerminal: (id) => call(IpcChannels.terminalClose, id),

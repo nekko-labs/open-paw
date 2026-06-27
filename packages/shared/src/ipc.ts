@@ -3,7 +3,7 @@
 import type { AppSettings, UsageSummary } from './settings.js';
 import type { ProviderConfig, ModelInfo } from './models.js';
 import type { Session, SendOptions, AgentEvent } from './chat.js';
-import type { TerminalInfo, TerminalSnapshot } from './terminal.js';
+import type { TerminalInfo, TerminalSnapshot, ShellOption } from './terminal.js';
 import type { ContextBundle } from './context.js';
 import type { MemoryEntry, MemoryScope } from './memory.js';
 import type { WorkspaceFolder, IndexStatus, SearchHit, IndexedFile } from './workspace.js';
@@ -38,8 +38,11 @@ export const IpcChannels = {
   toolApprove: 'tool:approve',
 
   terminalsList: 'terminals:list',
+  terminalShells: 'terminal:shells',
   terminalCreate: 'terminal:create',
   terminalSnapshot: 'terminal:snapshot',
+  terminalWrite: 'terminal:write',
+  terminalResize: 'terminal:resize',
   terminalRun: 'terminal:run',
   terminalSignal: 'terminal:signal',
   terminalClose: 'terminal:close',
@@ -140,13 +143,19 @@ export interface NekkoApi {
 
   /** Live terminal sessions (in-memory; they don't persist across restarts). */
   listTerminals(): Promise<TerminalInfo[]>;
-  /** Spawn a persistent shell, optionally scoped to a project / cwd. */
-  createTerminal(opts?: { workspaceId?: string; cwd?: string; title?: string }): Promise<TerminalInfo>;
-  /** Fetch current info + retained command blocks (for reattaching a renderer). */
+  /** Shells the host detected as available to launch. */
+  listShells(): Promise<ShellOption[]>;
+  /** Spawn a PTY-backed shell, optionally scoped to a project / cwd / shell. */
+  createTerminal(opts?: { workspaceId?: string; cwd?: string; title?: string; shell?: string; cols?: number; rows?: number }): Promise<TerminalInfo>;
+  /** Fetch current info + retained raw scrollback (for reattaching a renderer). */
   terminalSnapshot(id: string): Promise<TerminalSnapshot | null>;
-  /** Run a command in the terminal as a new block. */
+  /** Write raw input (keystrokes) to the PTY. */
+  writeTerminal(id: string, data: string): Promise<void>;
+  /** Tell the PTY its new viewport size so the shell reflows. */
+  resizeTerminal(id: string, cols: number, rows: number): Promise<void>;
+  /** Convenience: write a command line followed by Enter. */
   runInTerminal(id: string, command: string): Promise<void>;
-  /** Send a control signal to the running command (e.g. interrupt). */
+  /** Send a control signal (e.g. interrupt → Ctrl-C). */
   signalTerminal(id: string, signal: 'interrupt'): Promise<void>;
   /** Kill the shell and forget the terminal. */
   closeTerminal(id: string): Promise<void>;

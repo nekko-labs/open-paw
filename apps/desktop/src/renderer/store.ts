@@ -67,7 +67,7 @@ interface UiState {
   applyTheme: () => void;
 
   refreshTerminals: () => Promise<void>;
-  newTerminal: (workspaceId?: string) => Promise<void>;
+  newTerminal: (workspaceId?: string, shell?: string) => Promise<void>;
   openChatPane: (sessionId: string) => void;
   openTerminalPane: (terminalId: string) => void;
   closePane: (groupId: string, paneId: string) => void;
@@ -204,9 +204,9 @@ export const useStore = create<UiState>((set, get) => ({
     }
   },
 
-  newTerminal: async (workspaceId) => {
+  newTerminal: async (workspaceId, shell) => {
     const wid = workspaceId ?? get().activeWorkspaceId ?? undefined;
-    const t = await window.nekko.createTerminal({ workspaceId: wid });
+    const t = await window.nekko.createTerminal({ workspaceId: wid, shell });
     await get().refreshTerminals();
     set({ view: 'chat' });
     get().openTerminalPane(t.id);

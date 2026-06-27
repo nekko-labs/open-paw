@@ -24,6 +24,7 @@ import type {
   SpecDocStatus,
   TerminalInfo,
   TerminalSnapshot,
+  ShellOption,
 } from '@open-paw/shared';
 import {
   createProvider,
@@ -46,8 +47,11 @@ import { syncMcp, mcpStatus, mcpToolList } from './mcp.js';
 import {
   setTerminalSender,
   listTerminals,
+  listShells,
   createTerminal,
   terminalSnapshot,
+  writeTerminal,
+  resizeTerminal,
   runInTerminal,
   signalTerminal,
   closeTerminal,
@@ -94,8 +98,11 @@ export interface Host {
   approveTool(sessionId: string, toolCallId: string, approved: boolean): void;
 
   listTerminals(): TerminalInfo[];
-  createTerminal(opts?: { workspaceId?: string; cwd?: string; title?: string }): TerminalInfo;
+  listShells(): ShellOption[];
+  createTerminal(opts?: { workspaceId?: string; cwd?: string; title?: string; shell?: string; cols?: number; rows?: number }): TerminalInfo;
   terminalSnapshot(id: string): TerminalSnapshot | null;
+  writeTerminal(id: string, data: string): void;
+  resizeTerminal(id: string, cols: number, rows: number): void;
   runInTerminal(id: string, command: string): void;
   signalTerminal(id: string, signal: 'interrupt'): void;
   closeTerminal(id: string): void;
@@ -254,8 +261,11 @@ export function createHost(opts: { dataDir: string }): Host {
     approveTool: (_sessionId, toolCallId, approved) => resolveApproval(toolCallId, approved),
 
     listTerminals,
+    listShells,
     createTerminal,
     terminalSnapshot,
+    writeTerminal,
+    resizeTerminal,
     runInTerminal,
     signalTerminal,
     closeTerminal,
