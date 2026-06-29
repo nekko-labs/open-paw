@@ -9,6 +9,7 @@ import type { MemoryEntry, MemoryScope } from './memory.js';
 import type { WorkspaceFolder, IndexStatus, SearchHit, IndexedFile } from './workspace.js';
 import type { DirEntry, FileContent, FileChange, LineComment } from './files.js';
 import type { DesignBoard, DesignPage } from './design.js';
+import type { AutomationTask, NewTask } from './tasks.js';
 import type { ConnectorConfig, ConnectorKind, ConnectorResource } from './connectors.js';
 import type { GuardrailRule } from './guardrails.js';
 import type { AppInfo, UpdateInfo } from './update.js';
@@ -104,6 +105,12 @@ export const IpcChannels = {
   designAddNote: 'design:addNote',
   designResolveNote: 'design:resolveNote',
 
+  tasksList: 'tasks:list',
+  taskCreate: 'task:create',
+  taskUpdate: 'task:update',
+  taskDelete: 'task:delete',
+  taskRunNow: 'task:runNow',
+
   connectorsList: 'connectors:list',
   connectorConnect: 'connector:connect',
   connectorDisconnect: 'connector:disconnect',
@@ -134,6 +141,7 @@ export const IpcEvents = {
   updateEvent: 'update:event',
   terminalEvent: 'terminal:event',
   changesUpdated: 'changes:updated',
+  tasksUpdated: 'tasks:updated',
 } as const;
 
 /** The typed API the preload bridge exposes as window.nekko. */
@@ -259,6 +267,13 @@ export interface NekkoApi {
   addDesignNote(workspaceId: string, pageId: string, text: string): Promise<DesignBoard>;
   resolveDesignNote(workspaceId: string, pageId: string, noteId: string): Promise<DesignBoard>;
 
+  /** Automation tasks: scheduled, recurring, and long-running background agents. */
+  listTasks(): Promise<AutomationTask[]>;
+  createTask(task: NewTask): Promise<AutomationTask[]>;
+  updateTask(id: string, patch: Partial<AutomationTask>): Promise<AutomationTask[]>;
+  deleteTask(id: string): Promise<AutomationTask[]>;
+  runTaskNow(id: string): Promise<void>;
+
   listConnectors(): Promise<ConnectorConfig[]>;
   connectConnector(kind: ConnectorKind, token: string, settings?: Record<string, string>): Promise<ConnectorConfig[]>;
   disconnectConnector(kind: ConnectorKind): Promise<ConnectorConfig[]>;
@@ -292,4 +307,6 @@ export interface NekkoApi {
   onTerminalEvent(cb: (e: import('./terminal.js').TerminalEvent) => void): () => void;
   /** Fires when a session's tracked file changes shift (after an agent edit/accept). */
   onChangesUpdated(cb: (e: { sessionId: string }) => void): () => void;
+  /** Fires when the automation-task list changes (created/updated/fired/deleted). */
+  onTasksUpdated(cb: (tasks: AutomationTask[]) => void): () => void;
 }

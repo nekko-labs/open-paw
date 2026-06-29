@@ -19,6 +19,8 @@ import type {
   LineComment,
   DesignBoard,
   DesignPage,
+  AutomationTask,
+  NewTask,
   ConnectorConfig,
   ConnectorKind,
   ConnectorResource,
@@ -57,6 +59,16 @@ import {
   addDesignNote,
   resolveDesignNote,
 } from './design.js';
+import {
+  listTasks,
+  createTask,
+  updateTask,
+  deleteTask,
+  runTaskNow,
+  setTaskSender,
+  setTasksNotifier,
+  startTaskScheduler,
+} from './tasks.js';
 import { sendChat, abortChat, resolveApproval, previewContext, setContextPrefs } from './chat.js';
 import { buildSpec, buildSpecDoc, readSpecDocs, setSpecMethodology, toggleSpecTask, specPathForSession } from './spec.js';
 import { connectRelayAgent, type RelayAgentHandle } from './relay.js';
@@ -182,6 +194,13 @@ export interface Host {
   addDesignNote(workspaceId: string, pageId: string, text: string): DesignBoard;
   resolveDesignNote(workspaceId: string, pageId: string, noteId: string): DesignBoard;
 
+  /** Automation tasks: scheduled, recurring, and long-running background agents. */
+  listTasks(): AutomationTask[];
+  createTask(task: NewTask): AutomationTask[];
+  updateTask(id: string, patch: Partial<AutomationTask>): AutomationTask[];
+  deleteTask(id: string): AutomationTask[];
+  runTaskNow(id: string): void;
+
   listConnectors(): ConnectorConfig[];
   connectConnector(kind: ConnectorKind, token: string, settings?: Record<string, string>): ConnectorConfig[];
   disconnectConnector(kind: ConnectorKind): ConnectorConfig[];
@@ -207,6 +226,11 @@ export function createHost(opts: { dataDir: string }): Host {
   setTerminalSender((e) => events.emit('terminalEvent', e));
   // Notify renderers when a session's tracked file changes shift.
   setChangeNotifier((sessionId) => events.emit('changesUpdated', { sessionId }));
+  // Automation tasks: fired-task agent events ride the same bus as live chats;
+  // task-list changes get their own event. Start the periodic scheduler.
+  setTaskSender((e) => events.emit('agentEvent', e));
+  setTasksNotifier((tasks) => events.emit('tasksUpdated', tasks));
+  startTaskScheduler();
 
   const findProvider = (id: string) => getSettings().providers.find((p) => p.id === id);
 
@@ -369,6 +393,11 @@ export function createHost(opts: { dataDir: string }): Host {
     removeDesignPage,
     addDesignNote,
     resolveDesignNote,
+    listTasks,
+    createTask,
+    updateTask,
+    deleteTask,
+    runTaskNow,
 
     listConnectors: () => getSettings().connectors,
     connectConnector: (kind, token, settings) => {

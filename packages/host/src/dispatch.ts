@@ -98,6 +98,12 @@ export function createDispatcher(host: Host): (channel: string, args: any[]) => 
     [C.designAddNote]: ([wid, pid, text]) => host.addDesignNote(wid, pid, text),
     [C.designResolveNote]: ([wid, pid, nid]) => host.resolveDesignNote(wid, pid, nid),
 
+    [C.tasksList]: () => host.listTasks(),
+    [C.taskCreate]: ([task]) => host.createTask(task),
+    [C.taskUpdate]: ([id, patch]) => host.updateTask(id, patch),
+    [C.taskDelete]: ([id]) => host.deleteTask(id),
+    [C.taskRunNow]: ([id]) => host.runTaskNow(id),
+
     [C.connectorsList]: () => host.listConnectors(),
     [C.connectorConnect]: ([kind, token, settings]) => host.connectConnector(kind, token, settings),
     [C.connectorDisconnect]: ([kind]) => host.disconnectConnector(kind),

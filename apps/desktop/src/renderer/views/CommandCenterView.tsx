@@ -1,11 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import type { AgentEvent, ProviderConfig, Session, TerminalInfo, UsageSummary } from '@open-paw/shared';
+import type { AgentEvent, ProviderConfig, Session, TerminalInfo, UsageSummary, AutomationTask } from '@open-paw/shared';
 import type { RemoteStatus } from '@open-paw/shared';
-import { estimateCostUSD, formatUSD, optimizationTips } from '@open-paw/shared';
+import { estimateCostUSD, formatUSD, optimizationTips, MODEL_PRICING, taskCadence } from '@open-paw/shared';
 import type { OptimizationTip } from '@open-paw/shared';
 import { useStore } from '../store.js';
 import { Markdown } from '../components/Markdown.js';
-import { ChatIcon, FolderIcon, ServerIcon, PlusIcon, CheckIcon, TerminalIcon, RobotIcon } from '../icons.js';
+import { ChatIcon, FolderIcon, ServerIcon, PlusIcon, CheckIcon, TerminalIcon, RobotIcon, TrashIcon } from '../icons.js';
 
 const LOCAL_KINDS = ['ollama', 'lmstudio', 'vllm', 'openai-compat'];
 const MIN = 60_000;
@@ -93,9 +93,7 @@ export function CommandCenterView() {
     return m;
   }, [sessions, now]);
 
-  const totalCost = usage
-    ? Object.entries(usage.byModel).reduce((sum, [model, v]) => sum + estimateCostUSD(model, v.input, v.output), 0)
-    : 0;
+  const totalCost = usage?.totalCost ?? 0;
   const liveTerminals = terminals.filter((t) => t.running).length;
   const stats = [
     { label: 'Running agents', value: running.size, color: '#4ec98a' },
@@ -213,7 +211,13 @@ export function CommandCenterView() {
           ))}
         </div>
 
-        {/* Background workers */}
+        {/* Tasks & scheduled work */}
+        <TasksDashboard sessions={sessions} running={running} onOpen={openChat} />
+
+        {/* Cost */}
+        <CostPanel usage={usage} sessions={sessions} providers={providers} />
+
+        {/* Services & model servers */}
         <WorkersDashboard providers={providers} usage={usage} />
 
         {/* Token usage */}
@@ -416,8 +420,8 @@ function WorkersDashboard({ providers, usage }: { providers: ProviderConfig[]; u
   useEffect(() => { window.nekko.getMcpStatus().then(setMcp).catch(() => setMcp([])); }, []);
   return (
     <section className="mt-8">
-      <h2 className="text-[15px] font-semibold">Background tasks &amp; agents</h2>
-      <p className="mt-0.5 text-[12px] text-ink-faint">Model servers, MCP servers, and the remote relay, with live status.</p>
+      <h2 className="text-[15px] font-semibold">Services &amp; model servers</h2>
+      <p className="mt-0.5 text-[12px] text-ink-faint">Model providers, MCP servers, and the remote relay, with live status.</p>
       <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
         <RemoteCard remote={remote} />
         {providers.map((p) => (
@@ -569,7 +573,7 @@ function UsagePanel({ usage }: { usage: UsageSummary | null }) {
           ))}
         </div>
       ) : (
-        <p className="mt-3 text-[12px] text-ink-faint">No usage recorded yet — start a chat to see analytics.</p>
+        <ChartEmpty message="No usage recorded yet — start a chat to see token analytics here." />
       )}
       {Object.keys(usage.byModel).length > 0 && (
         <div className="mt-4 space-y-1">
@@ -582,6 +586,203 @@ function UsagePanel({ usage }: { usage: UsageSummary | null }) {
               </span>
             </div>
           ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** A friendly skeleton placeholder for a chart with no data yet. */
+function ChartEmpty({ message, bars = 12 }: { message: string; bars?: number }) {
+  // Deterministic pseudo-random heights so the skeleton looks like a chart.
+  const heights = Array.from({ length: bars }, (_, i) => 30 + ((i * 37) % 60));
+  return (
+    <div className="mt-4 rounded-xl border border-dashed border-line p-4">
+      <div className="flex h-24 items-end gap-1 opacity-40">
+        {heights.map((h, i) => (
+          <div key={i} className="flex-1 rounded-t" style={{ height: `${h}%`, background: 'var(--ink-faint)' }} />
+        ))}
+      </div>
+      <p className="mt-3 text-center text-[12px] text-ink-faint">{message}</p>
+    </div>
+  );
+}
+
+/** Cost breakdowns: monthly actual + projection, per-agent, per-model, and pricing. */
+function CostPanel({ usage, sessions, providers }: { usage: UsageSummary | null; sessions: Session[]; providers: ProviderConfig[] }) {
+  const titleOf = (id: string) => sessions.find((s) => s.id === id)?.title ?? 'Chat';
+  const hasData = !!usage && (usage.totalCost ?? 0) > 0.0000001;
+
+  // This month's actual + a simple linear projection to month-end.
+  const monthKey = new Date().toISOString().slice(0, 7);
+  const monthDaily = (usage?.daily ?? []).filter((d) => d.date.startsWith(monthKey));
+  const monthActual = monthDaily.reduce((s, d) => s + (d.cost ?? 0), 0);
+  const dayOfMonth = new Date().getDate();
+  const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+  const projected = dayOfMonth > 0 ? (monthActual / dayOfMonth) * daysInMonth : monthActual;
+
+  const topAgents = useMemo(() => {
+    return Object.entries(usage?.bySessionCost ?? {})
+      .filter(([, c]) => c > 0.0000001)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6);
+  }, [usage]);
+  const maxAgent = Math.max(0.0001, ...topAgents.map(([, c]) => c));
+
+  const recentCost = (usage?.daily ?? []).slice(-30);
+  const maxDayCost = Math.max(0.0001, ...recentCost.map((d) => d.cost ?? 0));
+
+  return (
+    <section className="mt-8">
+      <div className="flex items-center gap-2">
+        <h2 className="text-[15px] font-semibold">Cost</h2>
+        <span className="chip" title="Estimated from published provider list prices; local models are $0.">est. · list prices</span>
+      </div>
+      <p className="mt-0.5 text-[12px] text-ink-faint">Spend by agent and model, monthly actuals + projection. Local models are free.</p>
+
+      {!hasData ? (
+        <ChartEmpty message="No spend yet. Once you run a cloud model, monthly spend, projections, and per-agent costs show up here." />
+      ) : (
+        <>
+          {/* Monthly actual + projection */}
+          <div className="mt-3 grid grid-cols-2 gap-4 md:grid-cols-3">
+            <div className="card p-4">
+              <div className="text-[11px] uppercase tracking-wide text-ink-faint">This month</div>
+              <div className="mt-1 text-[22px] font-semibold">{formatUSD(monthActual)}</div>
+              <div className="text-[11px] text-ink-faint">actual, {dayOfMonth}/{daysInMonth} days</div>
+            </div>
+            <div className="card p-4">
+              <div className="text-[11px] uppercase tracking-wide text-ink-faint">Projected</div>
+              <div className="mt-1 text-[22px] font-semibold">{formatUSD(projected)}</div>
+              <div className="text-[11px] text-ink-faint">at this pace, month-end</div>
+            </div>
+            <div className="card p-4">
+              <div className="text-[11px] uppercase tracking-wide text-ink-faint">All time</div>
+              <div className="mt-1 text-[22px] font-semibold">{formatUSD(usage!.totalCost ?? 0)}</div>
+              <div className="text-[11px] text-ink-faint">{(usage!.totalInput + usage!.totalOutput).toLocaleString()} tok</div>
+            </div>
+          </div>
+
+          {/* Daily spend chart */}
+          <div className="card mt-4 p-4">
+            <div className="text-[12px] font-medium">Daily spend (last 30 days)</div>
+            <div className="mt-3 flex h-24 items-end gap-1">
+              {recentCost.map((d) => (
+                <div key={d.date} className="flex flex-1 flex-col justify-end" title={`${d.date}: ${formatUSD(d.cost ?? 0)}`}>
+                  <div className="rounded-t" style={{ height: `${((d.cost ?? 0) / maxDayCost) * 100}%`, background: '#e0a44a', minHeight: (d.cost ?? 0) > 0 ? 2 : 0 }} />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Per-agent breakdown */}
+          {topAgents.length > 0 && (
+            <div className="card mt-4 p-4">
+              <div className="text-[12px] font-medium">By agent</div>
+              <div className="mt-2 space-y-2">
+                {topAgents.map(([sid, cost]) => (
+                  <div key={sid}>
+                    <div className="flex justify-between gap-3 text-[12px]">
+                      <span className="truncate text-ink-soft">{titleOf(sid)}</span>
+                      <span className="shrink-0 text-ink">{formatUSD(cost)}</span>
+                    </div>
+                    <div className="mt-1 h-1.5 overflow-hidden rounded-full" style={{ background: 'var(--surface-2)' }}>
+                      <div className="h-full rounded-full" style={{ width: `${(cost / maxAgent) * 100}%`, background: 'var(--accent)' }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Pricing reference — token/$ estimates */}
+      <details className="card mt-4 p-4">
+        <summary className="cursor-pointer text-[12px] font-medium">Token pricing reference (USD per 1M tokens)</summary>
+        <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 md:grid-cols-3">
+          {MODEL_PRICING.map((p) => (
+            <div key={p.match} className="flex justify-between gap-2 text-[11.5px]">
+              <span className="font-mono text-ink-soft">{p.match}</span>
+              <span className="text-ink-faint">in ${p.input} · out ${p.output}</span>
+            </div>
+          ))}
+        </div>
+        <p className="mt-2 text-[11px] text-ink-faint">Published list prices, matched by model id. Estimates only — your billed amount may differ. Local models (Ollama / LM Studio / vLLM) cost $0.</p>
+      </details>
+    </section>
+  );
+}
+
+const TASK_KIND_META: Record<AutomationTask['kind'], { icon: string; label: string }> = {
+  scheduled: { icon: '⏰', label: 'Scheduled' },
+  recurring: { icon: '🔁', label: 'Recurring' },
+  background: { icon: '♾️', label: 'Background' },
+};
+const TASK_STATUS_COLOR: Record<AutomationTask['status'], string> = {
+  active: '#4ec98a', paused: '#8a8f98', done: '#5b9dd9', error: '#e0574a',
+};
+
+/** Scheduled / recurring / background automation tasks + long-running agents. */
+function TasksDashboard({ sessions, running, onOpen }: { sessions: Session[]; running: Set<string>; onOpen: (id: string) => void }) {
+  const [tasks, setTasks] = useState<AutomationTask[]>([]);
+  useEffect(() => {
+    window.nekko.listTasks().then(setTasks).catch(() => setTasks([]));
+    const off = window.nekko.onTasksUpdated(setTasks);
+    return off;
+  }, []);
+
+  const sorted = [...tasks].sort((a, b) => Number(b.status === 'active') - Number(a.status === 'active') || b.createdAt - a.createdAt);
+
+  return (
+    <section className="mt-8">
+      <h2 className="text-[15px] font-semibold">Tasks &amp; scheduled work</h2>
+      <p className="mt-0.5 text-[12px] text-ink-faint">Scheduled, recurring, and long-running background agents. Create one from a chat's ⚡ menu.</p>
+      {sorted.length === 0 ? (
+        <div className="card mt-3 p-6 text-center text-[13px] text-ink-faint">
+          No scheduled or background tasks yet. Open a chat and use the <span className="font-medium">⚡ Automate</span> menu to schedule a run, repeat it, or keep an agent working in the background.
+        </div>
+      ) : (
+        <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+          {sorted.map((t) => {
+            const meta = TASK_KIND_META[t.kind];
+            const live = !!t.lastSessionId && running.has(t.lastSessionId);
+            return (
+              <div key={t.id} className="card p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="text-base">{meta.icon}</span>
+                    <span className="truncate text-[14px] font-semibold">{t.title}</span>
+                  </div>
+                  <span className="chip !text-white shrink-0" style={{ background: TASK_STATUS_COLOR[t.status] }}>
+                    {live ? <span className="mr-1 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-white align-middle" /> : null}
+                    {live ? 'working' : t.status}
+                  </span>
+                </div>
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[10.5px] text-ink-faint">
+                  <span className="chip">{meta.label}</span>
+                  <span className="chip">{taskCadence(t)}</span>
+                  {t.runCount > 0 && <span className="chip">{t.runCount} run{t.runCount === 1 ? '' : 's'}</span>}
+                  {t.lastRunAt && <span>last {relTime(Date.now() - t.lastRunAt)}</span>}
+                </div>
+                {t.lastResult && <p className="mt-2 line-clamp-2 text-[12px] text-ink-soft">{t.lastResult}</p>}
+                <div className="mt-3 flex flex-wrap justify-end gap-2">
+                  {t.status !== 'done' && (
+                    <button className="btn btn-ghost py-1 text-[12px]" onClick={() => window.nekko.runTaskNow(t.id)}>Run now</button>
+                  )}
+                  {t.status === 'active' ? (
+                    <button className="btn btn-ghost py-1 text-[12px]" onClick={() => window.nekko.updateTask(t.id, { status: 'paused' })}>Pause</button>
+                  ) : t.status === 'paused' ? (
+                    <button className="btn btn-ghost py-1 text-[12px]" onClick={() => window.nekko.updateTask(t.id, { status: 'active' })}>Resume</button>
+                  ) : null}
+                  {t.lastSessionId && (
+                    <button className="btn btn-outline py-1 text-[12px]" onClick={() => onOpen(t.lastSessionId!)}>Open chat →</button>
+                  )}
+                  <button className="rounded p-1.5 text-ink-faint hover:text-red-400" title="Delete task" onClick={() => window.nekko.deleteTask(t.id)}><TrashIcon className="h-3.5 w-3.5" /></button>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </section>

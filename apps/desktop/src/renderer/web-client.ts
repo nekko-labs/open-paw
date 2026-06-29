@@ -18,6 +18,7 @@ function makeWebClient(): NekkoApi {
   const indexCbs = new Set<(s: IndexStatus) => void>();
   const terminalCbs = new Set<(e: TerminalEvent) => void>();
   const changesCbs = new Set<(e: { sessionId: string }) => void>();
+  const tasksCbs = new Set<(t: import('@open-paw/shared').AutomationTask[]) => void>();
   // Server build version captured when this tab loaded (for refresh detection).
   let loadVersion: string | null = null;
   const dispatchEvent = (channel: string, payload: any) => {
@@ -25,6 +26,7 @@ function makeWebClient(): NekkoApi {
     else if (channel === IpcEvents.indexProgress) indexCbs.forEach((cb) => cb(payload));
     else if (channel === IpcEvents.terminalEvent) terminalCbs.forEach((cb) => cb(payload));
     else if (channel === IpcEvents.changesUpdated) changesCbs.forEach((cb) => cb(payload));
+    else if (channel === IpcEvents.tasksUpdated) tasksCbs.forEach((cb) => cb(payload));
   };
 
   // Relay transport: when the page is opened with ?relay=&room=&key=, talk to a
@@ -255,6 +257,12 @@ function makeWebClient(): NekkoApi {
     addDesignNote: (workspaceId, pageId, text) => call(IpcChannels.designAddNote, workspaceId, pageId, text),
     resolveDesignNote: (workspaceId, pageId, noteId) => call(IpcChannels.designResolveNote, workspaceId, pageId, noteId),
 
+    listTasks: () => call(IpcChannels.tasksList),
+    createTask: (task) => call(IpcChannels.taskCreate, task),
+    updateTask: (id, patch) => call(IpcChannels.taskUpdate, id, patch),
+    deleteTask: (id) => call(IpcChannels.taskDelete, id),
+    runTaskNow: (id) => call(IpcChannels.taskRunNow, id),
+
     listConnectors: () => call(IpcChannels.connectorsList),
     connectConnector: (kind, t, settings) => call(IpcChannels.connectorConnect, kind, t, settings),
     disconnectConnector: (kind) => call(IpcChannels.connectorDisconnect, kind),
@@ -313,6 +321,10 @@ function makeWebClient(): NekkoApi {
     onChangesUpdated: (cb) => {
       changesCbs.add(cb);
       return () => changesCbs.delete(cb);
+    },
+    onTasksUpdated: (cb) => {
+      tasksCbs.add(cb);
+      return () => tasksCbs.delete(cb);
     },
     onUpdateEvent: (cb) => {
       // Poll the server version; emit 'available' once it differs from load.

@@ -1,0 +1,189 @@
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { join } from 'path';
+import { randomUUID } from 'crypto';
+import type { AgentEvent, AutomationTask, NewTask } from '@open-paw/shared';
+import { TASK_DONE_TOKEN } from '@open-paw/shared';
+import { dataDir } from './store.js';
+import { getSettings } from './store.js';
+import { getSession, saveSession, createSession } from './sessions.js';
+import { sendChat } from './chat.js';
+
+/**
+ * Automation tasks: scheduled (one-shot at a time), recurring (every N), and
+ * long-running background agents (keep alive forever, or until a condition the
+ * agent judges met). A single in-process scheduler ticks periodically and fires
+ * any due task by driving a chat session through the normal agent loop. State is
+ * persisted to tasks.json so tasks survive restarts.
+ */
+
+const TICK_MS = 15_000;
+const DEFAULT_BG_INTERVAL = 5 * 60_000;
+
+let taskSender: ((e: AgentEvent) => void) | null = null;
+let notify: ((tasks: AutomationTask[]) => void) | null = null;
+const inFlight = new Set<string>();
+let timer: ReturnType<typeof setInterval> | null = null;
+
+/** Forward the fired task's agent events to renderers (same bus as live chats). */
+export function setTaskSender(fn: (e: AgentEvent) => void): void {
+  taskSender = fn;
+}
+/** Notify renderers when the task list changes. */
+export function setTasksNotifier(fn: (tasks: AutomationTask[]) => void): void {
+  notify = fn;
+}
+
+function file(): string {
+  const dir = dataDir();
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  return join(dir, 'tasks.json');
+}
+
+function load(): AutomationTask[] {
+  try {
+    return JSON.parse(readFileSync(file(), 'utf8')) as AutomationTask[];
+  } catch {
+    return [];
+  }
+}
+
+function save(tasks: AutomationTask[]): void {
+  writeFileSync(file(), JSON.stringify(tasks, null, 2), 'utf8');
+  notify?.(tasks);
+}
+
+export function listTasks(): AutomationTask[] {
+  return load().sort((a, b) => b.createdAt - a.createdAt);
+}
+
+export function createTask(input: NewTask): AutomationTask[] {
+  const tasks = load();
+  const now = Date.now();
+  const task: AutomationTask = {
+    id: randomUUID(),
+    title: input.title.trim() || 'Untitled task',
+    kind: input.kind,
+    prompt: input.prompt,
+    workspaceId: input.workspaceId,
+    providerId: input.providerId,
+    modelId: input.modelId,
+    runAt: input.runAt,
+    intervalMs: input.intervalMs,
+    keepAlive: input.keepAlive,
+    condition: input.condition,
+    status: 'active',
+    createdAt: now,
+    runCount: 0,
+    // When the first fire happens: scheduled → at runAt; otherwise asap.
+    nextRunAt: input.kind === 'scheduled' ? input.runAt ?? now : now,
+  };
+  tasks.push(task);
+  save(tasks);
+  return listTasks();
+}
+
+export function updateTask(id: string, patch: Partial<AutomationTask>): AutomationTask[] {
+  const tasks = load();
+  const t = tasks.find((x) => x.id === id);
+  if (t) {
+    Object.assign(t, patch);
+    // Re-arm when resumed.
+    if (patch.status === 'active' && !t.nextRunAt) t.nextRunAt = Date.now();
+    save(tasks);
+  }
+  return listTasks();
+}
+
+export function deleteTask(id: string): AutomationTask[] {
+  save(load().filter((x) => x.id !== id));
+  return listTasks();
+}
+
+export function runTaskNow(id: string): void {
+  const t = load().find((x) => x.id === id);
+  if (t) void fireTask(t.id);
+}
+
+/** Drive one task through a chat turn, then re-arm (or finish) it. */
+async function fireTask(id: string): Promise<void> {
+  if (inFlight.has(id)) return;
+  const tasks = load();
+  const task = tasks.find((x) => x.id === id);
+  if (!task || task.status !== 'active') return;
+
+  const settings = getSettings();
+  const providerId = task.providerId ?? settings.defaultProviderId;
+  const modelId = task.modelId ?? settings.defaultModelId;
+  if (!providerId || !modelId) {
+    persistTask(id, { status: 'error', lastResult: 'No model configured — set a default provider/model in Models.' });
+    return;
+  }
+
+  inFlight.add(id);
+  // Reuse the task's session across fires so background agents keep context.
+  let sid = task.lastSessionId;
+  if (!sid || !getSession(sid)) {
+    const s = createSession(task.workspaceId);
+    s.title = task.title;
+    s.providerId = providerId;
+    s.modelId = modelId;
+    saveSession(s);
+    sid = s.id;
+  }
+
+  let prompt = task.prompt;
+  if (task.kind === 'background' && task.keepAlive === 'until' && task.condition) {
+    prompt += `\n\n(This is a background task. Keep working until: ${task.condition}. When that condition is fully satisfied, end your reply with the token ${TASK_DONE_TOKEN}.)`;
+  }
+
+  persistTask(id, { status: 'active', lastRunAt: Date.now(), runCount: task.runCount + 1, lastSessionId: sid, nextRunAt: undefined });
+
+  try {
+    await sendChat({ sessionId: sid, providerId, modelId, text: prompt }, (e) => taskSender?.(e));
+    const done = getSession(sid);
+    const last = [...(done?.messages ?? [])].reverse().find((m) => m.role === 'assistant' && m.content.trim());
+    const result = last?.content ?? '';
+    const patch: Partial<AutomationTask> = { lastResult: result.slice(0, 400) };
+    if (task.kind === 'scheduled') {
+      patch.status = 'done';
+    } else if (task.kind === 'recurring') {
+      patch.nextRunAt = Date.now() + Math.max(60_000, task.intervalMs ?? DEFAULT_BG_INTERVAL);
+    } else {
+      // background
+      if (task.keepAlive === 'until' && (result.includes(TASK_DONE_TOKEN) || /\bcondition met\b/i.test(result))) {
+        patch.status = 'done';
+      } else {
+        patch.nextRunAt = Date.now() + Math.max(60_000, task.intervalMs ?? DEFAULT_BG_INTERVAL);
+      }
+    }
+    persistTask(id, patch);
+  } catch (e) {
+    persistTask(id, { status: 'error', lastResult: `Run failed: ${(e as Error).message}` });
+  } finally {
+    inFlight.delete(id);
+  }
+}
+
+/** Apply a patch to a task by id and persist (re-reads to avoid clobbering). */
+function persistTask(id: string, patch: Partial<AutomationTask>): void {
+  const tasks = load();
+  const t = tasks.find((x) => x.id === id);
+  if (!t) return;
+  Object.assign(t, patch);
+  save(tasks);
+}
+
+/** Start the periodic scheduler (idempotent). */
+export function startTaskScheduler(): void {
+  if (timer) return;
+  timer = setInterval(() => {
+    const now = Date.now();
+    for (const t of load()) {
+      if (t.status !== 'active' || inFlight.has(t.id)) continue;
+      const due = t.nextRunAt != null ? t.nextRunAt <= now : false;
+      if (due) void fireTask(t.id);
+    }
+  }, TICK_MS);
+  // Don't keep the process alive just for the scheduler (Node).
+  (timer as unknown as { unref?: () => void }).unref?.();
+}

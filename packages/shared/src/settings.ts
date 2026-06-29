@@ -81,12 +81,16 @@ export interface UsageRecord {
 export interface UsageSummary {
   totalInput: number;
   totalOutput: number;
+  /** Estimated total spend (USD) over all recorded usage. */
+  totalCost: number;
   byModel: Record<string, { input: number; output: number }>;
   byProvider: Record<string, { input: number; output: number }>;
   /** Per-session token totals (keyed by sessionId) for per-chat cost. */
   bySession: Record<string, { input: number; output: number }>;
-  /** Daily buckets (YYYY-MM-DD → tokens) for the chart. */
-  daily: Array<{ date: string; input: number; output: number }>;
+  /** Per-session estimated spend (USD), accurate to the model used per record. */
+  bySessionCost: Record<string, number>;
+  /** Daily buckets (YYYY-MM-DD → tokens + estimated cost) for the charts. */
+  daily: Array<{ date: string; input: number; output: number; cost: number }>;
 }
 
 /**

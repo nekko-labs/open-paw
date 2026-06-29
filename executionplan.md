@@ -172,6 +172,25 @@
 - [x] Watch snapshots update live as the agent works; an **"updating" badge** per page links to the driving agent (`openChatPane`)
   - subscribes to `onAgentEvent`/`onChangesUpdated` filtered to the workspace's sessions; marks pages updating + reloads the iframe previews on change; the badge opens the running agent's chat
 
+## Wave: Command Center, automation & skills  ✅ shipped
+
+### Empty states + cost breakdowns
+- [x] Friendly skeleton placeholders for every visual metric with no data yet (`ChartEmpty`)
+- [x] **Cost** panel — month actual + projection + all-time, daily-spend chart, per-agent breakdown, token-pricing reference
+  - host `usage.ts` now computes `totalCost`, `bySessionCost`, and per-day `cost` (via `estimateCostUSD`); UI hardened against older/missing usage shapes
+
+### Tasks & scheduled work
+- [x] Split the old "Background tasks & agents" board → **Services & model servers** (providers/MCP/relay) + a new **Tasks & scheduled work** section
+- [x] Host scheduler `tasks.ts` (+ `tasks.json`): scheduled / recurring / background tasks fired through the agent loop, one reused session per task; `tasks:list/create/update/delete/runNow` IPC + `tasksUpdated` event
+- [x] Task cards: cadence, status, run count, last result; Run-now / Pause-Resume / Open-chat / Delete; live updates
+
+### Automate menu + skills
+- [x] **⚡ Automate** button in the chat header → `ScheduleTaskModal` (scheduled / recurring / background; keep-alive forever or until a condition), pre-filled with the chat's project/model/draft
+- [x] `/` menu lists **skills** (`shared/skills.ts`: research, plan, review, security-review, simplify, test, explain, fix, commit, pr) above saved prompts
+- [x] **`goal` highlighted (★) skill**: `/goal <condition>` → creates a background "until" task (work-until-done), surfaced in the Tasks dashboard
+
+> Verified end-to-end over the web edition: all six render with empty-state placeholders; created scheduled + background (`/goal`) tasks that persisted and showed in the dashboard; skills menu lists the standard set with goal starred at top. Screenshot captured.
+
 ## Verification status
 - All eight workspaces typecheck (`npm run typecheck`); desktop builds (`npm run build`); 56 core tests pass.
 - **Editor comments + design board verified end-to-end over the web edition**: added a design

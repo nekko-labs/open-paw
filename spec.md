@@ -92,6 +92,42 @@ without leaving the calm single-window experience.
   **"updating" indicator** flags pages being changed and clicking it jumps to the driving
   agent's chat.
 
+## Command Center, automation & skills (shipped)
+
+### 9. Command Center polish — empty states + cost breakdowns
+- Every visual metric has a **friendly empty-state placeholder** (a faded skeleton chart +
+  a line of guidance) instead of a blank space when there's no data yet.
+- A **Cost** section: this-month **actual** spend + a **projection** to month-end, an
+  **all-time** total, a **daily-spend chart**, a **per-agent breakdown** (bar list, accurate
+  to the model each session used), and a collapsible **token-pricing reference** (USD / 1M
+  tokens, from published list prices). Local models are $0; everything is labelled an
+  estimate. Costs are computed in the host from the usage log (`bySessionCost`, `daily.cost`,
+  `totalCost`).
+
+### 10. Tasks & scheduled work (reworked dashboard)
+- The old "Background tasks & agents" board (which really just listed model servers) is split:
+  model servers / MCP / relay now live under **Services & model servers**, and a new **Tasks
+  & scheduled work** section shows real automation: **scheduled** (run once at a time),
+  **recurring** (every interval), and **background** (long-running agents that stay alive
+  **forever** or **until a condition** the agent judges met). Each card shows cadence, status,
+  run count, last result, and Run-now / Pause-Resume / Open-chat / Delete actions; the list
+  updates live as tasks fire.
+- Backed by a host **scheduler** (`tasks.ts` + `tasks.json`) that fires due tasks through the
+  normal agent loop, reusing one chat session per task so background agents keep context.
+
+### 11. Automate menu in the agent window
+- A **⚡ Automate** button in each chat creates a scheduled / recurring / background task,
+  pre-filled with the chat's project, model, and current draft. Background tasks choose
+  **keep alive forever** or **until a condition**.
+
+### 12. Skills in the `/` menu (+ goal)
+- The composer's `/` menu now lists **skills** — the standard capabilities any agent can run
+  (research, plan, review, security-review, simplify, test, explain, fix, commit, pr) —
+  above the user's saved prompts. Picking one drops its scaffold into the composer.
+- **`goal` is a highlighted (★) skill**: `/goal <condition>` starts a long-running
+  **background agent** that keeps working until the condition is met (a real "work until done"
+  loop), surfaced in the Tasks dashboard.
+
 ## Decisions & rationale (made autonomously; revisit if desired)
 
 - **Open files in-app instead of the OS.** Matches the "stay in the app" goal and fixes

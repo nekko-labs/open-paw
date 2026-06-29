@@ -108,6 +108,12 @@ const api: NekkoApi = {
   addDesignNote: (workspaceId, pageId, text) => inv(IpcChannels.designAddNote, workspaceId, pageId, text),
   resolveDesignNote: (workspaceId, pageId, noteId) => inv(IpcChannels.designResolveNote, workspaceId, pageId, noteId),
 
+  listTasks: () => inv(IpcChannels.tasksList),
+  createTask: (task) => inv(IpcChannels.taskCreate, task),
+  updateTask: (id, patch) => inv(IpcChannels.taskUpdate, id, patch),
+  deleteTask: (id) => inv(IpcChannels.taskDelete, id),
+  runTaskNow: (id) => inv(IpcChannels.taskRunNow, id),
+
   listConnectors: () => inv(IpcChannels.connectorsList),
   connectConnector: (kind: ConnectorKind, token, settings) => inv(IpcChannels.connectorConnect, kind, token, settings),
   disconnectConnector: (kind: ConnectorKind) => inv(IpcChannels.connectorDisconnect, kind),
@@ -159,6 +165,11 @@ const api: NekkoApi = {
     const listener = (_: unknown, e: { sessionId: string }) => cb(e);
     ipcRenderer.on(IpcEvents.changesUpdated, listener);
     return () => ipcRenderer.removeListener(IpcEvents.changesUpdated, listener);
+  },
+  onTasksUpdated: (cb) => {
+    const listener = (_: unknown, tasks: import('@open-paw/shared').AutomationTask[]) => cb(tasks);
+    ipcRenderer.on(IpcEvents.tasksUpdated, listener);
+    return () => ipcRenderer.removeListener(IpcEvents.tasksUpdated, listener);
   },
 };
 

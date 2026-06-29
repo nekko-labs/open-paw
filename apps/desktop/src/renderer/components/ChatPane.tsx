@@ -1,12 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { AgentEvent, ChatMessage, Session, ToolCall, ContextBundle, IndexedFile, ModelInfo } from '@open-paw/shared';
-import { estimateCostUSD, recommendModel, AUTO_MODEL_ID } from '@open-paw/shared';
+import { estimateCostUSD, recommendModel, AUTO_MODEL_ID, matchSkills } from '@open-paw/shared';
 import { useStore } from '../store.js';
 import { Markdown } from './Markdown.js';
 import { ContextInspector } from './ContextInspector.js';
 import { ChatMetrics } from './ChatMetrics.js';
 import { ChatControls } from './ChatControls.js';
 import { PromptAnalyzer } from './PromptAnalyzer.js';
+import { ScheduleTaskModal } from './ScheduleTaskModal.js';
 import { SendIcon, PanelIcon, ShieldIcon, DownloadIcon } from '../icons.js';
 
 const LOCAL_KINDS = ['ollama', 'lmstudio', 'vllm', 'openai-compat'];
@@ -38,6 +39,7 @@ export function ChatPane({ sessionId, onRunningChange }: { sessionId: string; on
   const [atFiles, setAtFiles] = useState<IndexedFile[]>([]);
   const [cost, setCost] = useState(0);
   const [ctxOpen, setCtxOpen] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   const [changeCount, setChangeCount] = useState(0);
   const [providerId, setProviderId] = useState<string | null>(null);
   const [modelId, setModelId] = useState<string | null>(null);
@@ -158,6 +160,29 @@ export function ChatPane({ sessionId, onRunningChange }: { sessionId: string; on
   const send = async (override?: string) => {
     const text = override ?? draft;
     if (!text.trim() || !providerId) return;
+
+    // The `goal` skill: `/goal <condition>` starts a long-running background
+    // agent that keeps working until the condition is met (not a one-off turn).
+    const goalMatch = text.match(/^\/goal\s+([\s\S]+)/i);
+    if (goalMatch) {
+      const goal = goalMatch[1].trim();
+      const useModel = resolveModelId(goal);
+      await window.nekko.createTask({
+        title: `Goal: ${goal.slice(0, 40)}`,
+        kind: 'background',
+        keepAlive: 'until',
+        condition: goal,
+        prompt: `Work autonomously toward this goal: ${goal}`,
+        workspaceId: session?.workspaceId,
+        providerId,
+        modelId: useModel && useModel !== AUTO_MODEL_ID ? useModel : undefined,
+        intervalMs: 5 * 60_000,
+      });
+      useStore.getState().pushToast('success', 'Goal started as a background task — track it in Command Center.');
+      if (override === undefined) setDraft('');
+      return;
+    }
+
     const useModel = resolveModelId(text);
     if (!useModel) return;
     if (override === undefined) setDraft('');
@@ -238,6 +263,9 @@ export function ChatPane({ sessionId, onRunningChange }: { sessionId: string; on
   const slashQuery = draft.startsWith('/') && !draft.includes('\n') ? draft.slice(1).toLowerCase() : null;
   const slashMatches =
     slashQuery !== null ? (settings?.prompts ?? []).filter((p) => p.name.toLowerCase().includes(slashQuery)) : [];
+  // Skills (standard agent skills) show in the `/` menu until the user types args.
+  const skillMatches = slashQuery !== null && !slashQuery.includes(' ') ? matchSkills(slashQuery) : [];
+  const slashMenuOpen = skillMatches.length > 0 || slashMatches.length > 0;
 
   const atQuery = (draft.match(/(?:^|\s)@([^\s@]*)$/) ?? [])[1] ?? null;
   const atMatches =
@@ -317,6 +345,7 @@ export function ChatPane({ sessionId, onRunningChange }: { sessionId: string; on
             {!!session?.messages.length && (
               <button className="btn btn-ghost px-2 py-1" onClick={exportChat} title="Export chat as Markdown"><DownloadIcon /></button>
             )}
+            <button className="btn btn-ghost px-2 py-1" onClick={() => setScheduleOpen(true)} title="Automate: schedule, repeat, or run in the background">⚡</button>
             <button className={`btn btn-ghost px-2 py-1 ${ctxOpen ? 'text-accent' : ''}`} onClick={() => setCtxOpen((o) => !o)} title="Toggle context panel"><PanelIcon /></button>
           </div>
         </header>
@@ -372,15 +401,36 @@ export function ChatPane({ sessionId, onRunningChange }: { sessionId: string; on
                 )}
               </div>
             )}
-            {slashMatches.length > 0 && (
-              <div className="card absolute bottom-full left-0 z-40 mb-2 w-full max-w-md overflow-hidden p-1.5 shadow-lg">
-                <div className="px-2 py-1 text-[10px] uppercase tracking-wide text-ink-faint">Slash commands</div>
-                {slashMatches.map((p) => (
-                  <button key={p.id} className="flex w-full flex-col rounded-lg px-2.5 py-1.5 text-left hover:bg-surface-2" onClick={() => { setDraft(p.body); composerRef.current?.focus(); }}>
-                    <span className="font-mono text-[12.5px] text-accent">/{p.name}</span>
-                    <span className="truncate text-[11px] text-ink-faint">{p.body}</span>
-                  </button>
-                ))}
+            {slashMenuOpen && (
+              <div className="card absolute bottom-full left-0 z-40 mb-2 max-h-80 w-full max-w-md overflow-y-auto p-1.5 shadow-lg">
+                {skillMatches.length > 0 && (
+                  <>
+                    <div className="px-2 py-1 text-[10px] uppercase tracking-wide text-ink-faint">Skills</div>
+                    {skillMatches.map((sk) => (
+                      <button
+                        key={sk.id}
+                        className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left hover:bg-surface-2"
+                        onClick={() => { setDraft(sk.template); composerRef.current?.focus(); }}
+                        title={sk.description}
+                      >
+                        {sk.highlighted && <span className="text-[12px] text-accent">★</span>}
+                        <span className="font-mono text-[12.5px] text-accent">/{sk.name}</span>
+                        <span className="min-w-0 flex-1 truncate text-[11px] text-ink-faint">{sk.description}</span>
+                      </button>
+                    ))}
+                  </>
+                )}
+                {slashMatches.length > 0 && (
+                  <>
+                    <div className="px-2 py-1 text-[10px] uppercase tracking-wide text-ink-faint">Prompts</div>
+                    {slashMatches.map((p) => (
+                      <button key={p.id} className="flex w-full flex-col rounded-lg px-2.5 py-1.5 text-left hover:bg-surface-2" onClick={() => { setDraft(p.body); composerRef.current?.focus(); }}>
+                        <span className="font-mono text-[12.5px] text-accent">/{p.name}</span>
+                        <span className="truncate text-[11px] text-ink-faint">{p.body}</span>
+                      </button>
+                    ))}
+                  </>
+                )}
               </div>
             )}
             <textarea
@@ -393,9 +443,10 @@ export function ChatPane({ sessionId, onRunningChange }: { sessionId: string; on
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
-                  if (slashMatches.length === 1) { setDraft(slashMatches[0].body); return; }
+                  if (skillMatches.length === 1 && slashMatches.length === 0) { setDraft(skillMatches[0].template); return; }
+                  if (slashMatches.length === 1 && skillMatches.length === 0) { setDraft(slashMatches[0].body); return; }
                   send();
-                } else if (e.key === 'Escape' && slashMatches.length) {
+                } else if (e.key === 'Escape' && slashMenuOpen) {
                   setDraft('');
                 }
               }}
@@ -414,6 +465,16 @@ export function ChatPane({ sessionId, onRunningChange }: { sessionId: string; on
         <div className="hidden border-l border-line lg:block" style={{ background: 'var(--paper)' }}>
           <ContextInspector sessionId={sessionId} />
         </div>
+      )}
+
+      {scheduleOpen && (
+        <ScheduleTaskModal
+          workspaceId={session?.workspaceId}
+          providerId={providerId ?? undefined}
+          modelId={modelId && modelId !== AUTO_MODEL_ID ? modelId : undefined}
+          initialPrompt={draft.trim() || undefined}
+          onClose={() => setScheduleOpen(false)}
+        />
       )}
     </div>
   );
