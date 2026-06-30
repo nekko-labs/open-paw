@@ -22,6 +22,13 @@ Only this hosted edition has accounts and entitlements.
 - **Login gate** (renderer `components/CloudLogin.tsx`): shown only when
   `/api/auth/config` reports cloud mode and there's no valid session; stores the
   account token as the Bearer the existing web-client already sends.
+- **Billing** (`billing.ts`): Stripe Checkout + Customer Portal + webhooks,
+  hand-rolled against the Stripe REST API (no SDK dep) and **gated on
+  `STRIPE_SECRET_KEY`** — the server runs and tests pass with no Stripe account.
+  Webhook signatures are verified with HMAC-SHA256 (`node:crypto`); on
+  `checkout.session.completed` / `customer.subscription.*` events the account's
+  plan is updated via `store.setPlan`, which immediately changes its
+  entitlements. The OSS app never touches any of this.
 
 ## Run it
 
@@ -34,22 +41,27 @@ Environment:
 - `CLOUD_PORT` (default `4318`), `CLOUD_HOST` (default `127.0.0.1`)
 - `CLOUD_DATA_DIR` (default `~/.open-paw-cloud`) — cloud metadata + per-account dirs
 - `OPENPAW_RENDERER_DIR` — override the served renderer build
+- `CLOUD_PUBLIC_URL` — public base URL, for Checkout success/cancel/portal redirects
+- Billing (optional; billing stays disabled if `STRIPE_SECRET_KEY` is unset):
+  `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_TEAM`
 
 ## API
 
 | Route | Auth | Purpose |
 | --- | --- | --- |
-| `GET /api/auth/config` | — | `{ cloud: true }` (renderer uses this to decide whether to gate) |
+| `GET /api/auth/config` | — | `{ cloud: true, billing }` (renderer uses this to decide whether to gate / show upgrade) |
 | `POST /api/auth/signup` | — | `{ email, password }` → `{ token, account, entitlements }` |
 | `POST /api/auth/login` | — | `{ email, password }` → `{ token, account, entitlements }` |
 | `GET /api/auth/me` | Bearer | `{ account, entitlements }` |
 | `POST /api/auth/logout` | Bearer | invalidate the token |
+| `POST /api/billing/checkout` | Bearer | `{ plan: 'pro'｜'team' }` → `{ url }` (Stripe Checkout) |
+| `POST /api/billing/portal` | Bearer | `{ url }` (Stripe Customer Portal) |
+| `POST /api/billing/webhook` | Stripe signature | apply plan changes from Stripe events |
 | `POST /api/:channel` | Bearer | the full NekkoApi, scoped to the account |
 | `GET /api/events` (WS) | Bearer (`?token=`) | the account's agent/index events |
 
 ## Still TODO (later Phase 3)
 
-- Stripe Checkout + Customer Portal + webhooks → `store.setPlan` (entitlement gating already exists)
 - ZDR mode + cloud chat-history / file management + encrypted-at-rest sync
 - Device registry + revocation (builds on accounts + the relay)
 - Managed connectors (pre-registered OAuth apps)
