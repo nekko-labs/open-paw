@@ -2,8 +2,10 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createHmac } from 'node:crypto';
 import type { FastifyInstance } from 'fastify';
 import { createCloudServer } from './server.js';
+import { createBilling } from './billing.js';
 
 /** Drives the real cloud server over Fastify `inject` — no network, no model. */
 describe('cloud server (HTTP)', () => {
@@ -26,7 +28,7 @@ describe('cloud server (HTTP)', () => {
 
   it('advertises cloud mode', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/auth/config' });
-    expect(res.json()).toEqual({ cloud: true });
+    expect(res.json()).toEqual({ cloud: true, billing: false }); // no Stripe keys in this suite
   });
 
   it('rejects unauthenticated NekkoApi calls', async () => {
@@ -59,5 +61,84 @@ describe('cloud server (HTTP)', () => {
     expect(third.statusCode).toBe(400);
     expect(third.json().error).toMatch(/upgrade/i);
     expect((await call(token, 'workspace:list')).json()).toHaveLength(2);
+  });
+});
+
+/** Billing endpoints with a Stripe integration injected (no network). */
+describe('cloud billing (HTTP)', () => {
+  const WHSEC = 'whsec_test';
+  let app: FastifyInstance;
+
+  beforeEach(async () => {
+    const billing = createBilling({
+      secretKey: 'sk_test',
+      webhookSecret: WHSEC,
+      prices: { pro: 'price_pro', team: 'price_team' },
+      publicUrl: 'https://cloud.openpaw.com',
+    });
+    ({ app } = createCloudServer({ dataRoot: mkdtempSync(join(tmpdir(), 'op-billing-')), billing }));
+    await app.ready();
+  });
+  afterEach(async () => {
+    await app.close();
+  });
+
+  const signup = async (email: string) => {
+    const res = await app.inject({ method: 'POST', url: '/api/auth/signup', payload: { email, password: 'longenough' } });
+    return res.json() as { token: string; account: { id: string } };
+  };
+
+  it('advertises billing in the auth config', async () => {
+    expect((await app.inject({ method: 'GET', url: '/api/auth/config' })).json()).toEqual({ cloud: true, billing: true });
+  });
+
+  it('rejects unauthenticated checkout and an unknown plan', async () => {
+    const noauth = await app.inject({ method: 'POST', url: '/api/billing/checkout', payload: { plan: 'pro' } });
+    expect(noauth.statusCode).toBe(401);
+    const { token } = await signup('plan@example.com');
+    const bad = await app.inject({
+      method: 'POST',
+      url: '/api/billing/checkout',
+      headers: { authorization: `Bearer ${token}` },
+      payload: { plan: 'enterprise' },
+    });
+    expect(bad.statusCode).toBe(400);
+  });
+
+  it('rejects a webhook with a bad signature', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/billing/webhook',
+      headers: { 'stripe-signature': 'bogus', 'content-type': 'application/json' },
+      payload: { id: 'evt', type: 'checkout.session.completed', data: { object: {} } },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
+  it('upgrades an account from a signed checkout.session.completed webhook', async () => {
+    const { token, account } = await signup('upgrade@example.com');
+    expect((await app.inject({ method: 'GET', url: '/api/auth/me', headers: { authorization: `Bearer ${token}` } })).json().account.plan).toBe('free');
+
+    const raw = JSON.stringify({
+      id: 'evt_1',
+      type: 'checkout.session.completed',
+      data: { object: { client_reference_id: account.id, customer: 'cus_abc', metadata: { plan: 'pro' } } },
+    });
+    const ts = Math.floor(Date.now() / 1000);
+    const sig = createHmac('sha256', WHSEC).update(`${ts}.${raw}`).digest('hex');
+
+    const hook = await app.inject({
+      method: 'POST',
+      url: '/api/billing/webhook',
+      headers: { 'stripe-signature': `t=${ts},v1=${sig}`, 'content-type': 'application/json' },
+      payload: raw,
+    });
+    expect(hook.statusCode).toBe(200);
+
+    const me = await app.inject({ method: 'GET', url: '/api/auth/me', headers: { authorization: `Bearer ${token}` } });
+    expect(me.json().account.plan).toBe('pro');
+    // pro entitlements now apply (maxWorkspaces is Infinity, which JSON serializes to null).
+    expect(me.json().entitlements.plan).toBe('pro');
+    expect(me.json().entitlements.cloudSync).toBe(true);
   });
 });

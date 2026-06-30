@@ -3,6 +3,7 @@ import { dirname, join, resolve } from 'node:path';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { createCloudServer } from './server.js';
+import { createBilling } from './billing.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -22,12 +23,18 @@ function findRendererDir(): string | undefined {
 }
 
 async function main() {
-  const { app } = createCloudServer({ dataRoot: DATA_ROOT, rendererDir: findRendererDir() });
+  const billing = createBilling();
+  const { app } = createCloudServer({ dataRoot: DATA_ROOT, rendererDir: findRendererDir(), billing });
   await app.listen({ port: PORT, host: HOST });
   const url = `http://${isLocal ? 'localhost' : HOST}:${PORT}`;
   console.log(`\n🐾☁️  Nekko Cloud running at ${url}`);
   console.log(`   data root: ${DATA_ROOT}`);
-  console.log(`   accounts: sign up / log in at the URL above (per-account isolated data + plan entitlements)\n`);
+  console.log(`   accounts: sign up / log in at the URL above (per-account isolated data + plan entitlements)`);
+  console.log(
+    billing.enabled
+      ? `   billing: Stripe enabled (plans: ${billing.availablePlans().join(', ') || 'none priced'})\n`
+      : `   billing: disabled (set STRIPE_SECRET_KEY + STRIPE_PRICE_PRO/TEAM + STRIPE_WEBHOOK_SECRET to enable)\n`,
+  );
 }
 
 main().catch((e) => {

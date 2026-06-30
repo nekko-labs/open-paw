@@ -7,12 +7,15 @@ import { createHost, createDispatcher, withDataDir, type Host } from '@open-paw/
 import { IpcChannels, IpcEvents } from '@open-paw/shared';
 import { CloudStore, publicAccount, type Account } from './accounts.js';
 import { entitlements, requireWithin } from './entitlements.js';
+import { createBilling, planChangeFromEvent, type Billing, type PaidPlan } from './billing.js';
 
 export interface CloudServerOptions {
   /** Root for cloud metadata + per-account data dirs. */
   dataRoot: string;
   /** Built renderer dir to serve (same UI as desktop/web). Optional for tests. */
   rendererDir?: string;
+  /** Billing integration; defaults to one built from env (disabled with no keys). */
+  billing?: Billing;
 }
 
 /**
@@ -24,6 +27,7 @@ export interface CloudServerOptions {
  */
 export function createCloudServer(opts: CloudServerOptions): { app: FastifyInstance; store: CloudStore } {
   const store = new CloudStore(opts.dataRoot);
+  const billing = opts.billing ?? createBilling();
   const app = Fastify({ bodyLimit: 25 * 1024 * 1024 });
 
   // One Host per account, created lazily inside the account's data scope so its
@@ -56,7 +60,7 @@ export function createCloudServer(opts: CloudServerOptions): { app: FastifyInsta
     await api.register(websocket);
 
     // --- Auth (unauthenticated) ---
-    api.get('/api/auth/config', async () => ({ cloud: true }));
+    api.get('/api/auth/config', async () => ({ cloud: true, billing: billing.enabled }));
 
     api.post<{ Body: { email?: string; password?: string } }>('/api/auth/signup', async (req, reply) => {
       try {
@@ -88,6 +92,38 @@ export function createCloudServer(opts: CloudServerOptions): { app: FastifyInsta
       const account = store.verifyToken(bearer(req));
       if (!account) return reply.code(401).send({ error: 'unauthorized' });
       reply.send({ account: publicAccount(account), entitlements: entitlements(account.plan) });
+    });
+
+    // --- Billing (Stripe) ---
+    // Start a Checkout Session for a paid plan; returns the URL to redirect to.
+    api.post<{ Body: { plan?: string } }>('/api/billing/checkout', async (req, reply) => {
+      const account = store.verifyToken(bearer(req));
+      if (!account) return reply.code(401).send({ error: 'unauthorized' });
+      const plan = req.body?.plan as PaidPlan | undefined;
+      if (plan !== 'pro' && plan !== 'team') return reply.code(400).send({ error: 'Unknown plan.' });
+      try {
+        const result = await billing.createCheckout({
+          accountId: account.id,
+          email: account.email,
+          plan,
+          customerId: account.stripeCustomerId,
+        });
+        reply.send(result);
+      } catch (e) {
+        reply.code(400).send({ error: (e as Error).message });
+      }
+    });
+
+    // Open the Stripe Customer Portal so the user can manage/cancel.
+    api.post('/api/billing/portal', async (req, reply) => {
+      const account = store.verifyToken(bearer(req));
+      if (!account) return reply.code(401).send({ error: 'unauthorized' });
+      if (!account.stripeCustomerId) return reply.code(400).send({ error: 'No billing customer for this account yet.' });
+      try {
+        reply.send(await billing.createPortal(account.stripeCustomerId));
+      } catch (e) {
+        reply.code(400).send({ error: (e as Error).message });
+      }
     });
 
     // --- Authenticated NekkoApi (per-account host, isolated data dir) ---
@@ -129,6 +165,28 @@ export function createCloudServer(opts: CloudServerOptions): { app: FastifyInsta
         host.events.off('indexProgress', onIndex);
         host.events.off('terminalEvent', onTerminal);
       });
+    });
+  });
+
+  // Stripe webhook — encapsulated so its RAW-body parser (needed for signature
+  // verification) doesn't touch the JSON `/api/:channel` routes above.
+  app.register(async (hook) => {
+    hook.addContentTypeParser('application/json', { parseAs: 'buffer' }, (_req, body, done) => done(null, body));
+    hook.post('/api/billing/webhook', async (req, reply) => {
+      const raw = (req.body instanceof Buffer ? req.body : Buffer.from(String(req.body ?? ''))).toString('utf8');
+      const event = billing.parseWebhook(raw, req.headers['stripe-signature'] as string | undefined);
+      if (!event) return reply.code(400).send({ error: 'invalid signature' });
+      const change = planChangeFromEvent(event, billing);
+      if (change) {
+        const account =
+          (change.accountId ? store.get(change.accountId) : undefined) ??
+          (change.customerId ? store.findByStripeCustomer(change.customerId) : undefined);
+        if (account) {
+          if (change.customerId) store.setStripeCustomer(account.id, change.customerId);
+          store.setPlan(account.id, change.plan);
+        }
+      }
+      reply.send({ received: true });
     });
   });
 

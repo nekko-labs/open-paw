@@ -161,7 +161,7 @@ The user pairs a phone to a local agent (QR / link). The local agent dials out t
 ### Open Paw Cloud (paid, hosted)
 - **Cloud foundation** `[shipped]` — multi-account hosted edition wrapping the same engine + renderer per account; email+password auth, bearer tokens, per-account data isolation, entitlements (free/pro/team) gated server-side. The OSS app never license-checks.
 - **Phone↔local-model relay** `[in progress]` — working prototype: dumb-pipe relay, outbound WSS agent, pairing-key auth, browser relay transport, end-to-end encryption (relay sees only ciphertext). Remaining: device registry + revocation, mobile/PWA polish.
-- **Payments (Stripe)** `[planned]` — Checkout + Customer Portal + webhooks driving entitlement state; server-side gating.
+- **Payments (Stripe)** `[shipped]` — Checkout (upgrade to Pro/Team) + Customer Portal (manage/cancel) + signature-verified webhooks that drive an account's plan (and therefore its entitlements). Hand-rolled against the Stripe REST API (no SDK dependency) and gated on `STRIPE_SECRET_KEY`, so the cloud server runs fully without a Stripe account; real charges light up once keys are configured.
 - **ZDR + cloud history/files** `[planned]` — retention modes, encrypted-at-rest sync engine, ZDR badges + audit log.
 - **Managed connectors** `[planned]` — pre-registered OAuth apps for Gmail/Drive/Slack/Discord.
 

@@ -15,6 +15,8 @@ export interface Account {
   /** scrypt hash, stored as `salt:hash` hex. Never leaves the server. */
   passwordHash: string;
   createdAt: number;
+  /** Stripe customer id, set once the account starts a checkout/subscription. */
+  stripeCustomerId?: string;
 }
 
 /** The account shape safe to return to a client (no secrets). */
@@ -83,6 +85,10 @@ export class CloudStore {
     return this.data.accounts.find((a) => a.id === accountId);
   }
 
+  findByStripeCustomer(customerId: string): Account | undefined {
+    return this.data.accounts.find((a) => a.stripeCustomerId === customerId);
+  }
+
   /** Create an account; throws on bad email, weak password, or duplicate. */
   signup(email: string, password: string): Account {
     const e = email.trim().toLowerCase();
@@ -127,11 +133,21 @@ export class CloudStore {
     }
   }
 
-  /** Change an account's plan (used by Stripe webhooks in a later phase). */
+  /** Change an account's plan (driven by Stripe webhooks; see billing.ts). */
   setPlan(accountId: string, plan: Plan): Account | undefined {
     const account = this.get(accountId);
     if (account) {
       account.plan = plan;
+      this.save();
+    }
+    return account;
+  }
+
+  /** Remember the Stripe customer so later subscription events map back to the account. */
+  setStripeCustomer(accountId: string, customerId: string): Account | undefined {
+    const account = this.get(accountId);
+    if (account && account.stripeCustomerId !== customerId) {
+      account.stripeCustomerId = customerId;
       this.save();
     }
     return account;

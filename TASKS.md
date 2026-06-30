@@ -206,7 +206,6 @@ Extends `../../knowledgebase/principles/coding.md` (which these override).
 ## Backlog / Planned
 
 ### Phase 3 — Open Paw Cloud (paid, hosted) — parallel track, does not gate OSS v1.0
-- [ ] **T31** — Payments: Stripe Checkout + Customer Portal + webhooks → `store.setPlan`; server-side entitlement gating (OSS app never license-checks; gating path already exists).
 - [ ] **T32** — ZDR mode (always available) + cloud chat-history + cloud file management; encrypted-at-rest sync engine; ZDR badges + audit log.
 - [ ] **T34** — Managed connectors: pre-registered OAuth apps for Gmail/Drive/Slack/Discord.
 
@@ -216,6 +215,7 @@ Extends `../../knowledgebase/principles/coding.md` (which these override).
 - [ ] Publish `open-paw` / `opaw` to npm so `npx open-paw …` works (needs the user's npm login; bundle built + verified locally).
 - [ ] Push the GitHub wiki pages after a manual first-page creation (staged in `docs/wiki/`).
 - [ ] Real APNs/FCM delivery (needs creds + a device); Cloud hosted deploy target. See [provisioning.md](../../obsurdian/projects/open-paw/provisioning.md).
+- [ ] Stripe billing keys to enable live charges (`STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_TEAM`, `CLOUD_PUBLIC_URL`); integration is built + tested, just unconfigured.
 
 ## Shipped
 
@@ -254,8 +254,9 @@ Extends `../../knowledgebase/principles/coding.md` (which these override).
 - [x] **T28** — Docker: multi-stage `Dockerfile` + `docker-compose.yml` (volume workspace+data, `host.docker.internal`, localhost publish) + `.dockerignore` + GHCR publish workflow. Verified: 361MB image serves UI + API, reached LM Studio.
 - [x] **T29** — `npx open-paw` package: `npm run bundle:web` → esbuild self-contained `open-paw` (server+engine inlined, fastify external, built `web/`). Verified by running the packed tarball outside the repo. Actual `npm publish` needs the user's npm login.
 
-### Phase 3 — Open Paw Cloud (paid, hosted) — shipped portion (30)
+### Phase 3 — Open Paw Cloud (paid, hosted) — shipped portion (30, 31)
 - [x] **T30** — Cloud foundation (`apps/cloud`): multi-account hosted edition wrapping the same host + renderer per account. Email+password auth (scrypt), bearer tokens, file-backed `CloudStore` (Postgres-swappable). Per-account isolation via `withDataDir` (`AsyncLocalStorage`) + settings cache keyed by data dir. Entitlements (free/pro/team) gated server-side; OSS app never license-checks. Thin `CloudLogin` renderer gate. 13 cloud tests + live smoke. `npm run cloud` (:4318). PR #54.
+- [x] **T31** — Payments (Stripe): `apps/cloud/src/billing.ts` hand-rolled against the Stripe REST API (no SDK dep, same dependency-free DNA as the relay's APNs/FCM senders), gated on `STRIPE_SECRET_KEY`. `POST /api/billing/checkout` ({plan} → Checkout Session URL), `POST /api/billing/portal` (Customer Portal URL), and a raw-body `POST /api/billing/webhook` whose `Stripe-Signature` is verified with HMAC-SHA256 (`node:crypto`, replay-window check). `planChangeFromEvent` maps `checkout.session.completed` / `customer.subscription.updated|deleted` → a plan, applied via `store.setPlan` so entitlements update immediately; `CloudStore` now carries `stripeCustomerId` (+ `findByStripeCustomer`/`setStripeCustomer`). `/api/auth/config` advertises `{billing}`. 19 new cloud tests (signature verify incl. tamper/replay, event mapping, and a full signed-webhook → account-upgraded HTTP path via Fastify `inject`); 32 cloud tests total. Live Stripe charges need the user's keys (`STRIPE_SECRET_KEY`/`STRIPE_WEBHOOK_SECRET`/`STRIPE_PRICE_PRO`/`STRIPE_PRICE_TEAM` + `CLOUD_PUBLIC_URL`). Renderer Upgrade UI deferred (server-side complete).
 
 ### Chat UI/UX polish (post-1.0 desktop) (35–59)
 - [x] **T35** — Chat redesign: fixed spacing + light/dark `color-scheme`, speech-bubble messages, collapsible Thinking box; in-chat metrics bar (context used/total + by-source tooltip, tokens/sec, thinking on/off, effort cycle → `EFFORT_TEMPERATURE`).

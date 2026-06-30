@@ -126,9 +126,10 @@ The managed edition. Everything the OSS app does, plus convenience that only a h
 - Org/team accounts (post-MVP) for shared connectors and seats.
 - Device pairing tokens link a local agent to an account (§4.5).
 
-### 4.3 Payments & plans (Stripe)
+### 4.3 Payments & plans (Stripe) — implemented
 - **Stripe Checkout** for subscription start; **Stripe Customer Portal** for management; **webhooks** drive entitlement state (`active`, `past_due`, `canceled`).
 - Entitlements gate cloud-only features (sync, relay, managed connectors). The OSS app never checks a license — paid features are server-side only.
+- **Implementation** (`apps/cloud/src/billing.ts`): hand-rolled against the Stripe REST API (no SDK dependency), gated on `STRIPE_SECRET_KEY` so the server runs without a Stripe account. `/api/billing/checkout` opens a Checkout Session for the chosen plan's price; `/api/billing/portal` opens the Customer Portal; `/api/billing/webhook` verifies the `Stripe-Signature` (HMAC-SHA256 over `${t}.${body}`, with a replay-window check) and applies plan changes via `store.setPlan` (`checkout.session.completed` and `customer.subscription.updated|deleted`). The account remembers its `stripeCustomerId` so subscription events map back to it. Requires keys to bill for real: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_PRO`, `STRIPE_PRICE_TEAM`, `CLOUD_PUBLIC_URL`.
 - Plans (draft, see §6): Free (OSS, BYO everything), Pro (individual), Team.
 - Free trial of Pro; annual discount.
 
@@ -207,7 +208,7 @@ Phase ordering keeps the OSS app shippable throughout.
 - [ ] **P2.3 — Docker**: `Dockerfile`, `docker-compose.yml`, `host.docker.internal` model access, volume-mounted workspaces, non-root, published image via CI.
 - [ ] **P2.4 — Packaging/publish**: `npx open-paw` bin; website download/run section updated; docs.
 - [ ] **P3.1 — Cloud foundation**: accounts/auth, Postgres, entitlements, app.openpaw.com shell reusing the same renderer with a cloud transport.
-- [ ] **P3.2 — Payments**: Stripe Checkout + Portal + webhooks; entitlement gating.
+- [x] **P3.2 — Payments**: Stripe Checkout + Portal + signature-verified webhooks → `store.setPlan`; entitlement gating (already existed). Gated on `STRIPE_SECRET_KEY`; live charges need keys. See §4.3.
 - [ ] **P3.3 — ZDR + cloud history/files**: retention modes, encrypted storage, sync engine, ZDR badges + audit.
 - [ ] **P3.4 — Relay + phone**: local agent outbound WSS, relay service, device pairing (QR/code), E2E encryption, mobile-responsive UI / PWA, revoke devices.
 - [ ] **P3.5 — Managed connectors**: pre-registered OAuth apps for Gmail/Drive/Slack/Discord.
