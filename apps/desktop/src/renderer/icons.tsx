@@ -58,3 +58,4 @@ export const TerminalIcon = (p: P) => (<S {...p}><rect x="3" y="4" width="18" he
 export const SplitIcon = (p: P) => (<S {...p}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M12 4v16" /></S>);
 export const CloseIcon = (p: P) => (<S {...p}><path d="M18 6 6 18M6 6l12 12" /></S>);
 export const RobotIcon = (p: P) => (<S {...p}><rect x="4" y="8" width="16" height="11" rx="2" /><path d="M12 8V4M9 13h.01M15 13h.01M2 13h2M20 13h2" /></S>);
+export const WandIcon = (p: P) => (<S {...p}><path d="m15 4 1 2 2 1-2 1-1 2-1-2-2-1 2-1zM6 13l1.5 3L11 17.5 7.5 19 6 22l-1.5-3L1 17.5 4.5 16zM20 14l.8 1.6L22.5 16l-1.7.4L20 18l-.8-1.6L17.5 16l1.7-.4z" /></S>);

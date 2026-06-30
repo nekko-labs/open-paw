@@ -20,6 +20,7 @@ export function CommandPalette() {
     return [
       { id: 'new-chat', label: 'New chat', hint: 'Ctrl+N', run: () => newChat() },
       go('chat', 'Go to Chat'),
+      go('skills', 'Go to Skills'),
       go('projects', 'Go to Projects'),
       go('models', 'Go to Models'),
       go('connectors', 'Go to Connectors'),

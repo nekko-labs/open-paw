@@ -8,6 +8,7 @@ import { UpdateBanner } from './components/UpdateBanner.js';
 import { RelayPairing } from './components/RelayPairing.js';
 import { WorkbenchView } from './views/WorkbenchView.js';
 import { DesignBoardView } from './views/DesignBoardView.js';
+import { SkillsView } from './views/SkillsView.js';
 import { CommandCenterView } from './views/CommandCenterView.js';
 import { ModelsView } from './views/ModelsView.js';
 import { ProjectsView } from './views/ProjectsView.js';
@@ -23,11 +24,13 @@ import {
   GearIcon,
   GridIcon,
   LayoutIcon,
+  WandIcon,
 } from './icons.js';
 
 const NAV: Array<{ view: View; labelKey: string; Icon: (p: { className?: string }) => JSX.Element }> = [
   { view: 'command', labelKey: 'nav.command', Icon: GridIcon },
   { view: 'chat', labelKey: 'nav.chat', Icon: ChatIcon },
+  { view: 'skills', labelKey: 'nav.skills', Icon: WandIcon },
   { view: 'design', labelKey: 'nav.design', Icon: LayoutIcon },
   { view: 'projects', labelKey: 'nav.projects', Icon: FolderIcon },
   { view: 'models', labelKey: 'nav.models', Icon: ServerIcon },
@@ -154,6 +157,7 @@ export function App() {
         )}
         {view === 'command' && <CommandCenterView />}
         {view === 'chat' && <WorkbenchView />}
+        {view === 'skills' && <SkillsView />}
         {view === 'design' && <DesignBoardView />}
         {view === 'models' && <ModelsView />}
         {view === 'projects' && <ProjectsView />}

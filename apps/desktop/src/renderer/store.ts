@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import type { AppSettings, Session, ProviderConfig, ModelInfo, TerminalInfo } from '@open-paw/shared';
 import type { MascotMood } from './components/Mascot.js';
 
-export type View = 'command' | 'chat' | 'projects' | 'models' | 'connectors' | 'memory' | 'settings' | 'design';
+export type View = 'command' | 'chat' | 'projects' | 'models' | 'connectors' | 'memory' | 'settings' | 'design' | 'skills';
 
 /** A message routed into a chat's composer from another surface (editor comment, design note). */
 export interface ComposerInbox {
