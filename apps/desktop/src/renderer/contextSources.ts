@@ -11,7 +11,7 @@ export const SOURCE_META: Record<ContextItem['source'] | 'draft', { label: strin
   system: {
     label: 'System prompt',
     color: CONTEXT_SOURCE.system,
-    explain: "Kotrain's base instructions to the model, its role, available tools, and safety rules. Always included.",
+    explain: "Agent Nekko's base instructions to the model, its role, available tools, and safety rules. Always included.",
   },
   conversation: {
     label: 'Conversation',
@@ -26,7 +26,7 @@ export const SOURCE_META: Record<ContextItem['source'] | 'draft', { label: strin
   memory: {
     label: 'Memory',
     color: CONTEXT_SOURCE.memory,
-    explain: 'Facts Kotrain remembers across chats, your preferences and project notes, that match this conversation.',
+    explain: 'Facts Agent Nekko remembers across chats, your preferences and project notes, that match this conversation.',
   },
   'attached-file': {
     label: 'Files',

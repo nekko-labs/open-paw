@@ -7,11 +7,14 @@ import { IpcEvents } from '@kotrain/shared';
 import { registerIpc } from './ipc.js';
 import { checkForUpdates } from './update.js';
 import { loadWindowBounds, saveWindowBounds } from './windowState.js';
+import { preservePackagedProfile } from './appIdentity.js';
 import {
   TITLEBAR_HEIGHT,
   TITLEBAR_OVERLAY_CHANNEL,
   type TitleBarOverlayTheme,
 } from '../windowChrome.js';
+
+preservePackagedProfile(app);
 
 /**
  * What the native buttons look like before the renderer has told us the theme.

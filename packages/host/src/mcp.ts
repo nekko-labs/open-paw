@@ -41,7 +41,7 @@ class McpServer {
     await this.request('initialize', {
       protocolVersion: '2024-11-05',
       capabilities: {},
-      clientInfo: { name: 'kotrain', version: '1' },
+      clientInfo: { name: 'agent-nekko', version: '1' },
     });
     this.notify('notifications/initialized');
     const res = await this.request('tools/list', {});

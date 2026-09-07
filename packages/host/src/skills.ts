@@ -62,7 +62,7 @@ export function skillTargets(): InstallTargetInfo[] {
   const claudeDir = join(homedir(), '.claude');
   const codexDir = join(homedir(), '.codex');
   return [
-    { id: 'kotrain', label: 'Kotrain', hint: 'joins the / menu and Skills tab', available: true },
+    { id: 'kotrain', label: 'Agent Nekko', hint: 'joins the / menu and Skills tab', available: true },
     {
       id: 'claude',
       label: 'Claude Code',

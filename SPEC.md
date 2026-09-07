@@ -1,20 +1,26 @@
 ---
 status: active
-last-updated: 2026-08-06
+last-updated: 2026-09-07
 owner:
 ---
 
-# Spec, Kotrain
+# Spec, Agent Nekko
 
 > **This is the source of truth for the project.** It describes *what* we're building and *why*, vision, users, journeys, the feature set, and what success looks like. It is **not** about stack or technical design (that's `TASKS.md`). It is a **living artifact**: every prompt that adds or changes a feature updates this file so it always describes the system as it actually is and intends to be. The verbatim origin ask lives in [original-prompt.md](../../obsurdian/projects/kotrain/original-prompt.md).
 
 ## Vision
 
-**Kotrain** (briefly renamed Nekkos, and originally Open Paw; home at **kotrain.com**, with the older `nekkos.app` / `nekkos.dev` / `kotrain.app` domains redirecting) is a polished, open-source, local-first AI coding & cowork assistant, a desktop app in the spirit of Claude Code + Hermes/Cowork, unified into a single surface. Its differentiator is **first-class local model support**: connecting to LM Studio, Ollama, and vLLM should be one click, and managing those model servers (load models, watch token usage) happens inside the app. Cloud providers (Anthropic, OpenAI, OpenRouter, and any OpenAI-compatible endpoint) are equally supported.
+**Agent Nekko** (formerly Kotrain, briefly Nekkos, and originally Open Paw) is your local agent, backed by frontier intelligence. It is an open-source assistant for coding, cowork, and repeatable work that blends models running on your hardware with frontier providers. Use its own desktop/workbench UI or bring its capabilities into Claude Code, Cursor, Codex, OpenClaw, and other compatible tools through the CLI and MCP. Local-only work can run offline once its models and dependencies are installed; frontier calls and network integrations still require connectivity and may send their selected context to the configured provider.
+
+The new primary domain is **agentnekko.com**. **nekkoagent.com** is the backup domain and should permanently redirect to the primary with paths and query strings preserved. The code repository and project folders are to become **agent-nekko**; the CLI command is **agent-nekko**. This is a staged cutover, not a claim that the domains, GitHub repository, Vercel project, or npm package have already moved. Existing `kotrain` commands, settings, data, package imports, updater feeds, and relay connections must remain compatible until their migrations are verified.
+
+The personality is a capable, approachable agent nearby, with a restrained secret-agent influence rather than spy parody. Clear task status, quiet confidence, and generous whitespace take precedence over mission jargon, decorative surveillance metaphors, or a heavy space theme.
 
 Quality bar: on par with Zed / Cursor / Warp / OpenClaw, generous whitespace, minimal chrome, dark/light themes, fast.
 
-The persona/mascot is **Aphelion**, a 2D hand-drawn outline astronaut cat: every pose is a single ink line on the theme's paper with a frame-by-frame "line boil" wobble, no fills except her ginger tail and inner ears, so she reads as traditional hand-drawn animation and works on light and dark chrome alike. Aphelion lives at the lower-left edge facing right into the workbench and reacts to what is happening: lying down while idle, standing and spinning when the user returns, stretching during active pauses, watching a tiny bug and bracing both front paws against the app edge while the model works, then falling asleep after sustained inactivity.
+The persona/mascot is **Nekko** (formerly Aphelion), a 2D hand-drawn outline cat with a subtle secret-agent look: slim sunglasses, a discreet earpiece and short coiled wire, and a folded collar with a small tie. The reflective helmet treatment is gone. Her full body is a slender stick-cat silhouette with long line-art limbs and a narrow torso, not the older rounded astronaut/loaf body. At rest she leans one shoulder against a short local representation of the app edge, ankles crossed with one paw relaxed, like an agent waiting for the next assignment. The edge is part of the drawing only; the full rail divider remains hidden while collapsed. Sunglasses lift above closed eyes while sleeping or stretching so expressions remain readable. The miniature working icon simplifies the same head details for small sizes, and the portrait includes the collar without clipping. Website hero and social artwork reuse the app's exact leaning pose. The website favicon and packaged desktop/PWA/installer icons use the exact miniature secret-agent head on the dark-green tile, replacing the old orbit mark.
+
+The ink and paper follow each theme, with ginger ears/tail and ink-filled glasses/tie. The full mascot retains its frame-by-frame "line boil" wobble and the activity system shipped in PR #140 (T124). Every state uses the same slender proportions: leaning while idle, pushing away from the edge and spinning when the user returns, making a long limber stretch during active pauses, standing and bracing against the edge to inspect a bug while the model works, and slumping against the edge after sustained inactivity. Pose timing, reduced-motion handling, offscreen pause behavior, and right-facing placement remain unchanged.
 
 ## Why It Exists
 
@@ -27,22 +33,35 @@ Kotrain exists to collapse that gap: easy local-model setup **and** a model that
 
 ### Positioning (carry into website + README)
 
-- **vs LM Studio / local chat UIs**: *"LM Studio runs models. Kotrain runs with your work."* Kotrain works *in your codebases*, reads/edits/searches/runs with a multi-folder index, IDE-like file viewing + inline editing, per-project memory, and guardrails. Same easy local-model setup; the model can actually do the work.
-- **vs terminal CLIs (Claude Code, aider)**: *"The power of an agentic CLI, with eyes."* Kotrain adds an IDE-like surface, browse the indexed file tree, view files/diffs, edit inline, with every action visible via the Context Inspector + approvals.
+**AI help on your computer. For coding and everyday work.** Lead with what people can do: get help writing and coding, automate repetitive tasks, and choose AI running on their computer or an online service. Explain that a model is the AI they choose, and local AI runs on their own computer. Do not require readers to understand "frontier", "harness", "runtime", "CLI", or "MCP" before they understand the benefit. Technical setup details remain available farther down the page with short explanations.
+
+The five main marketing headings are **Use AI on your computer or online**, **Choose the right AI for the job**, **Automate repetitive work**, **Manage your AI models in one place**, and **Control your computer by voice** (visibly Planned). Section titles describe concrete actions rather than agent/spy metaphors. Agent Nekko complements existing tools instead of requiring people to abandon their preferred interface; its differentiator remains combining available local compute with online models. Simplifying the language must preserve setup requirements, paid-provider costs, privacy boundaries, and the distinction between available and planned features.
 
 ### Messaging pillars
 
-1. **Local-first, truly usable**: your models + your files, on your machine.
-2. **See everything**: the Context Inspector shows exactly what the model gets; IDE-like file viewing/editing; guardrails on risky commands.
-3. **Runs anywhere, same app**: native, one-command web, Docker, or hosted.
-4. **Private by design**: offline OSS editions; Cloud offers an always-available ZDR mode and relays to *your* local model so inference content never leaves your machine.
-5. **Your phone, your home model**: drive your local LLM from anywhere (Cloud).
+1. **Frontier and local, working together.** Use Agent Nekko as your primary harness/UI, or connect through its CLI and MCP from compatible tools such as Claude Code, Cursor, Codex, and OpenClaw. Bring your own frontier providers and local model servers.
+2. **The right model for the task.** Help users select models for a prompt and delegate concrete work to local or cheaper models while reserving frontier capability for demanding planning. Local inference can avoid per-token API charges but still uses hardware, power, memory, and time. Explain routing decisions and never silently cross an offline boundary.
+3. **Automation in one place.** Manage scheduled tasks, watchers, and workflows alongside interactive agent work. Reusable procedures support agent, skill, shell, and nested workflow steps with bounded retries and visible outcomes.
+4. **Simpler model management.** Discover and connect local runtimes, manage supported model lifecycle actions from the same app, and mix managed and existing servers as support grows. Installing and supervising an inference runtime so a separate server app is unnecessary is a product goal, not a claim that an inference engine is already bundled.
+5. **Control your PC offline, with safeguards.** Tell Nekko what you want by text or voice and let it perform supported local computer actions within permissions you choose. One-click guided setup selects a compatible local intent LLM, text-to-speech (TTS), optional speech-to-text (STT), and required runtimes based on the machine and each component's minimum requirements. The experience includes model/setup explanations, action previews, sensitive-action confirmations, and an immediate stop control. This is a major planned product capability, not available in the current release.
+
+### Roadmap: beyond one machine
+
+These are aspirations, not generally available capabilities or launch promises:
+
+- **Team hardware and distributed work:** opt-in workers pool available machines for model inference, agent tasks, and workflows, with permissions, capacity reporting, isolation, cancellation, and clear ownership.
+- **Local task runners:** expand today's local shell/agent workflow foundation into a practical alternative for jobs otherwise consuming hosted CI credits. GitHub Actions workflow compatibility and untrusted pull-request execution require their own design and security review; neither is implied by local shell steps.
+- **Team workflows:** shared definitions, run coordination, access controls, and auditable outcomes across a team.
+- **Optional cloud runners:** explore only if users want them. A paid service must remain optional and must not weaken the local-first experience.
+
+Existing cloud prototypes and older branding elsewhere in this spec describe implementation history or parallel work, not a requirement to launch a hosted product before the local Agent Nekko experience.
 
 ## Who It's For
 
 - **Developers who want to use local models for real work**: people running LM Studio / Ollama / vLLM who are tired of a chat box that can't touch their files, and want an agent that reads, edits, and runs in their codebases.
 - **Claude Code / aider / terminal-CLI users** who want the same agentic power but with an IDE-like surface (file tree, diffs, inline edit, visible context).
 - **Privacy-conscious / offline users** who want everything to stay on their machine, and, with Cloud, a zero-data-retention path that still keeps inference local.
+- **People who want an approachable local PC assistant** without assembling an intent LLM, speech models, runtimes, and hardware settings themselves. Voice is optional; typed control and visible confirmations must remain first-class.
 - **People who want to reach their home/office model from their phone** (the headline Cloud feature).
 
 ## User Journeys & Experiences
@@ -59,6 +78,32 @@ Kotrain ships the **same engine + same React UI** in several runtimes; from the 
 ### Setting up a local model
 
 A user opens the app and goes to **Models**. Auto-discovery probes common localhost ports (Ollama 11434, LM Studio 1234, vLLM 8000, plus `127.0.0.1` to catch IPv4-only servers). They add or confirm a server, test the connection (green Connected / Offline), and the model list populates. Cloud providers are added the same way, grouped into **Local** vs **Cloud** sections. Favorites pin to the top of the picker.
+
+### One-click setup for safe offline PC control (planned)
+
+**The experience:** a user who does not want to assemble an AI stack opens **Set up offline PC control**. Nekko inspects their machine, explains which models and runtimes fit, and shows the download size, disk/memory budget, supported actions, and permissions required. One **Set up** action then downloads or imports, verifies, installs, configures, and checks the complete local stack. Separate operating-system permission dialogs and license acceptance still require the user's approval; one click never means silently granting access or bypassing security controls.
+
+The stack includes a local **intent LLM** that turns a request into a bounded, structured action plan, **TTS** for spoken responses, **STT** when voice input is enabled, and any supported runtime or computer-control adapter those components require. Text input and captions remain available; push-to-talk is the initial voice path rather than always-on listening. Audio and captured screen content are local and ephemeral by default. Local spoken intent is a request to evaluate, not permission to run arbitrary generated shell commands.
+
+**Hardware-aware selection:** check OS/version, CPU architecture and supported instruction/backend features, total and available RAM, GPU/backend/driver compatibility, dedicated VRAM versus unified memory, and available installation disk space. Compare those facts with versioned, verified model/runtime requirements, supported languages, and required intent/STT/TTS capabilities. Fit the whole concurrently loaded stack, including runtime overhead, context/KV memory, and headroom for the user's normal applications. Do not double-count unified memory, assume separate GPUs form one pool, or equate a small download with a usable runtime footprint. Distinguish minimum compatibility from a recommendation expected to feel responsive. Validate with a short on-device warm-up and benchmark; present measured readiness rather than inventing performance claims.
+
+If the recommended stack does not fit, offer a smaller supported model, reduced concurrency, or a tested CPU-only path with its trade-offs. If none meets the minimum requirements, say exactly what is missing and keep setup blocked. Unknown hardware support is **unverified**, not a pass. Never silently install an incompatible model or switch to a cloud provider. Users can review or override recommendations only within supported combinations and keep using an existing compatible runtime rather than being forced to replace it.
+
+**Computer control:** supported local actions should include opening an approved application, switching to an approved window, adjusting a supported local setting, and entering text into a confirmed target. Scope access by app/window and action, prefer semantic/accessibility APIs over blind coordinates, and show the intended action before execution. Recheck the target immediately before acting and stop if focus, permissions, or observed state changed. Ambiguous voice recognition or low-confidence intent triggers clarification, not a guess. Treat text seen in applications, documents, and web pages as untrusted content, never as authorization to override the user's request.
+
+**Safety contract:** a deterministic action broker validates the model's structured proposal against granted capabilities. No unrestricted shell or elevated permissions by default. Sending messages, purchases, destructive changes, credential/security changes, and other sensitive actions need explicit, action-specific confirmation; a model response or background audio cannot approve itself. Provide an always-visible stop button and keyboard shortcut, interruptible action boundaries, bounded execution, clear failure/partial-completion reporting, and a local activity log with sensitive content redacted. Undo is offered only for actions with a real, verified inverse; do not promise universal rollback. Revoking a permission stops related queued actions. These controls reduce risk but are not a guarantee that a model can never make a mistake.
+
+**Offline means end to end:** initial provisioning needs internet access for approved downloads unless the user imports a verified offline bundle. Once ready, intent recognition, speech input, speech output, and supported PC actions run locally with no account, cloud fallback, remote telemetry, or network access required. Online actions are unavailable in this mode. Verify the experience with external network access blocked, not merely by pointing chat at localhost. A local server capable of proxying to the cloud is not automatically a verified offline runtime.
+
+**Availability and boundaries:** current hardware telemetry, file/shell tools, model discovery, and guardrails are reusable foundations, not an implemented voice/desktop-control stack. The current chat **Offline** toggle disables all tools; this feature needs its own explicit local-only action policy and must not be implemented by weakening that existing toggle. Build a platform/action support matrix for macOS, Windows, and Linux and expose unsupported OS capabilities honestly. Automatic provisioning, model requirements/recommendations, voice processing, native computer-control adapters, and end-to-end safety/offline verification are still to build.
+
+### Delegating frontier planning to a local worker
+
+The lead agent can delegate a scoped task through `spawn_agent` with optional `provider_id` and `model_id` targets. Leaving both out preserves the parent's model. Changing provider requires a known exact model ID; the host checks the configured, enabled target and its model list before creating the child. Unknown, unavailable, disabled, or known non-chat models produce an error, never a silent fallback to a different or paid model. The child appears in the existing nested session UI with its selected provider/model and inherits the parent's execution policy and disabled tools. Ask mode and the ask-everything sandbox require approval before starting a sub-agent or calling an MCP tool, so indirect execution cannot bypass that boundary.
+
+This first implementation is **explicit cross-provider delegation**, not automatic price/capability/resource optimization. The lead receives enabled provider IDs and labels, not credentials, and must ask for a known model rather than invent an ID. An opt-in local-worker default and a routing-decision UI remain planned. Incognito delegation is blocked because child sessions are persisted; it must not quietly retain an incognito task.
+
+The existing **Offline** chat mode is deliberately narrower than normal local-agent work: it disables tools and connectors. The host now also rejects cloud or non-loopback provider endpoints before making a request, prevents unoffered tool execution, skips connector fetching in offline context previews, and suppresses hidden post-turn spec refreshes. This is endpoint-policy enforcement, not an operating-system network sandbox; users still control whether their local inference server proxies requests elsewhere. Broader independent model actions, including explicit spec generation, need the same privacy audit before claiming application-wide network isolation.
 
 ### Working in a codebase
 
@@ -114,6 +159,8 @@ The user opens **Settings → Remote access**, hits Enable (the managed relay is
 Security is layered: the local agent dials out to the relay (no inbound ports), every payload is end-to-end encrypted (the relay routes only ciphertext, so relayed local-model use is inherently zero-data-retention), and on top of the transport every device must pass a handshake against the machine's **device registry**: unknown devices are denied unless they present a live pairing code, each device can be **renamed or revoked** (revocation kicks it mid-connection), and **Rotate secret** is the cryptographic kill switch that unpairs everything. Remote access survives restarts; the agent reconnects on boot. Full guide: [docs/REMOTE.md](docs/REMOTE.md).
 
 ## What Success Looks Like
+
+- **Offline PC control target (planned):** on a supported machine, a non-expert can review and approve one setup plan, complete required OS permission prompts, and use the selected intent/speech stack for approved local actions with external network access blocked. Model choices meet verified whole-stack minimum requirements, sensitive actions require confirmation, and stop/revocation reliably prevents subsequent actions. Unsupported hardware or capabilities are explained rather than hidden by cloud fallback.
 
 - **"Connect + use a local model" just works**: one-click local setup, and the model can actually read/edit/run in a real codebase end-to-end (verified repeatedly against a live LM Studio gemma reasoning model: streaming reasoning, single + multi-step tool loops, index-grounded context).
 - **The unique features land**: users can *see* what the model is given (Context Inspector) and trust it on risky commands (guardrails), the two differentiators from the original ask.

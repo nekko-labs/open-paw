@@ -2,13 +2,13 @@
   "name": "@kotrain/desktop",
   "version": "0.6.1",
   "private": true,
-  "description": "Kotrain desktop app.",
+  "description": "Agent Nekko desktop app.",
   "author": {
     "name": "Nekko Labs",
     "email": "support@kotrain.com"
   },
   "homepage": "https://github.com/nekko-labs/kotrain",
-  "desktopName": "Kotrain",
+  "desktopName": "Agent Nekko",
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",

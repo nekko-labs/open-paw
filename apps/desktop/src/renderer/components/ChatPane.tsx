@@ -10,7 +10,7 @@ import { ChatControls } from './ChatControls.js';
 import { PromptAnalyzer } from './PromptAnalyzer.js';
 import { ScheduleTaskModal } from './ScheduleTaskModal.js';
 import { PrCard, PrBadge } from './PrCard.js';
-import { MiniAphelion, AphelionAvatar } from './Mascot.js';
+import { MiniNekko, NekkoAvatar } from './Mascot.js';
 import { Modal } from './primitives/index.js';
 import { PanelIcon, ShieldIcon, DownloadIcon, PlusIcon, CloseIcon, BoltIcon, ThoughtIcon, ListIcon, ToolStepIcon, RobotIcon, StarIcon } from '../icons.js';
 
@@ -829,7 +829,7 @@ export function ChatPane({ sessionId, onRunningChange }: { sessionId: string; on
     if (!session) return;
     const lines = session.messages
       .filter((m) => m.role === 'user' || m.role === 'assistant')
-      .map((m) => `## ${m.role === 'user' ? 'You' : 'Kotrain'}\n\n${m.content}`);
+      .map((m) => `## ${m.role === 'user' ? 'You' : 'Agent Nekko'}\n\n${m.content}`);
     const md = `# ${session.title}\n\n${lines.join('\n\n')}\n`;
     const blob = new Blob([md], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
@@ -1068,10 +1068,10 @@ export function ChatPane({ sessionId, onRunningChange }: { sessionId: string; on
             <div className="mx-auto w-full max-w-3xl space-y-5">
               {!session?.messages.length && !liveText && !liveReasoning && (
                 <div className="fade-in mt-16 flex flex-col items-center gap-3 text-center">
-                  <div className="grid h-12 w-12 place-items-center rounded-2xl" style={{ background: 'var(--accent-soft)' }}><AphelionAvatar size={30} /></div>
+                  <div className="grid h-12 w-12 place-items-center rounded-2xl" style={{ background: 'var(--accent-soft)' }}><NekkoAvatar size={30} /></div>
                   <div>
                     <h2 className="text-[15px] font-semibold">
-                      {!hasProvider ? 'Connect a model to get started' : needsModel ? 'Pick a model to get started' : 'What should Kotrain work on?'}
+                      {!hasProvider ? 'Connect a model to get started' : needsModel ? 'Pick a model to get started' : 'What should Agent Nekko work on?'}
                     </h2>
                     <p className="mx-auto mt-1 max-w-sm text-[13px] text-ink-faint">
                       {!hasProvider
@@ -1457,7 +1457,7 @@ export function ChatPane({ sessionId, onRunningChange }: { sessionId: string; on
                   ref={composerRef}
                   className="max-h-60 min-h-[52px] w-full resize-none bg-transparent px-3.5 pt-3 text-sm text-ink outline-hidden placeholder:text-ink-faint"
                   rows={2}
-                  placeholder={hasProvider ? 'Message Kotrain…  (/ for prompts, @ to attach files)' : 'Add a model provider in Models first'}
+                  placeholder={hasProvider ? 'Message Agent Nekko…  (/ for prompts, @ to attach files)' : 'Add a model provider in Models first'}
                   value={draft}
                   role="combobox"
                   aria-expanded={slashMenuOpen || atMenuOpen}
@@ -1617,7 +1617,7 @@ export function ChatPane({ sessionId, onRunningChange }: { sessionId: string; on
                       title="Send"
                       aria-label="Send"
                     >
-                      <AphelionAvatar size={24} />
+                      <NekkoAvatar size={24} />
                     </button>
                   )}
                 </div>
@@ -1857,7 +1857,7 @@ function ModelPicker({
                 aria-selected={modelId === AUTO_MODEL_ID}
                 className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12px] hover:bg-surface-2 ${modelId === AUTO_MODEL_ID ? 'text-accent' : ''}`}
                 onClick={() => { onModel(providerId ?? '', AUTO_MODEL_ID); setOpen(false); }}
-                title="Kotrain picks the best model for each message"
+                title="Agent Nekko picks the best model for each message"
               >
                 ✨ Auto <span className="text-[11px] text-ink-faint">(pick best)</span>
               </button>
@@ -2066,7 +2066,7 @@ function ReplyStatus({
   if (streaming) {
     return (
       <div className="fade-in flex flex-wrap items-center gap-x-2.5 gap-y-1 pt-1 text-[12px] text-ink-faint">
-        <span className="flex items-center gap-2 text-ink-soft"><MiniAphelion size={16} /> {waiting ? 'Aphelion is working' : 'Streaming'}<span className="dots" /></span>
+        <span className="flex items-center gap-2 text-ink-soft"><MiniNekko size={16} /> {waiting ? 'Nekko is working' : 'Streaming'}<span className="dots" /></span>
         {elapsed > 0 && <span>· {elapsed}s</span>}
         {tps > 0 && <span title="Output tokens per second while the model was generating">· {formatRate(tps)} tok/s</span>}
         {out > 0 && <span>· {fmtTok(out)} tokens</span>}

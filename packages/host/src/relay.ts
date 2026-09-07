@@ -73,7 +73,7 @@ export function connectRelayAgent(host: Host, opts: RelayAgentOptions): RelayAge
     // On run completion, ping the relay (plain, content-free control frame) so it
     // can push a notification to a paired phone that's currently offline.
     if ((e as { type?: string })?.type === 'done') {
-      sendRaw({ type: 'notify', title: 'Kotrain finished', body: 'Your task is ready.' });
+      sendRaw({ type: 'notify', title: 'Nekko finished', body: 'Your task is ready.' });
     }
   };
   const onIndex = (s: unknown) => void broadcast({ type: 'event', channel: IpcEvents.indexProgress, payload: s });

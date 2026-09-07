@@ -167,7 +167,7 @@ function httpClient(url: string, token?: string): Client {
     };
     openP = new Promise<void>((resolve, reject) => {
       ws!.onopen = () => resolve();
-      ws!.onerror = () => reject(new Error(`Cannot reach Kotrain server at ${base}`));
+      ws!.onerror = () => reject(new Error(`Cannot reach Agent Nekko server at ${base}`));
     });
     return openP;
   };

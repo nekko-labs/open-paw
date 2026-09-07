@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useState } from 'react';
-import { AphelionAvatar } from './Mascot.js';
+import { NekkoAvatar } from './Mascot.js';
 
 // Lazy so jsQR is code-split out of the main bundle (only fetched when scanning).
 const QrScanner = lazy(() => import('./QrScanner.js').then((m) => ({ default: m.QrScanner })));
@@ -87,7 +87,7 @@ export function RelayPairing() {
           onClose={() => setScanning(false)}
           onResult={(text) => {
             setScanning(false);
-            if (!commit(text)) setError('That QR isn’t an Kotrain pairing code.');
+            if (!commit(text)) setError('That QR isn’t an Agent Nekko pairing code.');
           }}
         />
       </Suspense>
@@ -96,10 +96,10 @@ export function RelayPairing() {
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center p-6" style={{ background: 'var(--paper)' }}>
-      <div className="mb-5 grid h-16 w-16 place-items-center rounded-2xl" style={{ background: 'var(--accent-soft)' }}><AphelionAvatar size={40} /></div>
+      <div className="mb-5 grid h-16 w-16 place-items-center rounded-2xl" style={{ background: 'var(--accent-soft)' }}><NekkoAvatar size={40} /></div>
       <h1 className="text-xl font-semibold">Pair with your computer</h1>
       <p className="mt-2 max-w-sm text-center text-[13px] text-ink-faint">
-        Kotrain on your desktop → <span className="font-medium text-ink-soft">Settings → Remote access → Enable</span>, then paste the pairing link here. Your phone drives the model on your computer over an end-to-end encrypted relay.
+        Agent Nekko on your desktop → <span className="font-medium text-ink-soft">Settings → Remote access → Enable</span>, then paste the pairing link here. Your phone drives the model on your computer over an end-to-end encrypted relay.
       </p>
       <textarea
         className="input mt-5 max-w-sm"

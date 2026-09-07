@@ -19,7 +19,7 @@ export function TitleBar() {
   if (!hasAppChrome) return null;
   return (
     <div className={`titlebar ${isMacChrome ? 'titlebar-mac' : ''}`}>
-      <span className="titlebar-word">Kotrain</span>
+      <span className="titlebar-word">Agent Nekko</span>
       <UpdateControl />
     </div>
   );

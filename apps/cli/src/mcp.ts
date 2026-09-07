@@ -14,9 +14,9 @@ const PROTOCOL_VERSIONS = ['2024-11-05', '2025-03-26', '2025-06-18'];
 
 const TOOLS = [
   {
-    name: 'kotrain_chat',
+    name: 'agent-nekko_chat',
     description:
-      "Run an agent turn on this machine's Kotrain (reads/edits/searches/runs in the configured workspace, using the local or cloud model). Returns the assistant's reply. Omit sessionId to start a fresh session.",
+      "Run an agent turn on this machine's Agent Nekko (reads/edits/searches/runs in the configured workspace, using the local or cloud model). Returns the assistant's reply. Omit sessionId to start a fresh session.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -31,57 +31,57 @@ const TOOLS = [
     },
   },
   {
-    name: 'kotrain_list_sessions',
+    name: 'agent-nekko_list_sessions',
     description: 'List chat sessions (id, title, message count, last updated).',
     inputSchema: { type: 'object', properties: {} },
   },
   {
-    name: 'kotrain_new_session',
+    name: 'agent-nekko_new_session',
     description: 'Create a new chat session and return its id.',
     inputSchema: { type: 'object', properties: { workspaceId: { type: 'string' } } },
   },
   {
-    name: 'kotrain_get_session',
+    name: 'agent-nekko_get_session',
     description: 'Get a session transcript (user/assistant messages).',
     inputSchema: { type: 'object', properties: { sessionId: { type: 'string' } }, required: ['sessionId'] },
   },
   {
-    name: 'kotrain_workspace_list',
+    name: 'agent-nekko_workspace_list',
     description: 'List configured workspaces.',
     inputSchema: { type: 'object', properties: {} },
   },
   {
-    name: 'kotrain_workspace_add',
+    name: 'agent-nekko_workspace_add',
     description: 'Add a workspace by filesystem path.',
     inputSchema: { type: 'object', properties: { path: { type: 'string' } }, required: ['path'] },
   },
   {
-    name: 'kotrain_workspace_remove',
+    name: 'agent-nekko_workspace_remove',
     description: 'Remove a configured workspace.',
     inputSchema: { type: 'object', properties: { workspaceId: { type: 'string' } }, required: ['workspaceId'] },
   },
   {
-    name: 'kotrain_workspace_index',
+    name: 'agent-nekko_workspace_index',
     description: 'Index a configured workspace.',
     inputSchema: { type: 'object', properties: { workspaceId: { type: 'string' } }, required: ['workspaceId'] },
   },
   {
-    name: 'kotrain_workspace_search',
+    name: 'agent-nekko_workspace_search',
     description: 'Search an indexed workspace.',
     inputSchema: { type: 'object', properties: { workspaceId: { type: 'string' }, query: { type: 'string' } }, required: ['workspaceId', 'query'] },
   },
   {
-    name: 'kotrain_prompts_list',
+    name: 'agent-nekko_prompts_list',
     description: 'List saved prompts.',
     inputSchema: { type: 'object', properties: {} },
   },
   {
-    name: 'kotrain_tasks_list',
+    name: 'agent-nekko_tasks_list',
     description: 'List automation tasks.',
     inputSchema: { type: 'object', properties: {} },
   },
   {
-    name: 'kotrain_task_create',
+    name: 'agent-nekko_task_create',
     description: 'Create an automation task.',
     inputSchema: {
       type: 'object',
@@ -101,46 +101,46 @@ const TOOLS = [
     },
   },
   {
-    name: 'kotrain_task_run',
+    name: 'agent-nekko_task_run',
     description: 'Run an automation task immediately.',
     inputSchema: { type: 'object', properties: { taskId: { type: 'string' } }, required: ['taskId'] },
   },
   {
-    name: 'kotrain_task_delete',
+    name: 'agent-nekko_task_delete',
     description: 'Delete an automation task.',
     inputSchema: { type: 'object', properties: { taskId: { type: 'string' } }, required: ['taskId'] },
   },
   {
-    name: 'kotrain_skills_list',
+    name: 'agent-nekko_skills_list',
     description: 'List installed skills.',
     inputSchema: { type: 'object', properties: {} },
   },
   {
-    name: 'kotrain_skill_install',
+    name: 'agent-nekko_skill_install',
     description: 'Install a skill.',
     inputSchema: { type: 'object', properties: { skillId: { type: 'string' }, target: { type: 'string', enum: ['kotrain', 'claude', 'codex'] } }, required: ['skillId'] },
   },
   {
-    name: 'kotrain_tools_list',
+    name: 'agent-nekko_tools_list',
     description: 'List host tools.',
     inputSchema: { type: 'object', properties: {} },
   },
   {
-    name: 'kotrain_models_list',
+    name: 'agent-nekko_models_list',
     description: 'List models for a provider.',
     inputSchema: { type: 'object', properties: { providerId: { type: 'string' } }, required: ['providerId'] },
   },
   {
-    name: 'kotrain_train_start',
+    name: 'agent-nekko_train_start',
     description:
-      "Ask this machine's Kotrain to train a model for a purpose. Creates and starts a training run: a local data-scientist agent works hands-on in the workspace (benchmark candidate models, prepare data, fine-tune, evaluate), reporting each experiment with its score to an experiment tree. Returns the run id; poll kotrain_train_status.",
+      "Ask this machine's Agent Nekko to train a model for a purpose. Creates and starts a training run: a local data-scientist agent works hands-on in the workspace (benchmark candidate models, prepare data, fine-tune, evaluate), reporting each experiment with its score to an experiment tree. Returns the run id; poll agent-nekko_train_status.",
     inputSchema: {
       type: 'object',
       properties: {
         name: { type: 'string', description: 'Short run name, e.g. "mynichi-slm-v1".' },
         goal: { type: 'string', description: 'What to train and what metric to maximize/minimize, in plain language.' },
         kind: { type: 'string', enum: ['training', 'goal'], description: 'Run type (default "training").' },
-        workspaceId: { type: 'string', description: 'Workspace the agent works in (see kotrain_status).' },
+        workspaceId: { type: 'string', description: 'Workspace the agent works in (see agent-nekko_status).' },
         provider: { type: 'string', description: 'Provider id override for the agent model (optional).' },
         model: { type: 'string', description: 'Model id override for the agent model (optional).' },
         metric: { type: 'string', description: 'Metric name experiments report, e.g. "score" or "accuracy".' },
@@ -154,13 +154,13 @@ const TOOLS = [
     },
   },
   {
-    name: 'kotrain_train_status',
+    name: 'agent-nekko_train_status',
     description:
       'Status of training runs: experiments with scores, the current leader, run state. Pass runId for one run in detail, omit for a summary of all runs.',
     inputSchema: { type: 'object', properties: { runId: { type: 'string' } } },
   },
   {
-    name: 'kotrain_train_hint',
+    name: 'agent-nekko_train_hint',
     description: 'Queue user guidance for a running training run; the agent folds it into its next experiments.',
     inputSchema: {
       type: 'object',
@@ -169,20 +169,20 @@ const TOOLS = [
     },
   },
   {
-    name: 'kotrain_train_stop',
+    name: 'agent-nekko_train_stop',
     description: 'Stop a training run (the in-flight iteration finishes, then the run ends).',
     inputSchema: { type: 'object', properties: { runId: { type: 'string' } }, required: ['runId'] },
   },
   {
-    name: 'kotrain_status',
-    description: 'Summary of this Kotrain: providers, default model, workspaces, session count, remote relay status.',
+    name: 'agent-nekko_status',
+    description: 'Summary of this Agent Nekko: providers, default model, workspaces, session count, remote relay status.',
     inputSchema: { type: 'object', properties: {} },
   },
 ];
 
 async function callTool(client: Client, name: string, args: Record<string, any>): Promise<string> {
   switch (name) {
-    case 'kotrain_chat': {
+    case 'agent-nekko_chat': {
       let sessionId = args.sessionId as string | undefined;
       if (!sessionId) sessionId = (await client.createSession(args.workspaceId)).id;
       const session = await client.getSession(sessionId);
@@ -203,15 +203,15 @@ async function callTool(client: Client, name: string, args: Record<string, any>)
       });
       return JSON.stringify({ sessionId, provider: providerId, model: modelId, ...reply });
     }
-    case 'kotrain_list_sessions':
+    case 'agent-nekko_list_sessions':
       return JSON.stringify(
         (await client.listSessions()).map((s) => ({ id: s.id, title: s.title, messages: s.messages.length, updatedAt: s.updatedAt })),
         null,
         2,
       );
-    case 'kotrain_new_session':
+    case 'agent-nekko_new_session':
       return `Created session ${(await client.createSession(args.workspaceId)).id}`;
-    case 'kotrain_get_session': {
+    case 'agent-nekko_get_session': {
       const s = await client.getSession(String(args.sessionId));
       if (!s) throw new Error('Session not found');
       return s.messages
@@ -219,21 +219,21 @@ async function callTool(client: Client, name: string, args: Record<string, any>)
         .map((m) => `## ${m.role}\n${m.content}`)
         .join('\n\n');
     }
-    case 'kotrain_workspace_list':
+    case 'agent-nekko_workspace_list':
       return JSON.stringify(await client.listWorkspaces());
-    case 'kotrain_workspace_add':
+    case 'agent-nekko_workspace_add':
       return JSON.stringify(await client.addWorkspaceByPath(String(args.path)));
-    case 'kotrain_workspace_remove':
+    case 'agent-nekko_workspace_remove':
       return JSON.stringify(await client.removeWorkspace(String(args.workspaceId)));
-    case 'kotrain_workspace_index':
+    case 'agent-nekko_workspace_index':
       return JSON.stringify(await client.indexWorkspace(String(args.workspaceId)));
-    case 'kotrain_workspace_search':
+    case 'agent-nekko_workspace_search':
       return JSON.stringify(await client.searchWorkspace(String(args.workspaceId), String(args.query)));
-    case 'kotrain_prompts_list':
+    case 'agent-nekko_prompts_list':
       return JSON.stringify((await client.getSettings()).prompts ?? []);
-    case 'kotrain_tasks_list':
+    case 'agent-nekko_tasks_list':
       return JSON.stringify(await client.listTasks());
-    case 'kotrain_task_create':
+    case 'agent-nekko_task_create':
       if (
         typeof args.title !== 'string' ||
         typeof args.prompt !== 'string' ||
@@ -253,14 +253,14 @@ async function callTool(client: Client, name: string, args: Record<string, any>)
         condition: args.condition,
         keepAlive: args.keepAlive,
       }));
-    case 'kotrain_task_run':
+    case 'agent-nekko_task_run':
       await client.runTaskNow(String(args.taskId));
       return JSON.stringify({ ok: true });
-    case 'kotrain_task_delete':
+    case 'agent-nekko_task_delete':
       return JSON.stringify(await client.deleteTask(String(args.taskId)));
-    case 'kotrain_skills_list':
+    case 'agent-nekko_skills_list':
       return JSON.stringify(await client.listInstalledSkills());
-    case 'kotrain_skill_install': {
+    case 'agent-nekko_skill_install': {
       // Same payload resolution as the CLI, so Vaizer skills install by slug.
       const { skillId, payload } = await resolveInstall(client, String(args.skillId));
       return JSON.stringify(
@@ -271,11 +271,11 @@ async function callTool(client: Client, name: string, args: Record<string, any>)
         ),
       );
     }
-    case 'kotrain_tools_list':
+    case 'agent-nekko_tools_list':
       return JSON.stringify(await client.listTools());
-    case 'kotrain_models_list':
+    case 'agent-nekko_models_list':
       return JSON.stringify(await client.listModels(String(args.providerId)));
-    case 'kotrain_train_start': {
+    case 'agent-nekko_train_start': {
       const run = await client.createTrainingRun({
         kind: (args.kind as 'training' | 'goal') ?? 'training',
         name: String(args.name),
@@ -295,7 +295,7 @@ async function callTool(client: Client, name: string, args: Record<string, any>)
       await client.startTrainingRun(run.id);
       return JSON.stringify({ runId: run.id, sessionId: run.sessionId, status: 'running' }, null, 2);
     }
-    case 'kotrain_train_status': {
+    case 'agent-nekko_train_status': {
       const runs = await client.listTrainingRuns();
       if (args.runId) {
         const run = runs.find((r) => r.id === args.runId);
@@ -329,15 +329,15 @@ async function callTool(client: Client, name: string, args: Record<string, any>)
         2,
       );
     }
-    case 'kotrain_train_hint': {
+    case 'agent-nekko_train_hint': {
       await client.addTrainingHint(String(args.runId), String(args.text));
       return `Hint queued for ${args.runId}.`;
     }
-    case 'kotrain_train_stop': {
+    case 'agent-nekko_train_stop': {
       await client.stopTrainingRun(String(args.runId));
       return `Run ${args.runId} stopping.`;
     }
-    case 'kotrain_status': {
+    case 'agent-nekko_status': {
       const [s, sessions, remote] = await Promise.all([client.getSettings(), client.listSessions(), client.remoteStatus()]);
       return JSON.stringify(
         {
@@ -389,7 +389,7 @@ export function runMcpServer(opts: { url?: string; token?: string } = {}): void 
     if (method === 'initialize') {
       const requested = typeof params?.protocolVersion === 'string' ? params.protocolVersion : '';
       const protocolVersion = PROTOCOL_VERSIONS.includes(requested) ? requested : PROTOCOL_VERSIONS[PROTOCOL_VERSIONS.length - 1];
-      ok(id, { protocolVersion, capabilities: { tools: {} }, serverInfo: { name: 'kotrain', version: VERSION } });
+      ok(id, { protocolVersion, capabilities: { tools: {} }, serverInfo: { name: 'agent-nekko', title: 'Agent Nekko', version: VERSION } });
     } else if (method === 'notifications/initialized' || method?.startsWith('notifications/')) {
       /* notifications: no response */
     } else if (method === 'ping') {
@@ -398,8 +398,11 @@ export function runMcpServer(opts: { url?: string; token?: string } = {}): void 
       ok(id, { tools: TOOLS });
     } else if (method === 'tools/call') {
       try {
-        const text = await callTool(client, params?.name, params?.arguments ?? {});
-        if (params?.name === 'kotrain_chat') {
+        const requestedName = params?.name;
+        const canonicalName = typeof requestedName === 'string' ? requestedName.replace(/^kotrain_/, 'agent-nekko_') : requestedName;
+        const name = TOOLS.some((tool) => tool.name === canonicalName) ? canonicalName : requestedName;
+        const text = await callTool(client, name, params?.arguments ?? {});
+        if (name === 'agent-nekko_chat') {
           const result = JSON.parse(text) as {
             text: string;
             sessionId: string;
@@ -428,5 +431,5 @@ export function runMcpServer(opts: { url?: string; token?: string } = {}): void 
     }
   }
 
-  console.error('[kotrain] MCP server ready on stdio');
+  console.error('[Agent Nekko] MCP server ready on stdio');
 }

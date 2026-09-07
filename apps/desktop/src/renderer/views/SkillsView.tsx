@@ -347,7 +347,7 @@ function MarketplaceTab() {
         <div className="p-4">
           <h1 className="text-lg font-semibold text-gradient">Marketplace</h1>
           <p className="mt-0.5 text-[12px] text-ink-faint">
-            Install skills into Kotrain, or export them to Claude Code / Codex.
+            Install skills into Agent Nekko, or export them to Claude Code / Codex.
           </p>
           <input
             className="input mt-3"
