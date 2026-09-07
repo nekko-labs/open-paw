@@ -7,7 +7,7 @@
     "name": "Nekko Labs",
     "email": "support@kotrain.com"
   },
-  "homepage": "https://github.com/nekko-labs/kotrain",
+  "homepage": "https://github.com/nekko-labs/agent-nekko",
   "desktopName": "Agent Nekko",
   "main": "./out/main/index.js",
   "scripts": {

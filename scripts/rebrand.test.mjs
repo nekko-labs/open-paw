@@ -42,11 +42,11 @@ test('old domains keep their live destination until the primary cutover is appro
   }
 });
 
-test('workspace identity changes without switching unpublished package or update feeds', () => {
+test('workspace identity changes without switching unpublished package feeds or app identity', () => {
   assert.equal(JSON.parse(read('package.json')).name, 'agent-nekko-workspace');
   assert.equal(JSON.parse(read('apps/cli/package.json')).name, 'kotrain');
   assert.match(read('apps/desktop/electron-builder.yml'), /appId: dev\.nekkolabs\.kotrain/);
-  assert.match(read('apps/desktop/electron-builder.yml'), /repo: kotrain/);
+  assert.match(read('apps/desktop/electron-builder.yml'), /repo: agent-nekko/);
 });
 
 test('the assistant uses the Nekko identity and retains grounded execution guidance', () => {

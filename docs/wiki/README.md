@@ -1,6 +1,6 @@
 # Wiki source
 
-These files mirror the [GitHub Wiki](https://github.com/nekko-labs/kotrain/wiki).
+These files mirror the [GitHub Wiki](https://github.com/nekko-labs/agent-nekko/wiki).
 
 GitHub does not expose an API to create a wiki's first page, it must be created
 once in the web UI (Wiki tab → "Create the first page"). After that one-time step,

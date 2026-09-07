@@ -74,8 +74,8 @@
   window.addEventListener('load', showInView);
 
   // ---- smart download: default to the visitor's machine, menu for everything else ----
-  const RELEASES = 'https://github.com/nekko-labs/kotrain/releases/latest';
-  const API = 'https://api.github.com/repos/nekko-labs/kotrain/releases/latest';
+  const RELEASES = 'https://github.com/nekko-labs/agent-nekko/releases/latest';
+  const API = 'https://api.github.com/repos/nekko-labs/agent-nekko/releases/latest';
 
   // Each build we publish, with the pattern that finds it in a release's assets.
   // `pick` is what the primary button chooses for a detected os+arch.

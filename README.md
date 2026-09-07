@@ -93,7 +93,7 @@ executable alias is being added in this source tree. It is not yet a published
 
 ## Download
 
-Grab the installer for your OS from the [latest release](https://github.com/nekko-labs/kotrain/releases/latest):
+Grab the installer for your OS from the [latest release](https://github.com/nekko-labs/agent-nekko/releases/latest):
 Windows NSIS `.exe`, macOS `.dmg`, or Linux `.AppImage`/`.deb`.
 
 Release macOS builds are signed with a Nekko Labs Developer ID certificate and
@@ -271,7 +271,7 @@ npm run dist         # electron-builder → apps/desktop/release
 ```
 
 Releases are published to GitHub Releases by the [release workflow](.github/workflows/release.yml)
-on `v*` tags. Download links point to the [latest GitHub release](https://github.com/nekko-labs/kotrain/releases/latest).
+on `v*` tags. Download links point to the [latest GitHub release](https://github.com/nekko-labs/agent-nekko/releases/latest).
 
 ## License
 

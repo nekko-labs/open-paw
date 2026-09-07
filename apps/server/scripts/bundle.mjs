@@ -58,7 +58,7 @@ const pkg = {
 writeFileSync(join(out, 'package.json'), JSON.stringify(pkg, null, 2));
 writeFileSync(
   join(out, 'README.md'),
-  '# Kotrain (web edition + CLI/MCP)\n\nWeb server:\n\n```bash\nnpx kotrain\n```\n\nThen open http://localhost:1440.\n\nCLI / MCP (drive your local agent from the terminal or other tools):\n\n```bash\nnpx kotrain status\nnpx kotrain chat "summarize README.md"\nnpx kotrain mcp        # MCP server on stdio (e.g. claude mcp add kotrain -- npx kotrain mcp)\n```\n\nSee https://github.com/nekko-labs/kotrain\n',
+  '# Kotrain (web edition + CLI/MCP)\n\nWeb server:\n\n```bash\nnpx kotrain\n```\n\nThen open http://localhost:1440.\n\nCLI / MCP (drive your local agent from the terminal or other tools):\n\n```bash\nnpx kotrain status\nnpx kotrain chat "summarize README.md"\nnpx kotrain mcp        # MCP server on stdio (e.g. claude mcp add kotrain -- npx kotrain mcp)\n```\n\nSee https://github.com/nekko-labs/agent-nekko\n',
 );
 
 console.log(`\n✓ Bundled publishable package → ${out}`);

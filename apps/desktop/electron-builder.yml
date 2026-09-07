@@ -23,7 +23,7 @@ extraMetadata:
 publish:
   provider: github
   owner: nekko-labs
-  repo: kotrain
+  repo: agent-nekko
 win:
   target:
     - nsis

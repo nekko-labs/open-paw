@@ -61,7 +61,7 @@ try {
       `Packed package is missing the agent-nekko, kotrain, and nekkos bin entries (got ${JSON.stringify(packageJson.bin)}).`,
     );
   }
-  if (packageJson.name !== 'kotrain' || packageJson.repository?.url !== 'git+https://github.com/nekko-labs/kotrain.git') {
+  if (packageJson.name !== 'kotrain' || packageJson.repository?.url !== 'git+https://github.com/nekko-labs/agent-nekko.git') {
     throw new Error('Published package identity must remain kotrain until the publishing cutover.');
   }
   const packedDist = readdirSync(join(unpacked, 'dist')).sort();

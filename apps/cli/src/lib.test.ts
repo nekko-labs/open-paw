@@ -28,7 +28,7 @@ describe('CLI identity and compatibility', () => {
   it('publishes under kotrain with canonical and legacy executable aliases', () => {
     const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
     expect(manifest.name).toBe('kotrain');
-    expect(manifest.repository.url).toBe('git+https://github.com/nekko-labs/kotrain.git');
+    expect(manifest.repository.url).toBe('git+https://github.com/nekko-labs/agent-nekko.git');
     expect(manifest.bin).toEqual({
       'agent-nekko': 'dist/index.js',
       kotrain: 'dist/index.js',
