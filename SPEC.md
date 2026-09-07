@@ -6,7 +6,7 @@ owner:
 
 # Spec, Agent Nekko
 
-> **This is the source of truth for the project.** It describes *what* we're building and *why*, vision, users, journeys, the feature set, and what success looks like. It is **not** about stack or technical design (that's `TASKS.md`). It is a **living artifact**: every prompt that adds or changes a feature updates this file so it always describes the system as it actually is and intends to be. The verbatim origin ask lives in [original-prompt.md](../../obsurdian/projects/kotrain/original-prompt.md).
+> **This is the source of truth for the project.** It describes *what* we're building and *why*, vision, users, journeys, the feature set, and what success looks like. It is **not** about stack or technical design (that's `TASKS.md`). It is a **living artifact**: every prompt that adds or changes a feature updates this file so it always describes the system as it actually is and intends to be. The verbatim origin ask lives in [original-prompt.md](../../obsurdian/projects/agent-nekko/original-prompt.md).
 
 ## Vision
 
@@ -307,4 +307,4 @@ Security is layered: the local agent dials out to the relay (no inbound ports), 
 - Mobile: PWA first, or native shells later? (Native Capacitor shells now exist; PWA also works.)
 - Exact ZDR boundary for cloud-configured (non-local) providers without ZDR tiers, likely "not allowed in ZDR workspaces."
 - Do desktop + local web share one data dir by default, or separate? (Lean: share, so the web UI sees your desktop sessions.)
-- Full Gmail/Drive OAuth flow (needs Google client creds); macOS signing + notarization is **wired in CI and waiting only on the `nekko-labs` org secrets being uploaded** (the certificate exists; GitHub secrets are write-only so it must be exported and set by hand, see [docs/signing.md](docs/signing.md)); Windows Authenticode pending SignPath Foundation; npm publish of `kotrain` (needs the user's npm login), all pending user-side credentials. Provisioning details in [provisioning.md](../../obsurdian/projects/kotrain/provisioning.md).
+- Full Gmail/Drive OAuth flow (needs Google client creds); macOS signing + notarization is **wired in CI and waiting only on the `nekko-labs` org secrets being uploaded** (the certificate exists; GitHub secrets are write-only so it must be exported and set by hand, see [docs/signing.md](docs/signing.md)); Windows Authenticode pending SignPath Foundation; npm publish of `kotrain` (needs the user's npm login), all pending user-side credentials. Provisioning details in [provisioning.md](../../obsurdian/projects/agent-nekko/provisioning.md).
