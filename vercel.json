@@ -22,8 +22,19 @@
   ],
   "redirects": [
     {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "^(?:(?:www\\.)?nekkoagent\\.com|www\\.agentnekko\\.com)$"
+        }
+      ],
+      "destination": "https://agentnekko.com/:path*",
+      "permanent": true
+    },
+    {
       "source": "/(.*)",
-      "has": [{ "type": "host", "value": "www\\.kotrain\\.com" }],
+      "has": [{ "type": "host", "value": "^www\\.kotrain\\.com$" }],
       "destination": "https://kotrain.com/$1",
       "permanent": true
     },
@@ -32,7 +43,7 @@
       "has": [
         {
           "type": "host",
-          "value": "(www\\.)?(kotrain\\.app|nekkos\\.app|nekkos\\.dev)"
+          "value": "^(?:www\\.)?(?:kotrain\\.app|nekkos\\.app|nekkos\\.dev)$"
         }
       ],
       "destination": "https://kotrain.com/$1",

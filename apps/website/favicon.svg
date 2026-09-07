@@ -1,114 +1,23 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="space" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#221f45"/>
-      <stop offset="0.5" stop-color="#121222"/>
-      <stop offset="1" stop-color="#090911"/>
-    </linearGradient>
-    <radialGradient id="nebula" cx="0.3" cy="0.26" r="0.72">
-      <stop offset="0" stop-color="#6d5efc" stop-opacity="0.42"/>
-      <stop offset="0.5" stop-color="#4c46c8" stop-opacity="0.14"/>
-      <stop offset="1" stop-color="#6d5efc" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="nebula2" cx="0.76" cy="0.82" r="0.55">
-      <stop offset="0" stop-color="#22d3ee" stop-opacity="0.22"/>
-      <stop offset="1" stop-color="#22d3ee" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="bloom" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#a9f3ff" stop-opacity="0.85"/>
-      <stop offset="0.45" stop-color="#22d3ee" stop-opacity="0.28"/>
-      <stop offset="1" stop-color="#22d3ee" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="core" cx="0.5" cy="0.46" r="0.5">
-      <stop offset="0" stop-color="#ffffff"/>
-      <stop offset="0.55" stop-color="#e6fbff"/>
-      <stop offset="1" stop-color="#7de6ff"/>
-    </radialGradient>
-    <clipPath id="squircle">
-      <rect x="0" y="0" width="512" height="512" rx="114" ry="114"/>
-    </clipPath>
-  </defs>
-
-  <g clip-path="url(#squircle)">
-    <rect width="512" height="512" fill="url(#space)"/>
-    <rect width="512" height="512" fill="url(#nebula)"/>
-    <rect width="512" height="512" fill="url(#nebula2)"/>
-    
-
-    <!-- No closed ring behind the trail: at icon scale a second stroke reads as
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Nekko, the Agent Nekko cat with sunglasses and an earpiece" style="--ink: #f2f1e9; --paper: #101714">
+  <rect width="32" height="32" rx="8" fill="#101714"/>
+  <!-- No closed ring behind the trail: at icon scale a second stroke reads as
          a competing shape. The arc sweeps nearly a full lap, which is enough to
          say "orbit" on its own. -->
-    <g fill="none">
-      <path d="M401.6 200.2L403.4 217.9L405.8 217.9L403.8 199.7Z" fill="#171631"/>
-      <path d="M403.1 208.9L402.7 227.2L405.0 227.5L405.4 208.6Z" fill="#191837"/>
-      <path d="M403.4 217.9L400.8 236.7L403.2 237.3L405.8 217.9Z" fill="#1b1a3b"/>
-      <path d="M402.7 227.2L397.8 246.4L400.2 247.3L405.0 227.5Z" fill="#1d1c40"/>
-      <path d="M400.8 236.7L393.7 256.2L396.1 257.3L403.2 237.3Z" fill="#1f1e44"/>
-      <path d="M397.8 246.4L388.5 265.9L391.0 267.4L400.2 247.3Z" fill="#201f48"/>
-      <path d="M393.7 256.2L382.3 275.6L384.9 277.3L396.1 257.3Z" fill="#22214c"/>
-      <path d="M388.5 265.9L375.2 285.1L377.7 287.1L391.0 267.4Z" fill="#232350"/>
-      <path d="M382.3 275.6L367.1 294.3L369.7 296.7L384.9 277.3Z" fill="#252554"/>
-      <path d="M375.2 285.1L358.2 303.3L360.8 306.0L377.7 287.1Z" fill="#262758"/>
-      <path d="M367.1 294.3L348.6 311.9L351.1 314.9L369.7 296.7Z" fill="#27295c"/>
-      <path d="M358.2 303.3L338.2 320.0L340.7 323.4L360.8 306.0Z" fill="#292b60"/>
-      <path d="M348.6 311.9L327.1 327.6L329.7 331.4L351.1 314.9Z" fill="#2a2d63"/>
-      <path d="M338.2 320.0L315.6 334.7L318.0 338.9L340.7 323.4Z" fill="#2b2f67"/>
-      <path d="M327.1 327.6L303.6 341.1L306.0 345.7L329.7 331.4Z" fill="#2c316b"/>
-      <path d="M315.6 334.7L291.2 346.9L293.5 351.9L318.0 338.9Z" fill="#2d346e"/>
-      <path d="M303.6 341.1L278.6 351.9L280.7 357.4L306.0 345.7Z" fill="#2d3671"/>
-      <path d="M291.2 346.9L265.8 356.2L267.7 362.2L293.5 351.9Z" fill="#2e3875"/>
-      <path d="M278.6 351.9L253.0 359.6L254.6 366.1L280.7 357.4Z" fill="#2f3a78"/>
-      <path d="M265.8 356.2L240.2 362.3L241.5 369.3L267.7 362.2Z" fill="#303d7c"/>
-      <path d="M253.0 359.6L227.5 364.1L228.5 371.6L254.6 366.1Z" fill="#313f7f"/>
-      <path d="M240.2 362.3L215.2 365.1L215.7 373.1L241.5 369.3Z" fill="#314282"/>
-      <path d="M227.5 364.1L203.1 365.2L203.1 373.7L228.5 371.6Z" fill="#314586"/>
-      <path d="M215.2 365.1L191.6 364.5L190.9 373.5L215.7 373.1Z" fill="#324789"/>
-      <path d="M203.1 365.2L180.6 362.9L179.0 372.3L203.1 373.7Z" fill="#334a8c"/>
-      <path d="M191.6 364.5L170.2 360.5L167.7 370.3L190.9 373.5Z" fill="#334c8f"/>
-      <path d="M180.6 362.9L160.6 357.3L157.0 367.4L179.0 372.3Z" fill="#334f92"/>
-      <path d="M170.2 360.5L151.8 353.4L147.0 363.6L167.7 370.3Z" fill="#345296"/>
-      <path d="M160.6 357.3L143.8 348.8L137.7 358.9L157.0 367.4Z" fill="#345599"/>
-      <path d="M151.8 353.4L136.9 343.6L129.2 353.4L147.0 363.6Z" fill="#34599b"/>
-      <path d="M143.8 348.8L130.9 337.8L121.5 347.0L137.7 358.9Z" fill="#345c9f"/>
-      <path d="M136.9 343.6L125.9 331.6L114.9 339.8L129.2 353.4Z" fill="#345fa2"/>
-      <path d="M130.9 337.8L121.9 324.8L109.3 331.9L121.5 347.0Z" fill="#3562a5"/>
-      <path d="M125.9 331.6L118.9 317.7L104.9 323.2L114.9 339.8Z" fill="#3465a8"/>
-      <path d="M121.9 324.8L117.0 310.2L101.6 313.9L109.3 331.9Z" fill="#3469ab"/>
-      <path d="M118.9 317.7L116.0 302.4L99.5 304.1L104.9 323.2Z" fill="#346cae"/>
-      <path d="M117.0 310.2L116.0 294.3L98.8 293.9L101.6 313.9Z" fill="#346fb1"/>
-      <path d="M116.0 302.4L117.1 285.9L99.2 283.4L99.5 304.1Z" fill="#3473b3"/>
-      <path d="M116.0 294.3L119.2 277.2L100.9 272.7L98.8 293.9Z" fill="#3377b6"/>
-      <path d="M117.1 285.9L122.3 268.4L103.8 261.8L99.2 283.4Z" fill="#337ab9"/>
-      <path d="M119.2 277.2L126.4 259.6L107.9 250.9L100.9 272.7Z" fill="#337ebc"/>
-      <path d="M122.3 268.4L131.5 250.6L113.0 240.1L103.8 261.8Z" fill="#3382bf"/>
-      <path d="M126.4 259.6L137.5 241.8L119.3 229.3L107.9 250.9Z" fill="#3286c2"/>
-      <path d="M131.5 250.6L144.5 233.0L126.5 218.8L113.0 240.1Z" fill="#328ac5"/>
-      <path d="M137.5 241.8L152.4 224.5L134.8 208.4L119.3 229.3Z" fill="#318dc7"/>
-      <path d="M144.5 233.0L161.0 216.3L143.9 198.4L126.5 218.8Z" fill="#3092ca"/>
-      <path d="M152.4 224.5L170.5 208.4L153.9 188.8L134.8 208.4Z" fill="#2f96cd"/>
-      <path d="M161.0 216.3L180.6 200.9L164.6 179.7L143.9 198.4Z" fill="#2f9bd0"/>
-      <path d="M170.5 208.4L191.2 193.9L176.0 171.0L153.9 188.8Z" fill="#2e9fd2"/>
-      <path d="M180.6 200.9L202.4 187.5L188.0 162.9L164.6 179.7Z" fill="#2da3d4"/>
-      <path d="M191.2 193.9L214.0 181.7L200.5 155.5L176.0 171.0Z" fill="#2ca8d7"/>
-      <path d="M202.4 187.5L225.9 176.5L213.4 148.7L188.0 162.9Z" fill="#2cacd9"/>
-      <path d="M214.0 181.7L238.0 172.1L226.7 142.6L200.5 155.5Z" fill="#2ab1dc"/>
-      <path d="M225.9 176.5L250.2 168.4L240.3 137.3L213.4 148.7Z" fill="#2ab5df"/>
-      <path d="M238.0 172.1L262.4 165.4L254.0 132.8L226.7 142.6Z" fill="#28bae1"/>
-      <path d="M250.2 168.4L274.4 163.2L267.8 129.2L240.3 137.3Z" fill="#27bfe4"/>
-      <path d="M262.4 165.4L286.3 161.9L281.7 126.4L254.0 132.8Z" fill="#26c3e7"/>
-      <path d="M274.4 163.2L297.8 161.3L295.4 124.5L267.8 129.2Z" fill="#24c9e9"/>
-      <path d="M286.3 161.9L308.8 161.5L309.0 123.5L281.7 126.4Z" fill="#24cdeb"/>
-      <path d="M297.8 161.3L308.8 161.5L309.0 123.5L295.4 124.5Z" fill="#22d3ee"/>
-      <circle cx="308.9" cy="142.5" r="19.0" fill="#22d3ee"/>
-    </g>
-
+  <g data-part="mini-nekko" transform="translate(3 3)" fill="none">
+    <path d="M 5.5 10 C 5.8 6.1 7.1 3.4 7.4 2.2 Q 7.7 0.7 8.9 1.7 L 12.9 5.1 L 17.1 1.7 Q 18.3 0.7 18.6 2.2 C 18.9 3.4 20.2 6.1 20.5 10 L 20.5 17.4 C 20.5 21.2 17.2 23.2 13 23.2 C 8.8 23.2 5.5 21.2 5.5 17.4 Z" fill="var(--paper)" stroke="var(--ink)" stroke-width="1.7" stroke-linejoin="round"/>
+    <path d="M 7.9 6 L 8 3.1 L 10.5 5.2 M 15.5 5.2 L 18 3.1 L 18.1 6" stroke="#f0a35e" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
     <!-- The body: a hot white core inside a cyan bloom. -->
-    <circle cx="308.9" cy="142.5" r="88.2" fill="url(#bloom)"/>
-    <circle cx="308.9" cy="142.5" r="26.0" fill="url(#core)"/>
+    <g data-mascot-accessory="sunglasses" fill="var(--ink)" stroke="var(--ink)" stroke-width="0.9" stroke-linejoin="round" stroke-linecap="round">
+      <path d="M 8.3 12.4 L 12.1 12.7 L 11.7 15 Q 9.9 15.6 8.7 14.5 Z M 14 12.7 L 17.8 12.4 L 17.4 14.5 Q 16.2 15.6 14.4 15 Z"/>
+      <path d="M 12 13.2 Q 13 12.6 14.1 13.2 M 8.3 12.6 L 7 12 M 17.8 12.6 L 19.1 12" fill="none"/>
+    </g>
+    <path data-mascot-accessory="earpiece" d="M 20.5 12.9 Q 22.6 12.9 22.6 14.5 Q 22.6 16.1 20.5 16.1" fill="var(--paper)" stroke="var(--ink)" stroke-width="1.2" stroke-linecap="round"/>
+    <path d="M 11.8 17.3 q 1.2 1.1 2.4 0" stroke="var(--ink)" stroke-width="1" stroke-linecap="round" fill="none"/>
+    <g style="transform-box: view-box; transform-origin: 13px 13.6px">
+      <circle cx="13" cy="1.8" r="1.4" fill="#f0a35e"/>
+    </g>
   </g>
-
   <!-- Rim light. A dark tile on a dark taskbar loses its own edge; a hairline of
        the accent gives it back without lightening the art. -->
-  <rect x="3" y="3" width="506" height="506" rx="111" ry="111"
-        fill="none" stroke="#8b7dff" stroke-opacity="0.22" stroke-width="10"/>
+  <rect x="0.5" y="0.5" width="31" height="31" rx="7.5" fill="none" stroke="#a7c8ac" stroke-opacity="0.2"/>
 </svg>

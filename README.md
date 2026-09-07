@@ -1,10 +1,10 @@
 <div align="center">
 
-# Kotrain
+# Agent Nekko
 
-**Local-first AI chat, cowork, and coding in one calm window.**
+**AI help on your computer. For coding and everyday work.**
 
-Open source · MIT · first-class support for the models you run yourself.
+Free and open source · MIT licensed · AI on your computer or online
 
 </div>
 
@@ -12,26 +12,75 @@ Open source · MIT · first-class support for the models you run yourself.
 
 ## Overview
 
-Kotrain is an open-source desktop assistant (Electron + React) that unifies
-conversation and coding into a single surface. Its headline feature is
-**first-class local model support**: point it at Ollama, LM Studio, or vLLM in
-one click, alongside every major cloud provider. It ships with a
-context-provenance inspector, default guardrails for risky commands, an
-out-of-the-box sandbox, multi-folder code indexing, memory management,
-connectors, and a hand-drawn astronaut cat that works in zero-g while the model
-thinks.
+Agent Nekko helps you write, code, and handle repetitive work. Use AI running
+on your computer or connect an online AI service. You choose what Nekko can
+access and review its work. A **model** is the AI you choose; **local** means
+it runs on your own computer.
 
-Built by [Nekko Labs](https://nekkolabs.com) and MIT-licensed, Kotrain is a
-real, shipping product developed in the open. Contributions are welcome, from
-first issues to features; see [CONTRIBUTING.md](CONTRIBUTING.md) to get
-started.
+Use Nekko's desktop app or connect it to your existing tools through its
+command-line interface (CLI) or the Model Context Protocol (MCP).
+
+1. **Use AI on your computer or online.** Connect AI running through Ollama,
+   LM Studio, or vLLM alongside online AI services. Use Nekko's app or compatible
+   tools such as Claude Code, Cursor, Codex, and OpenClaw.
+2. **Choose the right AI for the job.** Use a more capable model for difficult
+   work and a smaller one for simpler tasks. Models running on your computer
+   have no per-token API bill; hardware, electricity, and online services still
+   have costs. Explicit cross-model delegation is in this unreleased source.
+3. **Automate repetitive work.** Schedule tasks and save reusable workflows,
+   with limits on retries and a visible history of what happened.
+4. **Manage your AI models in one place.** Connect existing model servers and
+   use supported controls to download, load, or unload models. Automatic setup
+   of the software that runs them is planned, not available yet.
+5. **Control your computer by voice (planned).** One guided setup
+   chooses a compatible intent LLM, TTS, optional voice-input STT, and required
+   runtimes by checking your hardware against minimum requirements. Control
+   supported local apps and actions within permissions you choose, with
+   sensitive-action confirmations and an immediate stop control. Initial
+   downloads need a connection or a verified offline bundle; the intended
+   control experience then works locally without cloud fallback. This complete
+   setup and computer-control flow is not available yet.
+
+Local-only sessions can work offline after their models and dependencies are
+installed. Frontier calls and online integrations need a connection and send
+selected context to their configured services. The Context Inspector, approvals,
+and sandbox help make those choices visible.
+
+**Nekko**, our hand-drawn secret-agent cat, is a slender line-art character
+who leans against the app edge with crossed ankles. She wears slim sunglasses,
+a little collar and tie, and a discreet earpiece. The glasses lift when she
+sleeps or stretches. She still wakes, watches work, and sleeps when you're
+away, with the same gentle activity timing.
+
+Built by [Nekko Labs](https://nekkolabs.com), MIT-licensed, and developed in the
+open. See [CONTRIBUTING.md](CONTRIBUTING.md) to get started.
+
+### Rebrand status
+
+The new home is **agentnekko.com**, with **nekkoagent.com** reserved as a backup.
+The GitHub, Vercel, domain, and package cutovers are staged. Existing download
+links below still lead to the published Kotrain releases. Existing `kotrain`
+commands, data paths, and integrations remain supported; the `agent-nekko`
+executable alias is being added in this source tree. It is not yet a published
+`agent-nekko` npm package. See the [cutover checklist](TASKS.md#now--in-progress).
+
+### On the roadmap
+
+- Hardware-aware, one-click offline PC control: local intent and speech models,
+  scoped app access, confirmations, and stop controls. See the
+  [planned experience](SPEC.md#one-click-setup-for-safe-offline-pc-control-planned).
+- Opt-in team hardware pools and distributed agent/workflow execution.
+- Local task-runner improvements for jobs otherwise using hosted CI credits.
+  This is not a claim of GitHub Actions workflow compatibility.
+- Shared team workflows with permissions and auditable execution.
+- Optional cloud runners if there is demand, without making local work depend on them.
 
 > **Verified working** end-to-end against a live LM Studio server (`google/gemma-4-31b-qat`):
 > connect, model listing, streaming, **reasoning models**, and the full tool-calling
 > agent loop (single- and multi-step). Run `node scripts/itest-local.mjs <baseUrl> <model>`
 > to check your own server.
 
-![Kotrain, unified chat with the Context Inspector](docs/screenshots/chat.png)
+![Agent Nekko, unified chat with the Context Inspector](docs/screenshots/chat.png)
 
 <table>
   <tr>
@@ -51,11 +100,11 @@ Release macOS builds are signed with a Nekko Labs Developer ID certificate and
 notarized by Apple when the macOS signing secrets are configured, so the `.dmg`
 opens and installs normally with no Gatekeeper workaround. If those secrets are
 absent, the workflow publishes an unsigned fallback build; clear its quarantine
-flag once with `xattr -cr "/Applications/Kotrain.app"`. Verify a signed build
+flag once with `xattr -cr "/Applications/Agent Nekko.app"`. Verify a signed build
 yourself if you like:
 
 ```bash
-spctl --assess --type execute --verbose=4 "/Applications/Kotrain.app"
+spctl --assess --type execute --verbose=4 "/Applications/Agent Nekko.app"
 ```
 
 That should report `accepted` with `source=Notarized Developer ID`. How this is set up: [docs/signing.md](docs/signing.md).
@@ -71,24 +120,21 @@ installer format for updates.
 
 ### Uninstalling
 
-- **Windows**: *Settings → Apps → Installed apps → Kotrain → Uninstall*, or the **Uninstall Kotrain** shortcut in the Start Menu folder. The uninstaller asks whether to also delete your chats and settings (choose **No** to keep them for a reinstall).
-- **macOS**: drag **Kotrain** from Applications to the Trash. To also remove data: `rm -rf "$HOME/Library/Application Support/Kotrain"`.
+- **Windows**: *Settings → Apps → Installed apps → Agent Nekko → Uninstall*, or the **Uninstall Agent Nekko** shortcut in the Start Menu folder. The uninstaller asks whether to also delete your chats and settings (choose **No** to keep them for a reinstall).
+- **macOS**: drag **Agent Nekko** from Applications to the Trash. To also remove data: `rm -rf "$HOME/Library/Application Support/Kotrain"`.
 - **Linux**: remove the AppImage, or `sudo apt remove kotrain` for the `.deb`.
 
-## Why Kotrain
+## Why Agent Nekko
 
-**LM Studio runs models. Kotrain runs *with your work*.** Local model UIs are
-essentially a chat box around a model, no awareness of your files or projects.
-Kotrain reads, edits, searches, and runs inside your actual codebases: multi-folder
-index, file viewer with inline editing, a tool-using agent, per-project memory,
-and guardrails. Same one-click local-model setup, but the model can do the work,
-not just talk about it.
+**Use the hardware you already have, with frontier help when it matters.**
+Agent Nekko reads, edits, searches, and runs inside your codebases, combining
+local models, a multi-folder index, per-project memory, and guardrails with
+frontier providers in one agent environment.
 
-**The power of an agentic CLI, with eyes.** Terminal agents (Claude Code, aider, …)
-are powerful but blind, you can't *see* what changed without `git diff`, and
-editing means leaving the tool. Kotrain gives an IDE-like surface: browse the indexed
-tree, view files and diffs, edit inline, while the agent works alongside you, every
-action visible through the Context Inspector and approval prompts.
+**Keep your preferred way of working.** Use the workbench to browse files,
+review diffs, and inspect context, or connect its local agent capabilities to
+your existing harness over CLI/MCP. Choosing a local model should not mean
+giving up the tools that make an agent useful.
 
 ## Editions
 
@@ -152,7 +198,7 @@ private by design.
 - **Multi-folder index**: add multiple roots; file + symbol index with fast search.
 - **Memory**: global and per-project, stored as plain markdown.
 - **Connectors**: Linear, Slack, Discord, Gmail, Google Drive.
-- **Kotrain the mascot**: peeks in from the edge, waves, and kneads cat biscuits.
+- **Nekko the mascot**: a hand-drawn outline cat with resting, waking, stretching, working, and sleeping poses.
 
 ## Architecture
 

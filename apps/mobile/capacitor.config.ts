@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'dev.nekkolabs.kotrain',
-  appName: 'Kotrain',
+  appName: 'Agent Nekko',
   // The web UI is the same React renderer as desktop/web; `npm run sync-web`
   // copies the built renderer here.
   webDir: 'www',

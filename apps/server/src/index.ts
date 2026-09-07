@@ -158,7 +158,7 @@ async function main() {
 
   await app.listen({ port: PORT, host: HOST });
   const url = `http://${isLocal ? 'localhost' : HOST}:${PORT}`;
-  console.log(`\n🐾 Kotrain web edition running at ${url}`);
+  console.log(`\nAgent Nekko web edition running at ${url}`);
   console.log(`   data dir: ${DATA_DIR}`);
   if (requireAuth) console.log(`   auth: token required (use Authorization: Bearer <token>; browser URLs may use ?token=… for WebSocket access)`);
   else if (!isLocal) console.log(`   ⚠ unauthenticated mode explicitly enabled; ensure an external auth layer protects this service.`);

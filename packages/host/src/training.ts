@@ -403,7 +403,7 @@ function turnPrompt(run: TrainingRun, hints: string[]): string {
   if ((run.turns ?? 0) === 0) {
     if (run.kind === 'training') {
       parts.push(
-        `You are Kotrain's data-scientist agent. Your job is to actually train a model for this purpose, working hands-on in the workspace (write code, run it with the bash tool, prefer Python; set up a venv or use available tooling; install packages as needed).`,
+        `You are Agent Nekko's data-scientist agent. Your job is to actually train a model for this purpose, working hands-on in the workspace (write code, run it with the bash tool, prefer Python; set up a venv or use available tooling; install packages as needed).`,
         `PURPOSE: ${run.goal}`,
       );
       const d = cfg.dataset;
@@ -427,7 +427,7 @@ function turnPrompt(run: TrainingRun, hints: string[]): string {
       parts.push(`Start now: profile the task, form a short plan, and run your first experiments.`);
     } else {
       parts.push(
-        `You are Kotrain's goal agent. You own a long-running goal and drive it to FINISHED, working hands-on in the workspace with your tools. You work in three phases: PLAN first, then EXECUTE, then ITERATE until it is genuinely done.`,
+        `You are Agent Nekko's goal agent. You own a long-running goal and drive it to FINISHED, working hands-on in the workspace with your tools. You work in three phases: PLAN first, then EXECUTE, then ITERATE until it is genuinely done.`,
         `GOAL: ${run.goal}`,
         `PHASE 1, PLAN FIRST: investigate the goal and the workspace, then call update_plan (replace=true) with an ordered list of 4-12 concrete, independently verifiable steps that take the goal to finished. Do this before any execution work.`,
         `PHASE 2, EXECUTE: work the plan step by step. Mark the step you start "active"; mark it "done" the moment it is verifiably complete, with a one-line note of the outcome. Never claim a step is done without having verified it.`,

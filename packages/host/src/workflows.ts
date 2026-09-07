@@ -587,7 +587,7 @@ export function reconcileWorkflowRuns(): void {
     if (run.status !== 'running') continue;
     run.status = 'failure';
     run.endedAt = run.endedAt ?? Date.now();
-    run.message = 'Interrupted: Kotrain stopped while this run was in progress.';
+    run.message = 'Interrupted: Agent Nekko stopped while this run was in progress.';
     for (const s of run.steps) if (s.status === 'running') { s.status = 'skipped'; s.endedAt = Date.now(); }
     changed = true;
   }

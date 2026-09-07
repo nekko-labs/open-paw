@@ -12,7 +12,7 @@ import { PrPane, PrBadge } from '../components/PrCard.js';
 import { ContextInspector } from '../components/ContextInspector.js';
 import { ChatIcon, TerminalIcon, PlusIcon, SplitIcon, CloseIcon, FileIcon, ExternalIcon, PanelIcon, ShieldIcon } from '../icons.js';
 import { SHORTCUTS } from '../shortcuts.js';
-import { AphelionAvatar } from '../components/Mascot.js';
+import { NekkoAvatar } from '../components/Mascot.js';
 
 /** Short label for a pane's tab/title. */
 function paneTitle(pane: WbPane, sessions: Session[], terminals: TerminalInfo[]): string {
@@ -617,7 +617,7 @@ function PaneGroupView({
 function EmptyState({ onNewChat, onNewTerminal }: { onNewChat: () => void; onNewTerminal: () => void }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
-      <div className="grid h-14 w-14 place-items-center rounded-2xl" style={{ background: 'var(--accent-soft)' }}><AphelionAvatar size={34} /></div>
+      <div className="grid h-14 w-14 place-items-center rounded-2xl" style={{ background: 'var(--accent-soft)' }}><NekkoAvatar size={34} /></div>
       <div>
         <h2 className="text-lg font-semibold">Your workbench is empty</h2>
         <p className="mx-auto mt-1 max-w-sm text-[13px] text-ink-faint">Open a chat to drive an agent, or a terminal to run commands. Open several and split them side by side.</p>

@@ -4,7 +4,7 @@ import { useT } from './i18n.js';
 import { SHORTCUTS } from './shortcuts.js';
 import { hasAppChrome } from './chrome.js';
 import { TitleBar } from './components/TitleBar.js';
-import { Mascot, AphelionAvatar } from './components/Mascot.js';
+import { Mascot, NekkoAvatar } from './components/Mascot.js';
 import { ResourceHud } from './components/ResourceMonitor.js';
 import { Toasts } from './components/Toasts.js';
 import { CommandPalette } from './components/CommandPalette.js';
@@ -34,7 +34,7 @@ import {
 } from './navIcons.js';
 
 /** The Agent destination wears Aphelion herself, so the cat is the way in. */
-const AgentCatIcon = (_p: { className?: string }) => <AphelionAvatar size={22} />;
+const AgentCatIcon = (_p: { className?: string }) => <NekkoAvatar size={22} />;
 
 const NAV: Array<{ view: View; labelKey: string; Icon: (p: { className?: string }) => React.JSX.Element }> = [
   { view: 'command', labelKey: 'nav.command', Icon: CommandHudIcon },
@@ -107,7 +107,7 @@ export function App() {
         off = window.kotrain.onAgentEvent((e) => {
           if (e.type === 'done' && document.hidden) {
             LocalNotifications.schedule({
-              notifications: [{ id: nid++, title: 'Kotrain finished', body: 'Your task is ready in Kotrain.' }],
+              notifications: [{ id: nid++, title: 'Agent Nekko finished', body: 'Your task is ready in Agent Nekko.' }],
             }).catch(() => {});
           }
         });
@@ -157,7 +157,7 @@ export function App() {
                 shown twice and the rail starts on its first destination. */}
             {!hasAppChrome && (
               <div className="mb-3 flex h-9 items-center px-1.5">
-                <span className="rail-label text-[15px] font-semibold tracking-tight">Kotrain</span>
+                <span className="rail-label text-[15px] font-semibold tracking-tight">Agent Nekko</span>
               </div>
             )}
             {NAV.map(({ view: v, labelKey, Icon }) => (

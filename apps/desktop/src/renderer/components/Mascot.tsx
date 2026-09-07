@@ -18,11 +18,11 @@ const ACCENT = 'var(--accent)';
 const AFK_MS = 60_000;
 const STRETCH_MS = 12_000;
 const POSE_LABELS: Record<MascotPose, string> = {
-  lying: 'Aphelion is resting',
-  waking: 'Aphelion is getting up',
-  stretching: 'Aphelion is stretching',
-  bug: 'Aphelion spotted a bug',
-  sleeping: 'Aphelion is sleeping',
+  lying: 'Nekko is resting',
+  waking: 'Nekko is getting up',
+  stretching: 'Nekko is stretching',
+  bug: 'Nekko spotted a bug',
+  sleeping: 'Nekko is sleeping',
 };
 
 /** Coordinate agent activity, user activity, and AFK time without involving the app store. */
@@ -139,9 +139,19 @@ function Sparkle({ x, y, s, color, className }: { x: number; y: number; s: numbe
  * suit color, it occludes whatever is drawn behind the head, the way inked
  * animation handles overlaps.
  */
-function OutlineHelmet({ expression = 'awake', sw = 2.2 }: { expression?: 'awake' | 'curious' | 'sleeping'; sw?: number }) {
+function AgentHead({ expression = 'awake', sw = 2.2 }: { expression?: 'awake' | 'curious' | 'sleeping'; sw?: number }) {
+  const sleeping = expression === 'sleeping';
   return (
-    <>
+    <g data-part="agent-head">
+      <path
+        data-mascot-accessory="collar"
+        d="M 25 44.8 L 31.6 47.2 L 27.9 51.6 L 23.3 47.4 Z M 38.2 44.8 L 31.6 47.2 L 35.3 51.6 L 39.9 47.4 Z"
+        fill={PAPER}
+        stroke={INK}
+        strokeWidth={1.4}
+        strokeLinejoin="round"
+      />
+      <path data-mascot-accessory="tie" d="M 30.1 48.3 L 33.1 48.3 L 33.6 50.1 L 31.6 51.5 L 29.6 50.1 Z M 31.6 51.5 L 33.4 53.4 L 31.6 54.8 L 29.8 53.4 Z" fill={INK} />
       <path
         d="M 17 23 C 17.2 18.1 18.2 14.1 19.2 10.7 L 18.9 6.6 Q 19.2 4.7 20.9 6.1 L 31.8 14.2 L 42.2 6.1 Q 43.9 4.7 44.2 6.6 L 43.9 10.7 C 45 14.1 46 18.1 46.2 23 L 46.2 35.1 C 46.2 42.2 40.8 46.7 31.6 46.7 C 22.4 46.7 17 42.2 17 35.1 Z"
         fill={PAPER}
@@ -151,38 +161,69 @@ function OutlineHelmet({ expression = 'awake', sw = 2.2 }: { expression?: 'awake
       />
       {/* Ginger inner-ear strokes keep the dome recognizably feline. */}
       <path d="M 21.5 15 L 21.5 9.8 L 27 13.9 M 36.2 13.9 L 41.7 9.8 L 41.7 15" stroke={GINGER} strokeWidth={1.4} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      {expression === 'sleeping' ? (
+      <g
+        data-mascot-accessory="sunglasses"
+        data-position={sleeping ? 'perched' : 'worn'}
+        transform={sleeping ? 'translate(0 -7.5)' : expression === 'curious' ? 'translate(.8 -.6) rotate(-6 31.6 27)' : undefined}
+        fill={INK}
+        stroke={INK}
+        strokeWidth={1.05}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M 22.3 26.1 L 29.2 26.6 L 28.7 30 Q 26.1 31.6 23 29.8 Z M 33.9 26.6 L 40.8 26.1 L 40.1 29.8 Q 37 31.6 34.4 30 Z" />
+        <path d="M 29.1 27.2 Q 31.6 26.1 34 27.2 M 22.4 26.4 L 19.9 25.4 M 40.7 26.4 L 43.1 25.4" fill="none" />
+      </g>
+      {sleeping ? (
         <>
-          <path d="M 24.4 29.6 q 2 1.7 4 0 M 34.8 29.6 q 2 1.7 4 0" stroke={INK} strokeWidth={1.6} strokeLinecap="round" fill="none" />
+          <path data-part="closed-eyes" d="M 24.4 29.6 q 2 1.7 4 0 M 34.8 29.6 q 2 1.7 4 0" stroke={INK} strokeWidth={1.6} strokeLinecap="round" fill="none" />
           <path d="M 30 34.2 q 1.6 -0.8 3.2 0" stroke={INK} strokeWidth={1.3} strokeLinecap="round" fill="none" />
         </>
       ) : (
-        <>
-          <circle cx={expression === 'curious' ? 27.2 : 26.4} cy={29.2} r={1.9} fill={INK} />
-          <circle cx={expression === 'curious' ? 37.6 : 36.8} cy={29.2} r={1.9} fill={INK} />
-          <path d="M 29.3 33.7 q 1.15 1.35 2.3 0 q 1.15 1.35 2.3 0" stroke={INK} strokeWidth={1.5} strokeLinecap="round" fill="none" />
-        </>
+        <path d="M 29.3 33.7 q 1.15 1.35 2.3 0 q 1.15 1.35 2.3 0" stroke={INK} strokeWidth={1.5} strokeLinecap="round" fill="none" />
       )}
       <path d="M 19.3 31.1 q 2.2 0.6 3.8 0.4 M 19.5 34.2 q 2.1 -0.2 3.6 -0.7 M 43.9 31.1 q -2.2 0.6 -3.8 0.4 M 43.7 34.2 q -2.1 -0.2 -3.6 -0.7" stroke={INK} strokeWidth={1.2} strokeLinecap="round" fill="none" opacity={0.55} />
-      <path d="M 20.2 20.5 Q 23.6 15 29.3 14" stroke={INK} strokeWidth={1.4} strokeLinecap="round" fill="none" opacity={0.5} />
-    </>
+      <path data-mascot-accessory="earpiece" d="M 46.2 27.2 Q 48.7 26.8 48.7 29.1 L 48.7 31.9 Q 48.7 33.8 46.2 33.5" fill={PAPER} stroke={INK} strokeWidth={1.3} strokeLinecap="round" />
+      <path data-mascot-accessory="wire" d="M 48.1 33.4 L 48.1 35.5 q 2 1.1 0 2.2 q -2 1.1 0 2.2 q 2 1.1 0 2.2 L 47.3 44.5" fill="none" stroke={INK} strokeWidth={1} strokeLinecap="round" />
+    </g>
   );
 }
 
 function RestPose({ sleeping = false }: { sleeping?: boolean }) {
   return (
-    <g className={sleeping ? 'aphelion-sleep' : 'aphelion-breathe'}>
-      <path d="M 30 62 C 21 61 15 56 16 50 C 17 45 22 43 27 45" stroke={GINGER} strokeWidth={2.4} strokeLinecap="round" fill="none" />
-      <path d="M 27 50 C 33 42 46 40 61 44 C 71 46 79 53 79 61 C 79 70 68 75 52 74 C 37 75 25 70 24 62 C 23 58 24 53 27 50 Z" fill={PAPER} stroke={INK} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
+    <g className={sleeping ? 'nekko-sleep' : 'nekko-breathe'}>
+      <path data-part="edge" data-edge-length="62" d="M 91 26 L 91 88" stroke={INK} strokeWidth={1.3} strokeLinecap="round" fill="none" opacity={0.32} />
       {/* Tucked front paws peek out under the chest as two little rolls. */}
-      <path d="M 53.5 73.2 q 0.3 4.6 4.6 4.6 q 4.2 0 4.4 -3.6" fill={PAPER} stroke={INK} strokeWidth={1.9} strokeLinecap="round" />
-      <path d="M 62.6 74 q 0.5 3.9 4.4 3.8 q 3.7 -0.1 3.9 -3.2" fill={PAPER} stroke={INK} strokeWidth={1.9} strokeLinecap="round" />
-      <path d="M 34 55 q -4.5 6.5 0.5 12.5" stroke={INK} strokeWidth={1.6} strokeLinecap="round" fill="none" opacity={0.5} />
-      <g transform="translate(53 21) scale(.9)">
-        <OutlineHelmet expression={sleeping ? 'sleeping' : 'awake'} />
-      </g>
+      {sleeping ? (
+        <g data-part="slender-body" data-body-style="line-only" data-torso-width="11" data-stance="slumped">
+          <path d="M 64 68 C 52 69 47 62 51 55 C 54 50 59 50 63 53" stroke={GINGER} strokeWidth={2.4} strokeLinecap="round" fill="none" />
+          <path data-part="torso" d="M 74 52 Q 72 62 63 69" fill="none" stroke={INK} strokeWidth={2.2} strokeLinecap="round" />
+          <path d="M 75 53 Q 84 51 91 47" stroke={INK} strokeWidth={2} strokeLinecap="round" fill="none" />
+          <path d="M 72 56 Q 62 64 58 73 M 60 75 q -3 2 -6 0" stroke={INK} strokeWidth={1.9} strokeLinecap="round" fill="none" />
+          <path d="M 64 68 Q 53 75 43 83 M 46 86 q -4 0 -7 -2" stroke={INK} strokeWidth={2} strokeLinecap="round" fill="none" />
+          <path d="M 65 69 Q 67 79 74 84 M 77 86 q -4 1 -7 -1" stroke={INK} strokeWidth={2} strokeLinecap="round" fill="none" />
+          <g transform="translate(41 6) scale(.86)">
+            <AgentHead expression="sleeping" />
+          </g>
+        </g>
+      ) : (
+        <g data-part="slender-body" data-body-style="line-only" data-torso-width="11" data-stance="leaning">
+          <path d="M 61 67 C 48 70 42 61 48 52 C 51 48 56 48 60 51" stroke={GINGER} strokeWidth={2.4} strokeLinecap="round" fill="none" />
+          <path data-part="torso" d="M 72 48 Q 69 57 60 67" fill="none" stroke={INK} strokeWidth={2.2} strokeLinecap="round" />
+          <path data-part="edge-contact" d="M 74 49 Q 84 48 91 43" stroke={INK} strokeWidth={2} strokeLinecap="round" fill="none" />
+          <path d="M 70 53 Q 80 58 83 67 M 85 70 q -3 1 -5 -1" stroke={INK} strokeWidth={1.9} strokeLinecap="round" fill="none" />
+          <path d="M 68 53 Q 61 61 63 70 M 65 72 q -3 1 -5 -1" stroke={INK} strokeWidth={1.9} strokeLinecap="round" fill="none" />
+          <g data-part="crossed-ankles" stroke={INK} strokeWidth={2} strokeLinecap="round" fill="none">
+            <path d="M 60 67 Q 61 76 67 82 L 57 86 M 60 88 q -4 0 -7 -2" />
+            <path d="M 63 67 Q 61 76 56 82 L 67 86 M 70 87 q -4 2 -7 0" />
+          </g>
+          <g transform="translate(40 -1) scale(.9)">
+            <AgentHead />
+          </g>
+        </g>
+      )}
       {sleeping && (
-        <g className="aphelion-zs" fill={INK} fontFamily="Inter, system-ui, sans-serif" fontWeight="700">
+        <g className="nekko-zs" fill={INK} fontFamily="Inter, system-ui, sans-serif" fontWeight="700">
           <text x="96" y="42" fontSize="9">z</text>
           <text x="104" y="30" fontSize="12">z</text>
         </g>
@@ -193,13 +234,17 @@ function RestPose({ sleeping = false }: { sleeping?: boolean }) {
 
 function StretchPose() {
   return (
-    <g className="aphelion-stretch">
-      <path d="M 30 57 C 22 56 17 50 19 43 C 21 36 18 32 13 32" stroke={GINGER} strokeWidth={2.4} strokeLinecap="round" fill="none" />
-      <path d="M 28 48 C 31 37 42 33 52 38 C 61 42 64 53 71 61 C 65 68 51 70 39 67 C 29 65 24 58 28 48 Z" fill={PAPER} stroke={INK} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M 70 63 C 78 70 86 75 95 77 M 96 80 q -4 2 -8 0" stroke={INK} strokeWidth={2} strokeLinecap="round" fill="none" />
-      <path d="M 65 62 C 71 71 78 77 86 79 M 87 83 q -4 2 -8 0" stroke={INK} strokeWidth={2} strokeLinecap="round" fill="none" />
-      <g transform="translate(57 34) scale(.78)">
-        <OutlineHelmet expression="sleeping" sw={2.6} />
+    <g className="nekko-stretch">
+      <g data-part="slender-body" data-body-style="line-only" data-torso-width="10" data-stance="stretching">
+        <path d="M 35 52 C 25 51 20 46 22 39 C 24 33 20 30 15 32" stroke={GINGER} strokeWidth={2.4} strokeLinecap="round" fill="none" />
+        <path data-part="torso" d="M 34 48 Q 50 43 68 51 M 35 57 Q 51 53 67 58" fill="none" stroke={INK} strokeWidth={2.2} strokeLinecap="round" />
+        <path d="M 35 52 Q 24 61 15 72 M 18 75 q -4 1 -7 -1" stroke={INK} strokeWidth={2} strokeLinecap="round" fill="none" />
+        <path d="M 39 55 Q 31 67 25 78 M 28 81 q -4 1 -7 -1" stroke={INK} strokeWidth={2} strokeLinecap="round" fill="none" />
+        <path d="M 67 56 Q 78 68 91 78 M 94 81 q -4 2 -8 0" stroke={INK} strokeWidth={2} strokeLinecap="round" fill="none" />
+        <path d="M 70 58 Q 83 67 103 72 M 106 74 q -4 2 -8 0" stroke={INK} strokeWidth={2} strokeLinecap="round" fill="none" />
+        <g transform="translate(64 28) scale(.76)">
+          <AgentHead expression="sleeping" sw={2.6} />
+        </g>
       </g>
     </g>
   );
@@ -207,17 +252,20 @@ function StretchPose() {
 
 function BugPose() {
   return (
-    <g className="aphelion-bug-watch">
-      <path d="M 44 71 C 33 73 24 68 25 59 C 26 52 22 50 18 52" stroke={GINGER} strokeWidth={2.4} strokeLinecap="round" fill="none" />
-      <path d="M 44 43 C 51 38 64 39 73 45 C 79 51 79 65 73 72 C 65 78 50 77 43 70 C 38 62 38 49 44 43 Z" fill={PAPER} stroke={INK} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M 46 68 Q 51 73 52 84 M 54 87 q -4.5 2 -9 0" stroke={INK} strokeWidth={2} strokeLinecap="round" fill="none" />
-      <path d="M 66 68 Q 71 73 72 84 M 74 87 q -4.5 2 -9 0" stroke={INK} strokeWidth={2} strokeLinecap="round" fill="none" />
-      {/* Both front paws brace toward the bug. */}
-      <path d="M 69 47 Q 85 44 100 33 M 72 55 Q 88 57 101 48" stroke={INK} strokeWidth={2} strokeLinecap="round" fill="none" />
-      <g transform="translate(56 4) scale(.84)">
-        <OutlineHelmet expression="curious" sw={2.4} />
+    <g className="nekko-bug-watch">
+      <path data-part="edge" data-edge-length="68" d="M 96 14 L 96 82" stroke={INK} strokeWidth={1.3} strokeLinecap="round" fill="none" opacity={0.32} />
+      <g data-part="slender-body" data-body-style="line-only" data-torso-width="12" data-stance="peeking">
+        <path d="M 64 68 C 52 71 46 64 50 56 C 53 50 57 49 61 52" stroke={GINGER} strokeWidth={2.4} strokeLinecap="round" fill="none" />
+        <path data-part="torso" d="M 65 48 Q 60 59 63 70 M 75 49 Q 77 60 72 70" fill="none" stroke={INK} strokeWidth={2.2} strokeLinecap="round" />
+        <path d="M 64 69 Q 60 77 61 86 M 64 88 q -4 2 -8 0" stroke={INK} strokeWidth={2} strokeLinecap="round" fill="none" />
+        <path d="M 72 69 Q 76 77 78 85 M 81 87 q -4 2 -8 0" stroke={INK} strokeWidth={2} strokeLinecap="round" fill="none" />
+        {/* Both front paws brace toward the bug. */}
+        <path d="M 71 51 Q 83 43 96 39 M 71 58 Q 84 61 96 57" stroke={INK} strokeWidth={2} strokeLinecap="round" fill="none" />
+        <g transform="translate(49 -2) scale(.9)">
+          <AgentHead expression="curious" sw={2.4} />
+        </g>
       </g>
-      <g className="aphelion-bug">
+      <g className="nekko-bug">
         <circle cx={106} cy={24} r={2.4} fill={INK} />
         <path d="M 103 21 L 100 18 M 108 21 L 111 18 M 103 26 L 100 29 M 108 26 L 111 29" stroke={INK} strokeWidth={1.2} strokeLinecap="round" fill="none" />
         <path d="M 103 23 Q 98 21 97 17 M 108 23 Q 112 20 113 17" stroke={GINGER} strokeWidth={1.2} strokeLinecap="round" fill="none" />
@@ -228,29 +276,30 @@ function BugPose() {
 
 function StandPose() {
   return (
-    <g transform="translate(108 0) scale(-1 1)">
-      <g className="aphelion-stand" style={{ transformBox: 'fill-box', transformOrigin: 'center' }}>
-        <path d="M 73 57 C 84 58 91 52 91 42 C 91 35 87 31 82 32" stroke={GINGER} strokeWidth={2.6} strokeLinecap="round" fill="none" />
+    <g>
+      <path data-part="edge" data-edge-length="62" d="M 91 26 L 91 88" stroke={INK} strokeWidth={1.3} strokeLinecap="round" fill="none" opacity={0.32} />
+      <g className="nekko-stand" data-part="slender-body" data-body-style="line-only" data-torso-width="11" data-stance="pushing-off" style={{ transformBox: 'fill-box', transformOrigin: 'center' }}>
+        <path d="M 64 67 C 51 69 46 61 51 53 C 54 48 59 47 63 50" stroke={GINGER} strokeWidth={2.6} strokeLinecap="round" fill="none" />
         {/* Far legs first so the paper-filled torso occludes their tops. */}
-        <path d="M 44 60 C 43 66 43 72 44 78 M 47 80 q -3.5 1.6 -7 0" stroke={INK} strokeWidth={2} strokeLinecap="round" fill="none" />
-        <path d="M 68 60 C 68 66 67 72 67 78 M 70 80 q -3.5 1.6 -7 0" stroke={INK} strokeWidth={2} strokeLinecap="round" fill="none" />
-        <path d="M 32 44 C 37 41 43 42 48 40 C 56 38 68 40 75 45 C 80 49 81 58 77 64 C 73 70 65 72 54 71 C 45 72 36 69 32 64 C 29 59 28 49 32 44 Z" fill={PAPER} stroke={INK} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M 48 60 C 48 66 48 72 49 78 M 52 80 q -3.5 1.6 -7 0" stroke={INK} strokeWidth={2} strokeLinecap="round" fill="none" />
-        <path d="M 74 59 C 75 65 75 72 74 78 M 77 80 q -3.5 1.6 -7 0" stroke={INK} strokeWidth={2} strokeLinecap="round" fill="none" />
+        <path d="M 63 66 Q 59 76 59 85 M 62 88 q -4 1 -8 -1" stroke={INK} strokeWidth={2} strokeLinecap="round" fill="none" />
+        <path d="M 72 66 Q 75 76 76 84 M 79 87 q -4 2 -8 0" stroke={INK} strokeWidth={2} strokeLinecap="round" fill="none" />
+        <path data-part="torso" d="M 65 48 Q 61 57 63 67 M 75 49 Q 77 58 72 67" fill="none" stroke={INK} strokeWidth={2.2} strokeLinecap="round" />
+        <path d="M 67 53 Q 58 61 58 70 M 60 72 q -3 1 -5 -1" stroke={INK} strokeWidth={2} strokeLinecap="round" fill="none" />
+        <path d="M 73 52 Q 82 47 91 43 M 93 41 q 1 3 -1 5" stroke={INK} strokeWidth={2} strokeLinecap="round" fill="none" />
         {/* Collar line joins the helmet to the body. */}
-        <path d="M 27 44 Q 32 47 38 47 Q 44 47 49 44" stroke={INK} strokeWidth={1.8} strokeLinecap="round" fill="none" />
-        <g transform="translate(-1 -3)">
-          <OutlineHelmet />
+        <path d="M 64 48 Q 69 50 75 49" stroke={INK} strokeWidth={1.8} strokeLinecap="round" fill="none" />
+        <g transform="translate(41 -2) scale(.9)">
+          <AgentHead />
         </g>
       </g>
     </g>
   );
 }
 
-export function MiniAphelion({ size = 18 }: { size?: number }) {
+export function MiniNekko({ size = 18 }: { size?: number }) {
   return (
-    <span className="aphelion-mini-float inline-block shrink-0 align-middle" style={{ lineHeight: 0 }}>
-      <svg viewBox="0 0 26 26" width={size} height={size} fill="none">
+    <span className="nekko-mini-float inline-block shrink-0 align-middle" style={{ lineHeight: 0 }}>
+      <svg viewBox="0 0 26 26" width={size} height={size} fill="none" aria-hidden="true" focusable="false">
         {/* Compact outline dome; a heavier stroke keeps it legible at 18px. */}
         <path
           d="M 5.5 10 C 5.8 6.1 7.1 3.4 7.4 2.2 Q 7.7 0.7 8.9 1.7 L 12.9 5.1 L 17.1 1.7 Q 18.3 0.7 18.6 2.2 C 18.9 3.4 20.2 6.1 20.5 10 L 20.5 17.4 C 20.5 21.2 17.2 23.2 13 23.2 C 8.8 23.2 5.5 21.2 5.5 17.4 Z"
@@ -260,10 +309,13 @@ export function MiniAphelion({ size = 18 }: { size?: number }) {
           strokeLinejoin="round"
         />
         <path d="M 7.9 6 L 8 3.1 L 10.5 5.2 M 15.5 5.2 L 18 3.1 L 18.1 6" stroke={GINGER} strokeWidth={1} strokeLinecap="round" strokeLinejoin="round" fill="none" />
-        <circle cx={10.7} cy={13.9} r={1.1} fill={INK} />
-        <circle cx={15.3} cy={13.9} r={1.1} fill={INK} />
-        <path d="M 11.8 16.2 q 1.2 1.1 2.4 0" stroke={INK} strokeWidth={1} strokeLinecap="round" fill="none" />
-        <g style={{ transformBox: 'view-box', transformOrigin: '13px 13.6px' }} className="aphelion-orbit">
+        <g data-mascot-accessory="sunglasses" fill={INK} stroke={INK} strokeWidth={0.9} strokeLinejoin="round" strokeLinecap="round">
+          <path d="M 8.3 12.4 L 12.1 12.7 L 11.7 15 Q 9.9 15.6 8.7 14.5 Z M 14 12.7 L 17.8 12.4 L 17.4 14.5 Q 16.2 15.6 14.4 15 Z" />
+          <path d="M 12 13.2 Q 13 12.6 14.1 13.2 M 8.3 12.6 L 7 12 M 17.8 12.6 L 19.1 12" fill="none" />
+        </g>
+        <path data-mascot-accessory="earpiece" d="M 20.5 12.9 Q 22.6 12.9 22.6 14.5 Q 22.6 16.1 20.5 16.1" fill={PAPER} stroke={INK} strokeWidth={1.2} strokeLinecap="round" />
+        <path d="M 11.8 17.3 q 1.2 1.1 2.4 0" stroke={INK} strokeWidth={1} strokeLinecap="round" fill="none" />
+        <g style={{ transformBox: 'view-box', transformOrigin: '13px 13.6px' }} className="nekko-orbit">
           <circle cx={13} cy={1.8} r={1.4} fill={GINGER} />
         </g>
       </svg>
@@ -275,20 +327,18 @@ export function MiniAphelion({ size = 18 }: { size?: number }) {
  * Aphelion's still helmet portrait for the rail, empty states, and login heroes.
  * Same outline dome, ginger inner ears, and face language as the full mascot.
  */
-export function AphelionAvatar({ size = 28, title }: { size?: number; title?: string }) {
+export function NekkoAvatar({ size = 28, title }: { size?: number; title?: string }) {
   return (
     <svg
-      viewBox="16.1 3.5 31 44.5"
+      viewBox="15 3.5 36 53"
       width={size}
-      height={(size * 44.5) / 31}
+      height={(size * 53) / 36}
       fill="none"
       role={title ? 'img' : 'presentation'}
       aria-label={title}
       aria-hidden={title ? undefined : true}
     >
-      <path d="M 23 43 Q 31 39.5 41 43" stroke={INK} strokeWidth={2.2} strokeLinecap="round" fill="none" />
-      <OutlineHelmet />
-      <path d="M 21 43.5 Q 31.5 46.5 42 43.5" stroke={INK} strokeWidth={1.4} strokeLinecap="round" fill="none" opacity={0.45} />
+      <AgentHead />
     </svg>
   );
 }
@@ -315,10 +365,10 @@ export function Mascot({ mood, enabled }: { mood: MascotMood; enabled: boolean }
 
   return (
     <div
-      className={`pointer-events-none fixed bottom-2 left-0 z-40 flex w-16 select-none items-end justify-center ${peek ? 'aphelion-peek' : ''}`}
+      className={`pointer-events-none fixed bottom-2 left-0 z-40 flex w-16 select-none items-end justify-center ${peek ? 'nekko-peek' : ''}`}
     >
       <div
-        className={`pointer-events-none md:pointer-events-auto md:cursor-pointer ${hovering ? 'aphelion-attentive' : ''} ${typeof document !== 'undefined' && document.hidden ? 'aphelion-paused' : ''}`}
+        className={`pointer-events-auto cursor-pointer ${hovering ? 'nekko-attentive' : ''} ${typeof document !== 'undefined' && document.hidden ? 'nekko-paused' : ''}`}
         data-mascot-pose={pose}
         onMouseEnter={() => { setHovering(true); wake(); }}
         onMouseLeave={() => setHovering(false)}
@@ -329,7 +379,7 @@ export function Mascot({ mood, enabled }: { mood: MascotMood; enabled: boolean }
         tabIndex={0}
         aria-label={POSE_LABELS[pose]}
       >
-        <div className={pose === 'waking' ? 'aphelion-wake' : ''}>
+        <div className={pose === 'waking' ? 'nekko-wake' : ''}>
           <svg
             viewBox="0 0 114 92"
             width="108"
@@ -340,17 +390,17 @@ export function Mascot({ mood, enabled }: { mood: MascotMood; enabled: boolean }
               {/* The line boil: fractal noise displaces every stroke a hair,
                   re-seeding a few times a second, the wobble of traditional
                   frame-by-frame ink. CSS gates it (reduced motion, hidden). */}
-              <filter id="aphelion-boil" x="-10%" y="-10%" width="120%" height="120%">
+              <filter id="nekko-boil" x="-10%" y="-10%" width="120%" height="120%">
                 <feTurbulence type="fractalNoise" baseFrequency="0.025" numOctaves="2" seed="1" result="n">
                   <animate attributeName="seed" values="1;7;13;4;9" dur="0.55s" repeatCount="indefinite" calcMode="discrete" />
                 </feTurbulence>
                 <feDisplacementMap in="SourceGraphic" in2="n" scale="3" xChannelSelector="R" yChannelSelector="G" />
               </filter>
             </defs>
-            <Sparkle x={7} y={18} s={2.2} color={GINGER} className={thinking ? 'aphelion-twinkle' : 'aphelion-twinkle-slow'} />
-            <Sparkle x={109} y={41} s={1.8} color={ACCENT} className="aphelion-twinkle-slow" />
-            <Sparkle x={10} y={78} s={1.6} color={GINGER} className={thinking ? 'aphelion-twinkle' : 'aphelion-twinkle-slow'} />
-            <g className="aphelion-boil">
+            <Sparkle x={7} y={18} s={2.2} color={GINGER} className={thinking ? 'nekko-twinkle' : 'nekko-twinkle-slow'} />
+            <Sparkle x={109} y={41} s={1.8} color={ACCENT} className="nekko-twinkle-slow" />
+            <Sparkle x={10} y={78} s={1.6} color={GINGER} className={thinking ? 'nekko-twinkle' : 'nekko-twinkle-slow'} />
+            <g className="nekko-boil">
               {pose === 'lying' && <RestPose />}
               {pose === 'sleeping' && <RestPose sleeping />}
               {pose === 'stretching' && <StretchPose />}

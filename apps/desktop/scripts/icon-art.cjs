@@ -8,35 +8,22 @@
 
 /* ── the mark ─────────────────────────────────────────────────────────────── */
 
-const C = 256; // centre of the 512 viewBox
-const RX = 158;
-const RY = 100;
+const VIEWBOX = 512; // centre of the 512 viewBox
+const INK = '#f2f1e9';
+const RIM = '#a7c8ac';
 /** What the trail fades into: roughly the sky behind its tail. */
-const SKY = '#101020';
-const TILT = -26; // degrees; enough to read as depth, not as a flat ring
+const TILE = '#101714';
+const MARK_SCALE = 20; // degrees; enough to read as depth, not as a flat ring
 /** Where the body sits on the orbit, in ellipse parameter degrees. */
-const HEAD_T = -52;
+const GINGER = '#f0a35e';
 /** How far back the trail reaches from the head. */
-const TAIL_SWEEP = 300;
+const HEAD_PATH = 'M 5.5 10 C 5.8 6.1 7.1 3.4 7.4 2.2 Q 7.7 0.7 8.9 1.7 L 12.9 5.1 L 17.1 1.7 Q 18.3 0.7 18.6 2.2 C 18.9 3.4 20.2 6.1 20.5 10 L 20.5 17.4 C 20.5 21.2 17.2 23.2 13 23.2 C 8.8 23.2 5.5 21.2 5.5 17.4 Z';
 
 /** Point at parameter `t` (degrees) on the tilted orbit. */
-function onOrbit(t) {
-  const a = (t * Math.PI) / 180;
-  const x = RX * Math.cos(a);
-  const y = RY * Math.sin(a);
-  const r = (TILT * Math.PI) / 180;
-  return [C + x * Math.cos(r) - y * Math.sin(r), C + x * Math.sin(r) + y * Math.cos(r)];
-}
+const INNER_EARS = 'M 7.9 6 L 8 3.1 L 10.5 5.2 M 15.5 5.2 L 18 3.1 L 18.1 6';
 
-const lerp = (a, b, t) => a + (b - a) * t;
 /** Blend two #rrggbb colours. */
-function mix(c1, c2, t) {
-  const p = (c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
-  const [r1, g1, b1] = p(c1);
-  const [r2, g2, b2] = p(c2);
-  const h = (n) => Math.round(n).toString(16).padStart(2, '0');
-  return `#${h(lerp(r1, r2, t))}${h(lerp(g1, g2, t))}${h(lerp(b1, b2, t))}`;
-}
+const GLASSES = 'M 8.3 12.4 L 12.1 12.7 L 11.7 15 Q 9.9 15.6 8.7 14.5 Z M 14 12.7 L 17.8 12.4 L 17.4 14.5 Q 16.2 15.6 14.4 15 Z';
 
 /**
  * The comet's trail, as one tapered ribbon: sample the orbit, offset each sample
@@ -47,49 +34,35 @@ function mix(c1, c2, t) {
  * visibly, because every semi-transparent round cap double-composites over its
  * neighbour. One path with one gradient has no seams to show.
  */
-function trail(samples, headWidth) {
+function headSvg(size) {
   // Edge points of the ribbon at each sample, plus the colour that band should
   // end up. The fade has to follow arc length, not a straight gradient axis: the
   // trail wraps 300 degrees, so its tail ends up spatially next to its head and
   // any linear gradient collapses to a sliver of violet.
-  const edge = [];
-  for (let i = 0; i <= samples; i++) {
-    const t = i / samples;
-    const deg = HEAD_T - TAIL_SWEEP * (1 - t);
-    const [x, y] = onOrbit(deg);
-    // Tangent by finite difference, so the normal follows the tilted ellipse.
-    const [ax, ay] = onOrbit(deg - 0.6);
-    const [bx, by] = onOrbit(deg + 0.6);
-    const len = Math.hypot(bx - ax, by - ay) || 1;
-    const nx = -(by - ay) / len;
-    const ny = (bx - ax) / len;
-    // Width flares late, so the tail stays a thin filament for most of its run.
-    const half = (headWidth / 2) * lerp(0.06, 1, Math.pow(t, 1.9));
-    edge.push({
-      l: [x + nx * half, y + ny * half],
-      r: [x - nx * half, y - ny * half],
-      // Opaque fill, faded by mixing toward the sky rather than by alpha: two
-      // adjacent translucent bands would double-composite into a visible seam.
-      fill: mix(SKY, mix('#6d5efc', '#22d3ee', Math.pow(t, 1.3)), lerp(0.05, 1, Math.pow(t, 0.85))),
-    });
-  }
-  const p = ([x, y]) => `${x.toFixed(1)} ${y.toFixed(1)}`;
+  const outlineWidth = size < 32 ? 2 : 1.7;
+  // Tangent by finite difference, so the normal follows the tilted ellipse.
+  const glassesWidth = size < 32 ? 1.05 : 0.9;
+  // Width flares late, so the tail stays a thin filament for most of its run.
+  const earpieceWidth = size < 32 ? 1.35 : 1.2;
+  // Opaque fill, faded by mixing toward the sky rather than by alpha: two
+  // adjacent translucent bands would double-composite into a visible seam.
+  const parts = [
+    `<path d="${HEAD_PATH}" fill="${TILE}" stroke="${INK}" stroke-width="${outlineWidth}" stroke-linejoin="round"/>`,
+    `<path data-part="inner-ears" d="${INNER_EARS}" stroke="${GINGER}" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`,
+  ];
   // Each band spans two samples, so it overlaps its neighbour and no
   // antialiased hairline can show through between them. Painted tail first, so
   // the brighter band always lands on top of the dimmer one it overlaps.
-  const bands = [];
-  for (let i = 0; i < samples; i++) {
-    const a = edge[i];
-    const b = edge[Math.min(samples, i + 2)];
-    bands.push(`<path d="M${p(a.l)}L${p(b.l)}L${p(b.r)}L${p(a.r)}Z" fill="${edge[i + 1].fill}"/>`);
-  }
+  parts.push(`<g data-mascot-accessory="sunglasses" fill="${INK}" stroke="${INK}" stroke-width="${glassesWidth}" stroke-linejoin="round" stroke-linecap="round">
+      <path d="${GLASSES}"/>
+      <path d="M 12 13.2 Q 13 12.6 14.1 13.2 M 8.3 12.6 L 7 12 M 17.8 12.6 L 19.1 12" fill="none"/>
+    </g>`);
   // A round cap where the ribbon meets the body.
-  const last = edge[samples];
-  bands.push(
-    `<circle cx="${((last.l[0] + last.r[0]) / 2).toFixed(1)}" cy="${((last.l[1] + last.r[1]) / 2).toFixed(1)}" ` +
-      `r="${(headWidth / 2).toFixed(1)}" fill="${last.fill}"/>`,
+  parts.push(
+    `<path data-mascot-accessory="earpiece" d="M 20.5 12.9 Q 22.6 12.9 22.6 14.5 Q 22.6 16.1 20.5 16.1" fill="${TILE}" stroke="${INK}" stroke-width="${earpieceWidth}" stroke-linecap="round"/>`,
+    `<path data-part="mouth" d="M 11.8 17.3 q 1.2 1.1 2.4 0" stroke="${INK}" stroke-width="1" stroke-linecap="round" fill="none"/>`,
   );
-  return bands.join('\n      ');
+  return parts.join('\n    ');
 }
 
 /**
@@ -101,74 +74,34 @@ function trail(samples, headWidth) {
  * only size-dependent decisions are how much detail survives.
  */
 function iconSvg(size, px = size) {
-  const detail = size >= 48;
-  const tiny = size < 32;
   // Small icons need a heavier stroke and a bigger head, or they read as a smudge.
-  const width = tiny ? 44 : detail ? 30 : 38;
-  const head = tiny ? 46 : detail ? 38 : 42;
-  const samples = detail ? 180 : 60;
+  const rimWidth = size >= 48 ? 6 : 10;
   const corner = 114; // 22.3% of 512, the platform squircle radius
-  const [hx, hy] = onOrbit(HEAD_T);
 
-  const stars = [
-    [96, 108, 3.2, 0.85], [150, 62, 2.1, 0.5], [420, 92, 3.4, 0.85], [452, 186, 2.2, 0.45],
-    [70, 250, 2.4, 0.55], [446, 336, 2.6, 0.6], [120, 400, 3.0, 0.7], [330, 460, 2.2, 0.45],
-    [232, 60, 2.0, 0.4], [60, 350, 1.9, 0.35], [268, 466, 2.0, 0.4], [176, 452, 2.4, 0.5],
-  ];
-
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${px}" height="${px}" viewBox="0 0 512 512">
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${px}" height="${px}" viewBox="0 0 ${VIEWBOX} ${VIEWBOX}">
   <defs>
-    <linearGradient id="space" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#221f45"/>
-      <stop offset="0.5" stop-color="#121222"/>
-      <stop offset="1" stop-color="#090911"/>
-    </linearGradient>
-    <radialGradient id="nebula" cx="0.3" cy="0.26" r="0.72">
-      <stop offset="0" stop-color="#6d5efc" stop-opacity="0.42"/>
-      <stop offset="0.5" stop-color="#4c46c8" stop-opacity="0.14"/>
-      <stop offset="1" stop-color="#6d5efc" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="nebula2" cx="0.76" cy="0.82" r="0.55">
-      <stop offset="0" stop-color="#22d3ee" stop-opacity="0.22"/>
-      <stop offset="1" stop-color="#22d3ee" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="bloom" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#a9f3ff" stop-opacity="0.85"/>
-      <stop offset="0.45" stop-color="#22d3ee" stop-opacity="0.28"/>
-      <stop offset="1" stop-color="#22d3ee" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="core" cx="0.5" cy="0.46" r="0.5">
-      <stop offset="0" stop-color="#ffffff"/>
-      <stop offset="0.55" stop-color="#e6fbff"/>
-      <stop offset="1" stop-color="#7de6ff"/>
-    </radialGradient>
     <clipPath id="squircle">
       <rect x="0" y="0" width="512" height="512" rx="${corner}" ry="${corner}"/>
     </clipPath>
   </defs>
 
   <g clip-path="url(#squircle)">
-    <rect width="512" height="512" fill="url(#space)"/>
-    <rect width="512" height="512" fill="url(#nebula)"/>
-    <rect width="512" height="512" fill="url(#nebula2)"/>
-    ${detail ? stars.map(([x, y, r, o]) => `<circle cx="${x}" cy="${y}" r="${r}" fill="#ffffff" opacity="${o}"/>`).join('\n    ') : ''}
+    <rect width="512" height="512" fill="${TILE}"/>
 
     <!-- No closed ring behind the trail: at icon scale a second stroke reads as
          a competing shape. The arc sweeps nearly a full lap, which is enough to
          say "orbit" on its own. -->
-    <g fill="none">
-      ${trail(samples, width)}
+    <g data-part="mini-nekko" transform="scale(${MARK_SCALE})" fill="none">
+    ${headSvg(size)}
     </g>
 
     <!-- The body: a hot white core inside a cyan bloom. -->
-    <circle cx="${hx.toFixed(1)}" cy="${hy.toFixed(1)}" r="${(head * 2.1).toFixed(1)}" fill="url(#bloom)"/>
-    <circle cx="${hx.toFixed(1)}" cy="${hy.toFixed(1)}" r="${(head * 0.62).toFixed(1)}" fill="url(#core)"/>
   </g>
 
   <!-- Rim light. A dark tile on a dark taskbar loses its own edge; a hairline of
        the accent gives it back without lightening the art. -->
   <rect x="3" y="3" width="506" height="506" rx="${corner - 3}" ry="${corner - 3}"
-        fill="none" stroke="#8b7dff" stroke-opacity="0.22" stroke-width="${size >= 48 ? 6 : 10}"/>
+        fill="none" stroke="${RIM}" stroke-opacity="0.72" stroke-width="${rimWidth}"/>
 </svg>`;
 }
 
@@ -183,27 +116,29 @@ function iconSvg(size, px = size) {
  * panel's own space instead of on a rounded tile inside it.
  */
 function bannerSvg(w, h, opts, pw = w, ph = h) {
-  const { markSize, markX, markY, title, tagline, titleSize, layout } = opts;
+  const { markSize, markX, markY, title, titleSize, layout } = opts;
   const inner = iconSvg(512)
     .replace(/^<svg[^>]*>/, '')
     .replace(/<\/svg>$/, '');
   const column = layout === 'column';
+  const tagline = column ? 'AI on your computer' : '';
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${pw}" height="${ph}" viewBox="0 0 ${w} ${h}">
   <defs>
     <linearGradient id="panel" x1="0" y1="0" x2="${column ? 0.6 : 1}" y2="1">
-      <stop offset="0" stop-color="#141428"/>
-      <stop offset="0.6" stop-color="#0c0c16"/>
-      <stop offset="1" stop-color="#07070d"/>
+      <stop offset="0" stop-color="${TILE}"/>
+      <stop offset="0.6" stop-color="${TILE}"/>
+      <stop offset="1" stop-color="${TILE}"/>
     </linearGradient>
   </defs>
   <rect width="${w}" height="${h}" fill="url(#panel)"/>
+  <rect width="${column ? 3 : 2}" height="${h}" fill="${RIM}"/>
   <g transform="translate(${markX} ${markY}) scale(${markSize / 512})">${inner}</g>
   <text x="${column ? w / 2 : markX + markSize + 14}" y="${column ? markY + markSize + 46 : h / 2 + titleSize * 0.36}"
-        text-anchor="${column ? 'middle' : 'start'}" fill="#f2f1fa"
+        text-anchor="${column ? 'middle' : 'start'}" fill="${RIM}"
         font-family="Segoe UI, system-ui, sans-serif" font-size="${titleSize}" font-weight="600"
         letter-spacing="${(titleSize * 0.06).toFixed(2)}">${title}</text>
   ${tagline
-      ? `<text x="${w / 2}" y="${markY + markSize + 76}" text-anchor="middle" fill="#9a98ad"
+      ? `<text x="${w / 2}" y="${markY + markSize + 76}" text-anchor="middle" fill="${RIM}"
         font-family="Segoe UI, system-ui, sans-serif" font-size="13">${tagline}</text>`
       : ''}
 </svg>`;

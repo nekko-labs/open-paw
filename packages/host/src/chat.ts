@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
-import type { AgentEvent, ChatMessage, ContextBundle, SendOptions, ToolCall } from '@kotrain/shared';
-import { EFFORT_TEMPERATURE, DEFAULT_ORCHESTRATION, clampMaxOutputTokens, clampMaxSteps, getSessionWorkspaceIds, getStrategy, orchestrationPromptHint } from '@kotrain/shared';
+import type { AgentEvent, ChatMessage, ContextBundle, ProviderConfig, SendOptions, Session, ToolCall } from '@kotrain/shared';
+import { EFFORT_TEMPERATURE, DEFAULT_ORCHESTRATION, clampMaxOutputTokens, clampMaxSteps, getSessionWorkspaceIds, getStrategy, isChatModel, isLocalProvider, orchestrationPromptHint } from '@kotrain/shared';
 import {
   createProvider,
   runAgent,
@@ -170,7 +170,7 @@ export async function previewContext(sessionId: string, attachedPaths: string[])
       ...listMemory('global'),
       ...((session ? getSessionWorkspaceIds(session) : []).flatMap((id) => listMemory('workspace', id))),
     ],
-    connectorSnippets: await collectConnectorSnippets(),
+    connectorSnippets: !session || session.offline ? [] : await collectConnectorSnippets(),
     indexSnippets: [],
     history: (session?.messages ?? []).map((m) => ({ role: m.role, content: m.content })),
     systemText,
@@ -199,6 +199,39 @@ function sessionDepth(sessionId: string): number {
   return depth;
 }
 
+function providerEndpoint(provider: ProviderConfig): URL | null {
+  if (!isLocalProvider(provider.kind) && !['anthropic', 'openai', 'openrouter'].includes(provider.kind)) return null;
+  try {
+    const url = new URL(provider.baseUrl);
+    return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+function offlineProviderAllowed(provider: ProviderConfig): boolean {
+  const url = providerEndpoint(provider);
+  return !!url && isLocalProvider(provider.kind) && (
+    url.hostname === 'localhost' || url.hostname === '[::1]' || /^127\.\d+\.\d+\.\d+$/.test(url.hostname)
+  );
+}
+
+function routingPrompt(providers: ProviderConfig[]): string {
+  const secrets = providers.flatMap((p) => [p.apiKey, p.baseUrl]).filter((s): s is string => !!s);
+  const safe = (value: string) => {
+    for (const secret of secrets) value = value.split(secret).join('[redacted]');
+    return value.replace(/https?:\/\/\S+/gi, '[redacted]');
+  };
+  const enabled = providers.filter((p) => p.enabled).map((p) => ({ id: safe(p.id), label: safe(p.label) }));
+  return [
+    'Sub-agent routing: enabled configured providers (IDs and labels only):',
+    JSON.stringify(enabled),
+    'Omit provider_id and model_id to inherit this chat\'s provider and model. An explicit provider change requires an explicit exact model ID for that provider.',
+    'Only select a model ID already known for the target provider; never guess. If no exact model ID is known, ask the user to supply one before delegating to that provider. The target model list is checked only when explicit delegation is requested.',
+    'There is no fallback to another provider or model on failure. Keep sensitive work on the intended provider; do not switch to a cloud provider to bypass a local failure. Incognito delegation is unavailable because child sessions are persisted.',
+  ].join('\n');
+}
+
 /**
  * Run a delegated sub-task as a fresh child session and return its final answer.
  * The child streams its own agent events (under its own sessionId) so the
@@ -206,26 +239,67 @@ function sessionDepth(sessionId: string): number {
  * as the tool result for the parent.
  */
 async function runSubAgent(
-  parentId: string,
+  parent: Session,
   providerId: string,
   modelId: string,
-  title: string | undefined,
-  task: string,
+  input: unknown,
   send: Sender,
 ): Promise<string> {
-  const maxDepth = getSettings().orchestration?.maxDepth ?? DEFAULT_ORCHESTRATION.maxDepth;
+  const parentId = parent.id;
+  const settings = getSettings();
+  const maxDepth = settings.orchestration?.maxDepth ?? DEFAULT_ORCHESTRATION.maxDepth;
   if (sessionDepth(parentId) >= maxDepth) {
-    return 'Sub-agent depth limit reached, handle this part of the task directly instead of delegating further.';
+    throw new Error('Sub-agent depth limit reached, handle this part of the task directly instead of delegating further.');
   }
-  if (!task.trim()) return 'No task was provided to the sub-agent.';
-  const parent = getSession(parentId);
+  if (parent.incognito) throw new Error('Delegation is unavailable in incognito chats because child sessions are persisted. Handle this task in the current chat.');
+  if (parent.offline) throw new Error('Offline chats cannot call tools, including sub-agents.');
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Sub-agent input must be an object.');
+  const inp = input as Record<string, unknown>;
+  const { task, title } = inp;
+  if (typeof task !== 'string' || !task.trim()) throw new Error('A nonblank task is required for the sub-agent.');
+  if (title !== undefined && typeof title !== 'string') throw new Error('Sub-agent title must be a string.');
+  for (const key of ['provider_id', 'model_id']) {
+    if (key in inp && (typeof inp[key] !== 'string' || !inp[key].trim() || inp[key] !== inp[key].trim())) {
+      throw new Error(`${key} must be a nonblank exact ID without surrounding whitespace.`);
+    }
+  }
+  const targetProviderId = (inp.provider_id as string | undefined) ?? providerId;
+  const targetModelId = (inp.model_id as string | undefined) ?? modelId;
+  if (targetProviderId !== providerId && !('model_id' in inp)) {
+    throw new Error('Changing provider requires an explicit model_id known to belong to that provider. Ask the user for the exact model ID; never guess.');
+  }
+  if (!targetModelId?.trim()) throw new Error('A nonblank target model ID is required.');
+  const provider = settings.providers.find((p) => p.id === targetProviderId);
+  if (!provider?.enabled) throw new Error('Target provider is unknown or disabled.');
+  if (!providerEndpoint(provider)) throw new Error('Target provider requires a valid HTTP(S) endpoint.');
+  if ('model_id' in inp) {
+    let models;
+    try {
+      models = await createProvider(provider).listModels();
+    } catch {
+      throw new Error('Could not verify the target provider model list. Check its availability; no child was created and no fallback was used.');
+    }
+    const model = models.find((m) => m.id === targetModelId && m.providerId === targetProviderId);
+    if (!model) throw new Error('The exact model ID is not available from the target provider. Ask the user for a known exact model ID; no fallback was used.');
+    if (!isChatModel(model)) {
+      throw new Error('The selected model is not a chat model. No child was created.');
+    }
+  }
   const child = createSession(parent?.workspaceId, parentId, parent ? getSessionWorkspaceIds(parent).slice(1) : undefined);
   child.title = (title?.trim() || task.trim().slice(0, 40)) || 'Sub-agent';
-  child.providerId = providerId;
-  child.modelId = modelId;
+  child.providerId = targetProviderId;
+  child.modelId = targetModelId;
   child.mode = parent?.mode; // inherit the parent's tool-execution policy
+  child.disabledTools = parent.disabledTools ? [...parent.disabledTools] : undefined;
+  child.offline = parent.offline;
+  child.incognito = parent.incognito;
   saveSession(child);
-  await sendChat({ sessionId: child.id, providerId, modelId, text: task }, send);
+  let failed = false;
+  await sendChat({ sessionId: child.id, providerId: targetProviderId, modelId: targetModelId, text: task }, (event) => {
+    if (event.sessionId === child.id && event.type === 'error') failed = true;
+    send(event);
+  });
+  if (failed) throw new Error('The sub-agent failed on the selected provider/model. No fallback was used.');
   const done = getSession(child.id);
   const last = [...(done?.messages ?? [])].reverse().find((m) => m.role === 'assistant' && m.content.trim());
   return last?.content ?? 'Sub-agent finished without producing a written answer.';
@@ -235,8 +309,8 @@ async function runSubAgent(
 export async function sendChat(opts: SendOptions, send: Sender): Promise<void> {
   const settings = getSettings();
   const provider = settings.providers.find((p) => p.id === opts.providerId);
-  if (!provider) {
-    send({ type: 'error', sessionId: opts.sessionId, message: 'Provider not configured.' });
+  if (!provider?.enabled) {
+    send({ type: 'error', sessionId: opts.sessionId, message: 'Provider not configured or disabled.' });
     return;
   }
   const session = getSession(opts.sessionId);
@@ -249,6 +323,14 @@ export async function sendChat(opts: SendOptions, send: Sender): Promise<void> {
   const mode = session.mode ?? settings.defaultChatMode ?? 'guardrails';
   const offline = !!session.offline;
   const incognito = !!session.incognito;
+  if (offline && !offlineProviderAllowed(provider)) {
+    send({ type: 'error', sessionId: opts.sessionId, message: 'Offline chat requires a local-compatible provider with a loopback HTTP(S) endpoint.' });
+    return;
+  }
+  if (!providerEndpoint(provider)) {
+    send({ type: 'error', sessionId: opts.sessionId, message: 'Provider requires a valid HTTP(S) endpoint.' });
+    return;
+  }
   // Offline disables tool calls entirely; otherwise combine builtins + connected
   // MCP tools, then drop any the user turned off for this chat.
   // Orchestration: the strategy decides whether sub-agents are even offered.
@@ -294,7 +376,9 @@ export async function sendChat(opts: SendOptions, send: Sender): Promise<void> {
     workspaces: settings.workspaces,
     contextBlock,
     platform: process.platform,
-    orchestrationHint: allowSpawn ? orchestrationPromptHint(orchestration) : '',
+    orchestrationHint: tools.some((t) => t.name === 'spawn_agent')
+      ? `${orchestrationPromptHint(orchestration)}\n\n${routingPrompt(settings.providers)}`
+      : '',
   });
 
   if (opts.resume) {
@@ -341,7 +425,15 @@ export async function sendChat(opts: SendOptions, send: Sender): Promise<void> {
       system,
       history: session.messages,
       tools,
-      executeTool: (call) => {
+      executeTool: async (call) => {
+        if (!tools.some((tool) => tool.name === call.name)) {
+          return { toolCallId: call.id, output: 'This tool is disabled or unavailable for this chat.', isError: true };
+        }
+        const indirect = call.name === 'spawn_agent' || isMcpTool(call.name);
+        if (indirect && (mode === 'ask' || settings.sandboxMode === 'ask-everything')) {
+          const approved = await requestApproval(call, call.name === 'spawn_agent' ? 'Delegate work to a sub-agent' : `Call ${call.name}`, 'medium');
+          if (!approved) return { toolCallId: call.id, output: 'Call not approved by user.', isError: true };
+        }
         if (call.name === 'report_experiment' && session.trainingRunId) {
           try {
             const output = reportExperiment(opts.sessionId, call.input as Record<string, unknown>);
@@ -367,8 +459,7 @@ export async function sendChat(opts: SendOptions, send: Sender): Promise<void> {
           }
         }
         if (call.name === 'spawn_agent') {
-          const inp = call.input as { title?: string; task?: string };
-          return runSubAgent(opts.sessionId, opts.providerId, opts.modelId, inp.title, String(inp.task ?? ''), send)
+          return runSubAgent({ ...session, mode }, opts.providerId, opts.modelId, call.input, send)
             .then((output) => ({ toolCallId: call.id, output }))
             .catch((e) => ({ toolCallId: call.id, output: `Sub-agent failed: ${(e as Error).message}`, isError: true }));
         }
@@ -424,7 +515,7 @@ export async function sendChat(opts: SendOptions, send: Sender): Promise<void> {
   }
 
   // Keep the linked spec.md in sync with the conversation (best-effort).
-  if (session.specLinked && !incognito) {
+  if (session.specLinked && !incognito && !offline) {
     buildSpec(opts.sessionId).catch(() => {});
   }
 

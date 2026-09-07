@@ -27,7 +27,7 @@ async function main() {
   const { app } = createCloudServer({ dataRoot: DATA_ROOT, rendererDir: findRendererDir(), billing });
   await app.listen({ port: PORT, host: HOST });
   const url = `http://${isLocal ? 'localhost' : HOST}:${PORT}`;
-  console.log(`\n🐾☁️  Kotrain Cloud running at ${url}`);
+  console.log(`\nAgent Nekko Cloud running at ${url}`);
   console.log(`   data root: ${DATA_ROOT}`);
   console.log(`   accounts: sign up / log in at the URL above (per-account isolated data + plan entitlements)`);
   console.log(

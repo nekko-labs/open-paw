@@ -1,4 +1,4 @@
-# Kotrain, Mobile (iOS & Android)
+# Agent Nekko, Mobile (iOS & Android)
 
 Native phone apps built with **Capacitor**. They run the same React UI as the
 desktop/web editions and connect to the model on your computer over the
@@ -10,7 +10,7 @@ drives the agent running on your machine.
 
 ## How pairing works
 
-1. On your **computer**: Kotrain → *Settings → Remote access → Enable*. It shows
+1. On your **computer**: Agent Nekko → *Settings → Remote access → Enable*. It shows
    a room code, key, a pairing link, and a QR.
 2. In the **phone app**: **Scan QR code** (camera) or paste the pairing link on the
    first-run screen. The creds are stored locally and the app connects to your
@@ -19,7 +19,7 @@ drives the agent running on your machine.
 ## Notifications
 
 When a task you started finishes while the app is backgrounded, you get a **local
-notification** ("Kotrain finished"), no push server, no APNs/FCM setup needed
+notification** ("Agent Nekko finished"), no push server, no APNs/FCM setup needed
 (uses `@capacitor/local-notifications`). True remote/background push (when the app
 is fully closed) would need APNs + FCM + a sender backend, not wired yet.
 
