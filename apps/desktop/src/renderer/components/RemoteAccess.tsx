@@ -12,7 +12,7 @@ import { Badge } from './primitives/index.js';
 
 /** Managed relay (free during beta; becomes a Kotrain Cloud perk). */
 export const MANAGED_RELAY_URL = 'wss://kotrain-relay.fly.dev';
-const SELF_HOST_DOCS = 'https://github.com/nekko-labs/kotrain/blob/main/docs/REMOTE.md';
+const SELF_HOST_DOCS = 'https://github.com/nekko-labs/agent-nekko/blob/main/docs/REMOTE.md';
 
 export function RemoteAccess() {
   const [status, setStatus] = useState<RemoteStatus>({ enabled: false });

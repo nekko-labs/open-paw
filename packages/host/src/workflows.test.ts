@@ -219,7 +219,7 @@ describe('running a workflow', () => {
       triggers: [{ id: 't', kind: 'git', provider: 'github', events: ['pr_opened'] }],
     });
     const [run] = await dispatchWorkflowEvent({
-      kind: 'git', provider: 'github', event: 'pr_opened', repo: 'nekko-labs/kotrain', branch: 'main',
+      kind: 'git', provider: 'github', event: 'pr_opened', repo: 'nekko-labs/agent-nekko', branch: 'main',
     });
     expect(run.workflowId).toBe(wf.id);
     expect(run.triggerKind).toBe('git');

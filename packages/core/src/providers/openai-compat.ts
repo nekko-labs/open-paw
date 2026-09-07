@@ -32,7 +32,7 @@ export class OpenAICompatProvider implements Provider {
     const h: Record<string, string> = { 'Content-Type': 'application/json' };
     if (this.config.apiKey) h['Authorization'] = `Bearer ${this.config.apiKey}`;
     if (this.config.kind === 'openrouter') {
-      h['HTTP-Referer'] = 'https://github.com/nekko-labs/kotrain';
+      h['HTTP-Referer'] = 'https://github.com/nekko-labs/agent-nekko';
       h['X-Title'] = 'Kotrain';
     }
     return h;

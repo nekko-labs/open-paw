@@ -18,7 +18,7 @@ are from the running app.
 ## 1. Install
 
 **Download a build** for your platform from the
-[Releases page](https://github.com/nekko-labs/kotrain/releases/latest):
+[Releases page](https://github.com/nekko-labs/agent-nekko/releases/latest):
 
 | Platform | Artifact |
 | --- | --- |
@@ -29,7 +29,7 @@ are from the running app.
 **Or run from source:**
 
 ```bash
-git clone https://github.com/nekko-labs/kotrain
+git clone https://github.com/nekko-labs/agent-nekko
 cd kotrain
 npm install
 npm run dev          # launches the desktop app
@@ -45,7 +45,7 @@ sessions, memory, and a usage log. No account, no telemetry.
 Open the **Models** tab. This is where Kotrain differs from most tools, local
 model servers are first-class, not an afterthought.
 
-![Models tab](https://raw.githubusercontent.com/nekko-labs/kotrain/main/docs/screenshots/models.png)
+![Models tab](https://raw.githubusercontent.com/nekko-labs/agent-nekko/main/docs/screenshots/models.png)
 
 - **Auto-discover local** probes `localhost:11434` (Ollama), `:1234` (LM Studio),
   and `:8000` (vLLM). Anything running is added with one click.
@@ -81,7 +81,7 @@ and "code" modes, it's one thread. Ask a question, or hand off a task and let
 Kotrain act on your machine through tools (read / write / edit files, glob, grep,
 list dirs, run shell commands).
 
-![Unified chat](https://raw.githubusercontent.com/nekko-labs/kotrain/main/docs/screenshots/chat.png)
+![Unified chat](https://raw.githubusercontent.com/nekko-labs/agent-nekko/main/docs/screenshots/chat.png)
 
 - Pick the **provider and model** from the header dropdowns at any time.
 - Assistant messages render **markdown and code**; every **tool call** the model
@@ -96,7 +96,7 @@ list dirs, run shell commands).
 | `Ctrl/Cmd + N` | New chat |
 | `Ctrl/Cmd + \` | Toggle the context panel |
 
-![Command palette](https://raw.githubusercontent.com/nekko-labs/kotrain/main/docs/screenshots/command-palette.png)
+![Command palette](https://raw.githubusercontent.com/nekko-labs/agent-nekko/main/docs/screenshots/command-palette.png)
 
 ---
 
@@ -123,7 +123,7 @@ and shape it.
 
 Open **Settings**. Two layers keep Kotrain from doing something you didn't intend.
 
-![Guardrails & sandbox](https://raw.githubusercontent.com/nekko-labs/kotrain/main/docs/screenshots/guardrails.png)
+![Guardrails & sandbox](https://raw.githubusercontent.com/nekko-labs/agent-nekko/main/docs/screenshots/guardrails.png)
 
 **Sandbox mode** controls how the agent may touch your machine:
 
@@ -149,7 +149,7 @@ The **Projects** tab manages your workspace folders, and yes, **multiple roots**
 are supported. Each folder is indexed for files and code symbols (functions,
 classes, interfaces, types) so the agent and search have a fast map of your code.
 
-![Projects & index](https://raw.githubusercontent.com/nekko-labs/kotrain/main/docs/screenshots/projects.png)
+![Projects & index](https://raw.githubusercontent.com/nekko-labs/agent-nekko/main/docs/screenshots/projects.png)
 
 - **Add** a folder and it indexes in the background.
 - See **file + symbol counts** and index status per project.
@@ -185,4 +185,4 @@ the model is thinking. Don't want it? Toggle it off in Settings → Appearance.
 ---
 
 Questions or ideas? Open an issue on
-[GitHub](https://github.com/nekko-labs/kotrain/issues).
+[GitHub](https://github.com/nekko-labs/agent-nekko/issues).

@@ -7,7 +7,7 @@ Thanks for your interest! Kotrain is an open-source, local-first AI coding & cow
 Requires Node 20+. The project uses **npm workspaces** (not pnpm/yarn).
 
 ```bash
-git clone https://github.com/nekko-labs/kotrain
+git clone https://github.com/nekko-labs/agent-nekko
 cd kotrain
 npm install
 npm run build:core   # build the shared + core packages first

@@ -267,7 +267,7 @@ jobs:
           publish_status=${PIPESTATUS[0]}
           set -e
           if [ "$publish_status" -ne 0 ]; then
-            echo 'npm publish failed. Configure the npm Trusted Publisher for nekko-labs/kotrain/release.yml, or provide NPM_TOKEN during bootstrap.' >&2
+            echo 'npm publish failed. Configure the npm Trusted Publisher for nekko-labs/agent-nekko/release.yml, or provide NPM_TOKEN during bootstrap.' >&2
             exit "$publish_status"
           fi
         env:

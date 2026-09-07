@@ -339,7 +339,7 @@ export function UpdateBanner() {
   if (!info) return null;
 
   const isDesktop = info.edition === 'desktop';
-  const notesUrl = update?.notesUrl ?? 'https://github.com/nekko-labs/kotrain/releases/latest';
+  const notesUrl = update?.notesUrl ?? 'https://github.com/nekko-labs/agent-nekko/releases/latest';
   const openNotes = () => window.kotrain.openPath(notesUrl);
 
   // First-run prompt (desktop only, the web edition just refreshes).

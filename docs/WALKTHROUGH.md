@@ -18,7 +18,7 @@ are from the running app.
 ## 1. Install
 
 **Download a build** for your platform from the
-[Releases page](https://github.com/nekko-labs/kotrain/releases/latest):
+[Releases page](https://github.com/nekko-labs/agent-nekko/releases/latest):
 
 | Platform | Artifact |
 | --- | --- |
@@ -29,7 +29,7 @@ are from the running app.
 **Or run from source:**
 
 ```bash
-git clone https://github.com/nekko-labs/kotrain
+git clone https://github.com/nekko-labs/agent-nekko
 cd kotrain
 npm install
 npm run dev          # launches the desktop app
@@ -185,4 +185,4 @@ the model is thinking. Don't want it? Toggle it off in Settings → Appearance.
 ---
 
 Questions or ideas? Open an issue on
-[GitHub](https://github.com/nekko-labs/kotrain/issues).
+[GitHub](https://github.com/nekko-labs/agent-nekko/issues).
