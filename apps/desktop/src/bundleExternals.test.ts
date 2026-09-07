@@ -102,7 +102,7 @@ describe('staged product identity', () => {
     expect(builder).toContain('appId: dev.nekkolabs.kotrain');
     expect(builder).toContain('executableName: Kotrain');
     expect(builder.match(/artifactName: Kotrain-\$\{version\}-\$\{arch\}\.\$\{ext\}/g)).toHaveLength(3);
-    expect(builder).toContain('repo: kotrain');
+    expect(builder).toContain('repo: agent-nekko');
     expect(pkg.name).toBe('@kotrain/desktop');
     const mobile = readFileSync(join(root, '../mobile/capacitor.config.ts'), 'utf8');
     expect(mobile).toContain("appName: 'Agent Nekko'");
