@@ -3,14 +3,14 @@ import { detectSessionWorkspace } from '@kotrain/shared';
 import type { ProjectHint } from '@kotrain/shared';
 
 const WS: ProjectHint[] = [
-  { id: 'w1', name: 'kotrain', path: 'C:/Users/phili/code/kotrain' },
+  { id: 'w1', name: 'agent-nekko', path: 'C:/Users/phili/code/agent-nekko' },
   { id: 'w2', name: 'hypergate', path: 'C:/Users/phili/code/hypergate' },
   { id: 'w3', name: 'app', path: 'C:/Users/phili/code/app' }, // generic name
 ];
 
 describe('detectSessionWorkspace', () => {
   it('files a chat under the project it names in the prompt', () => {
-    expect(detectSessionWorkspace({ text: 'fix the login bug in kotrain', workspaces: WS })).toBe('w1');
+    expect(detectSessionWorkspace({ text: 'fix the login bug in agent-nekko', workspaces: WS })).toBe('w1');
     expect(detectSessionWorkspace({ text: 'add a Hypergate MCP toggle', workspaces: WS })).toBe('w2');
   });
 
@@ -25,10 +25,10 @@ describe('detectSessionWorkspace', () => {
   });
 
   it('prefers the attached-path project over a mere name mention', () => {
-    // Prompt mentions kotrain, but the attached file lives in hypergate.
+    // Prompt mentions agent-nekko, but the attached file lives in hypergate.
     expect(
       detectSessionWorkspace({
-        text: 'port the kotrain approach here',
+        text: 'port the agent-nekko approach here',
         workspaces: WS,
         attachedPaths: ['C:/Users/phili/code/hypergate/README.md'],
       }),
@@ -46,8 +46,8 @@ describe('detectSessionWorkspace', () => {
   });
 
   it('does not match substrings inside other words', () => {
-    // "kotrainer" should not trip the "kotrain" workspace.
-    expect(detectSessionWorkspace({ text: 'the kotrainer library', workspaces: WS })).toBeNull();
+    // "agent-nekkos" should not trip the "agent-nekko" workspace.
+    expect(detectSessionWorkspace({ text: 'the agent-nekkos library', workspaces: WS })).toBeNull();
   });
 
   it('returns null when two different projects tie', () => {
