@@ -4,6 +4,8 @@
  */
 
 export * from './models.js';
+export * from './capacity.js';
+export * from './runtimes.js';
 export * from './chat.js';
 export * from './pr.js';
 export * from './terminal.js';
