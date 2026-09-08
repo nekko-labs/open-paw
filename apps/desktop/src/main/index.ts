@@ -8,6 +8,7 @@ import { registerIpc } from './ipc.js';
 import { checkForUpdates } from './update.js';
 import { loadWindowBounds, saveWindowBounds } from './windowState.js';
 import { preservePackagedProfile } from './appIdentity.js';
+import { closeWorkflowLoopbackListener, manageWorkflowLoopbackListener } from './workflow-listener.js';
 import {
   TITLEBAR_HEIGHT,
   TITLEBAR_OVERLAY_CHANNEL,
@@ -296,6 +297,7 @@ app.whenReady().then(() => {
   migrateLegacyData(dataDir);
   const host = createHost({ dataDir });
   registerIpc(host);
+  manageWorkflowLoopbackListener(host);
   registerTitleBarOverlaySync();
   // A link that launched the app is already on this process's command line
   // (Windows/Linux); park it so the first load replays it.
@@ -313,5 +315,6 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  closeWorkflowLoopbackListener();
   if (process.platform !== 'darwin') app.quit();
 });

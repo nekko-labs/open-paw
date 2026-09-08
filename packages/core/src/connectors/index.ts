@@ -1,9 +1,33 @@
 import type { ConnectorKind, ConnectorResource } from '@kotrain/shared';
 
+/** One event returned by a connector poll; listeners map these to WorkflowEvents. */
+export interface ConnectorPollEvent {
+  /** A stable, per-connector id used for deduplication. */
+  id: string;
+  /** Cursor value (epoch ms) for this event; the listener advances to the max. */
+  cursor: number;
+  /** Event type, e.g. 'message' or 'issue'. */
+  event: string;
+  /** Human-readable text/label for the run log. */
+  text?: string;
+  /** Where the event came from (Slack channel, repo, etc.). */
+  source?: string;
+  /** Free-form payload for templates and context. */
+  payload?: Record<string, unknown>;
+}
+
+export interface ConnectorPollResult {
+  events: ConnectorPollEvent[];
+  /** The next cursor to start from (usually the max event cursor). */
+  nextCursor: number;
+}
+
 export interface Connector {
   readonly kind: ConnectorKind;
   /** Fetch resources (optionally filtered by a query) to surface in context. */
   fetch(token: string, query?: string, settings?: Record<string, string>): Promise<ConnectorResource[]>;
+  /** Poll for new events since `cursor` (epoch ms). Optional — not every connector supports triggered reads. */
+  poll?(token: string, settings: Record<string, string>, cursor: number): Promise<ConnectorPollResult>;
 }
 
 /** GitHub, REST API, authenticated with a personal access token. Lists the
@@ -42,6 +66,46 @@ export const githubConnector: Connector = {
       body: r.description ?? '',
     }));
   },
+  async poll(token, settings, cursor) {
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/vnd.github+json',
+      'User-Agent': 'kotrain',
+    };
+    const repo = (settings.repo ?? '').trim();
+    const since = new Date(cursor).toISOString();
+    let url: string;
+    if (repo) {
+      url = `https://api.github.com/repos/${encodeURIComponent(repo)}/events?per_page=25`;
+    } else {
+      url = `https://api.github.com/events?per_page=25`;
+    }
+    const res = await fetch(url, { headers });
+    if (!res.ok) throw new Error(`GitHub ${res.status}`);
+    const eventsData: any[] = (await res.json()) as any[];
+    const wantEvent = (settings.event ?? '').toLowerCase();
+    const filter = (settings.filter ?? '').toLowerCase();
+    const events: ConnectorPollEvent[] = [];
+    for (const ev of eventsData) {
+      const createdAt = new Date(ev.created_at).getTime();
+      if (createdAt <= cursor) continue;
+      const eventType = (ev.type ?? '').toLowerCase();
+      if (wantEvent && !eventType.includes(wantEvent)) continue;
+      const text = `${ev.type ?? 'event'}${ev.payload?.number ? ` #${ev.payload.number}` : ''}${ev.payload?.action ? ` ${ev.payload.action}` : ''}`.trim();
+      const json = JSON.stringify(ev.payload ?? {});
+      if (filter && !text.toLowerCase().includes(filter) && !json.toLowerCase().includes(filter)) continue;
+      events.push({
+        id: String(ev.id),
+        cursor: createdAt,
+        event: ev.type ?? 'event',
+        text,
+        source: ev.repo?.name ?? repo,
+        payload: ev.payload ?? {},
+      });
+    }
+    const nextCursor = events.length ? Math.max(...events.map((e) => e.cursor)) : cursor;
+    return { events, nextCursor };
+  },
 };
 
 /** Linear, GraphQL API, authenticated with a personal API key. */
@@ -66,6 +130,33 @@ export const linearConnector: Connector = {
       url: n.url,
       body: n.description ?? '',
     }));
+  },
+  async poll(token, _settings, cursor) {
+    const since = new Date(cursor).toISOString();
+    const filter = `{ updatedAt: { gt: "${since}" } }`;
+    const query = `{ issues(first: 25, filter: ${filter}, orderBy: updatedAt) { nodes { id identifier title url description updatedAt state { name } } } }`;
+    const res = await fetch('https://api.linear.app/graphql', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: token },
+      body: JSON.stringify({ query }),
+    });
+    if (!res.ok) throw new Error(`Linear ${res.status}`);
+    const json: any = await res.json();
+    const nodes = json.data?.issues?.nodes ?? [];
+    const events: ConnectorPollEvent[] = [];
+    for (const n of nodes) {
+      const updatedAt = new Date(n.updatedAt).getTime();
+      if (updatedAt <= cursor) continue;
+      events.push({
+        id: `${n.id}:${n.updatedAt}`,
+        cursor: updatedAt,
+        event: 'issue',
+        text: `${n.identifier} ${n.title}`.trim(),
+        payload: { ...n, updatedAt },
+      });
+    }
+    const nextCursor = events.length ? Math.max(...events.map((e) => e.cursor)) : cursor;
+    return { events, nextCursor };
   },
 };
 
@@ -94,6 +185,46 @@ export const slackConnector: Connector = {
       subtitle: c.is_private ? 'private channel' : 'channel',
       body: c.purpose?.value ?? '',
     }));
+  },
+  async poll(token, settings, cursor) {
+    const want = (settings.channel ?? '').trim();
+    if (!want) throw new Error('Slack poll needs a channel id or #channel name in the trigger.');
+    let channelId = want.replace(/^#/, '');
+    if (want.startsWith('#')) {
+      const listRes = await fetch('https://slack.com/api/conversations.list?limit=200&exclude_archived=true&types=public_channel,private_channel', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const list: any = await listRes.json();
+      if (!list.ok) throw new Error(`Slack: ${list.error ?? 'error'}`);
+      const found = list.channels?.find((c: any) => c.name === channelId);
+      if (!found) throw new Error(`Slack channel "${want}" not found.`);
+      channelId = found.id;
+    }
+    const oldest = cursor > 0 ? String(cursor / 1000) : undefined;
+    const qs = new URLSearchParams({ channel: channelId, limit: '50' });
+    if (oldest) qs.set('oldest', oldest);
+    const res = await fetch(`https://slack.com/api/conversations.history?${qs}`, { headers: { Authorization: `Bearer ${token}` } });
+    const json: any = await res.json();
+    if (!json.ok) throw new Error(`Slack: ${json.error ?? 'error'}`);
+    const filter = (settings.filter ?? '').toLowerCase();
+    const messages = (json.messages ?? []).filter((m: any) => !m.subtype);
+    const events: ConnectorPollEvent[] = [];
+    for (const m of messages) {
+      const text = m.text ?? '';
+      if (filter && !text.toLowerCase().includes(filter)) continue;
+      const tsMs = Math.round(Number(m.ts) * 1000);
+      if (tsMs <= cursor) continue;
+      events.push({
+        id: `${channelId}:${m.ts}`,
+        cursor: tsMs,
+        event: 'message',
+        text: text.slice(0, 140),
+        source: want,
+        payload: { ...m, channel: channelId },
+      });
+    }
+    const nextCursor = events.length ? Math.max(...events.map((e) => e.cursor)) : cursor;
+    return { events: events.reverse(), nextCursor };
   },
 };
 
@@ -150,6 +281,43 @@ export const gitlabConnector: Connector = {
       body: p.description ?? '',
     }));
   },
+  async poll(token, settings, cursor) {
+    const base = gitlabBase(settings);
+    const project = (settings.repo ?? settings.project ?? '').trim();
+    const after = new Date(cursor).toISOString().slice(0, 10);
+    let url: string;
+    if (project) {
+      const enc = encodeURIComponent(project);
+      url = `${base}/api/v4/projects/${enc}/events?per_page=25&after=${after}`;
+    } else {
+      url = `${base}/api/v4/events?per_page=25&after=${after}`;
+    }
+    const res = await fetch(url, { headers: { 'PRIVATE-TOKEN': token } });
+    if (!res.ok) throw new Error(`GitLab ${res.status}`);
+    const data: any[] = (await res.json()) as any[];
+    const wantEvent = (settings.event ?? '').toLowerCase();
+    const filter = (settings.filter ?? '').toLowerCase();
+    const events: ConnectorPollEvent[] = [];
+    for (const ev of data) {
+      const createdAt = new Date(ev.created_at).getTime();
+      if (createdAt <= cursor) continue;
+      const eventType = (ev.action_name ?? ev.target_type ?? 'event').toLowerCase();
+      if (wantEvent && !eventType.includes(wantEvent)) continue;
+      const text = `${ev.target_title ?? ev.title ?? eventType}${ev.target_iid ? ` #${ev.target_iid}` : ''}`.trim();
+      const json = JSON.stringify(ev);
+      if (filter && !text.toLowerCase().includes(filter) && !json.toLowerCase().includes(filter)) continue;
+      events.push({
+        id: `${ev.project_id ?? ev.id}:${ev.created_at}`,
+        cursor: createdAt,
+        event: ev.action_name ?? ev.target_type ?? 'event',
+        text,
+        source: ev.project_id ? String(ev.project_id) : project,
+        payload: ev,
+      });
+    }
+    const nextCursor = events.length ? Math.max(...events.map((e) => e.cursor)) : cursor;
+    return { events, nextCursor };
+  },
 };
 
 /**
@@ -202,6 +370,41 @@ export const jiraConnector: Connector = {
       url: `${site}/browse/${issue.key}`,
       body: typeof issue.fields?.description === 'string' ? issue.fields.description : '',
     }));
+  },
+  async poll(token, settings, cursor) {
+    const site = (settings?.site ?? '').trim().replace(/\/+$/, '');
+    const email = (settings?.email ?? '').trim();
+    if (!site || !email) throw new Error('Jira needs a site URL and the account email.');
+    const jqlDate = new Date(cursor).toISOString().replace('T', ' ').slice(0, 16);
+    const jql = `updated >= "${jqlDate}" order by updated desc`;
+    const qs = `jql=${encodeURIComponent(jql)}&maxResults=25&fields=summary,status,issuetype,description,updated`;
+    const headers = {
+      Authorization: `Basic ${Buffer.from(`${email}:${token}`).toString('base64')}`,
+      Accept: 'application/json',
+    };
+    let res = await fetch(`${site}/rest/api/3/search/jql?${qs}`, { headers });
+    if (res.status === 404 || res.status === 410) {
+      res = await fetch(`${site}/rest/api/3/search?${qs}`, { headers });
+    }
+    if (!res.ok) throw new Error(`Jira ${res.status}`);
+    const json: any = await res.json();
+    const filter = (settings.filter ?? '').toLowerCase();
+    const events: ConnectorPollEvent[] = [];
+    for (const issue of json.issues ?? []) {
+      const updated = new Date(issue.fields?.updated).getTime();
+      if (!updated || updated <= cursor) continue;
+      const text = `${issue.key} ${issue.fields?.summary ?? ''}`.trim();
+      if (filter && !text.toLowerCase().includes(filter) && !(issue.fields?.description ?? '').toLowerCase().includes(filter)) continue;
+      events.push({
+        id: `${issue.key}:${issue.fields?.updated}`,
+        cursor: updated,
+        event: 'issue',
+        text,
+        payload: { ...issue.fields, key: issue.key, updated },
+      });
+    }
+    const nextCursor = events.length ? Math.max(...events.map((e) => e.cursor)) : cursor;
+    return { events, nextCursor };
   },
 };
 

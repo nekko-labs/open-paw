@@ -12,6 +12,7 @@ import { runRelayAgent } from './relay-agent.js';
 import { runCli } from 'kotrain/run';
 import { isLoopbackHost, tokenMatches, validateBindSecurity } from './security.js';
 import { createApiSecurityHook } from './request-security.js';
+import { registerWebhookRoutes } from './webhooks.js';
 
 /** Subcommands handled by the embedded CLI (so `npx kotrain mcp|chat|…` works). */
 const CLI_SUBCOMMANDS = new Set([
@@ -139,6 +140,9 @@ async function main() {
       reply.code(400).send({ error: (e as Error).message });
     }
   });
+
+  // Inbound workflow webhook endpoint: per-trigger secret auth, 10 MB body cap, rate limit.
+  registerWebhookRoutes(app, host);
 
   // Stream agent + index events over a WebSocket.
   app.get('/api/events', { websocket: true }, (socket: any, req) => {

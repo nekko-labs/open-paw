@@ -122,12 +122,14 @@ import {
   runWorkflow,
   cancelWorkflowRun,
   dispatchWorkflowEvent,
+  dispatchWebhook,
   setWorkflowSender,
   setWorkflowsNotifier,
   startWorkflowScheduler,
   reconcileWorkflowRuns,
 } from './workflows.js';
 import { sendChat, abortChat, resolveApproval, previewContext, setContextPrefs } from './chat.js';
+import { startWorkflowListeners } from './listeners.js';
 import {
   initOAuth,
   beginOAuth,
@@ -327,6 +329,7 @@ export interface Host {
   cancelWorkflowRun(runId: string): void;
   listWorkflowRuns(workflowId?: string): WorkflowRun[];
   dispatchWorkflowEvent(event: WorkflowEvent): Promise<WorkflowRun[]>;
+  dispatchWebhook(slug: string, secret: string, payload: Record<string, unknown>): Promise<WorkflowRun[]>;
 
   listConnectors(): ConnectorConfig[];
   connectConnector(kind: ConnectorKind, token: string, settings?: Record<string, string>): ConnectorConfig[];
@@ -402,6 +405,7 @@ export function createHost(opts: { dataDir: string }): Host {
   setWorkflowsNotifier((snapshot) => events.emit('workflowsUpdated', snapshot));
   reconcileWorkflowRuns();
   startWorkflowScheduler();
+  startWorkflowListeners();
 
   const findProvider = (id: string) => getSettings().providers.find((p) => p.id === id);
 
@@ -630,6 +634,7 @@ export function createHost(opts: { dataDir: string }): Host {
     cancelWorkflowRun,
     listWorkflowRuns,
     dispatchWorkflowEvent,
+    dispatchWebhook,
 
     listConnectors: () => getSettings().connectors,
     connectConnector: (kind, token, settings) => {
