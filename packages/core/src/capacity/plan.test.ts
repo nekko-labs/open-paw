@@ -167,3 +167,41 @@ describe('planFit', () => {
     expect(eight.verdict).toBe('spills');
   });
 });
+
+describe('planFit with partial metadata', () => {
+  // The common LM Studio case: the CLI catalogue gives a real weights size, but
+  // neither its API nor its CLI publishes layer geometry.
+  const weightsOnly: ModelFacts = {
+    id: 'qwen/qwen3.8-27b',
+    providerId: 'p1',
+    weightsBytes: 29.5 * GB,
+    maxContext: 262144,
+    quantization: '8bit',
+  };
+
+  it('still says will-not-load when the weights alone overflow the machine', () => {
+    const small: HardwareFacts = {
+      devices: [{ name: 'RTX 3060', totalBytes: 12 * GB, freeBytes: 11 * GB }],
+      unified: false,
+      systemRamTotalBytes: 16 * GB,
+      systemRamFreeBytes: 8 * GB,
+    };
+    const plan = planFit(weightsOnly, req, small);
+    expect(plan.verdict).toBe('wont-load');
+    expect(codes(plan)).toContain('exceeds-total-memory');
+  });
+
+  it('says it cannot tell when the weights fit but the KV cache is unknown', () => {
+    const plan = planFit(weightsOnly, req, rtx4090);
+    expect(plan.verdict).toBe('unknown');
+    expect(codes(plan)).toContain('missing-metadata');
+    // The weights are still real and worth showing.
+    expect(plan.weightsBytes).toBe(29.5 * GB);
+    expect(plan.requiredBytes).toBeGreaterThan(29.5 * GB);
+  });
+
+  it('flags weights larger than the card even while the verdict is unknown', () => {
+    const plan = planFit(weightsOnly, req, rtx4090);
+    expect(codes(plan)).toContain('weights-exceed-device');
+  });
+});

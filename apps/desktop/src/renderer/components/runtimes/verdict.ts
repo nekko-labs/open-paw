@@ -36,9 +36,18 @@ export function verdictSentence(plan: FitPlan): string {
 
   if (plan.verdict === 'unknown') {
     const missing = reason(plan, 'missing-metadata')?.detail;
-    return missing
-      ? `Cannot tell: this server did not report the model's ${missing}.`
-      : 'Cannot tell: this server did not report enough about the model.';
+    const what = missing
+      ? `this server did not report the model's ${missing}`
+      : 'this server did not report enough about the model';
+    // When the weights are known the answer is partial, not absent, and saying so
+    // is more useful than a flat "cannot tell".
+    if (plan.weightsBytes > 0) {
+      const fitsWeights = plan.weightsBytes <= plan.deviceFreeBytes;
+      return `The weights are ${formatBytes(plan.weightsBytes)}, which ${
+        fitsWeights ? `fits in ${where}` : `is more than ${where} has free`
+      }. The total cannot be projected because ${what}.`;
+    }
+    return `Cannot tell: ${what}.`;
   }
 
   if (plan.verdict === 'wont-load') {

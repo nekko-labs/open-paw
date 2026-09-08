@@ -9,7 +9,6 @@ import {
   type StartOptions,
   type StopResult,
 } from '@kotrain/shared';
-import { headDimOf } from '@kotrain/core';
 import { isLocalhostUrl, lmsBin } from '../lms.js';
 import { apiRoot, getJson, trimUrl, type RuntimeAdapter, type RuntimeContext } from './types.js';
 
@@ -25,6 +24,22 @@ import { apiRoot, getJson, trimUrl, type RuntimeAdapter, type RuntimeContext } f
  * read but not driven, which `detect` reports as `installed: false` with a reason
  * rather than offering a button that cannot work.
  */
+
+/**
+ * `lms ls --json`. The HTTP API publishes no size at all, so this is the only
+ * source of a real weights figure for LM Studio, plus the sibling variants the
+ * planner can suggest as a smaller build.
+ */
+interface LmsListEntry {
+  type?: string;
+  modelKey?: string;
+  sizeBytes?: number;
+  paramsString?: string;
+  architecture?: string;
+  quantization?: { name?: string; bits?: number };
+  maxContextLength?: number;
+  variants?: string[];
+}
 
 interface V0Model {
   id: string;
@@ -59,6 +74,19 @@ export function createLmStudioAdapter(ctx: RuntimeContext): RuntimeAdapter {
     return json?.data ?? [];
   }
 
+  /** On-disk catalogue, keyed by the same model key the HTTP API reports. */
+  async function catalogue(baseUrl: string): Promise<Map<string, LmsListEntry>> {
+    if (!isLocalhostUrl(baseUrl)) return new Map();
+    const out = await ctx.run(lmsBin(), ['ls', '--json'], 10_000);
+    if (!out) return new Map();
+    try {
+      const entries = JSON.parse(out.slice(out.indexOf('['))) as LmsListEntry[];
+      return new Map(entries.filter((e) => e.modelKey).map((e) => [e.modelKey as string, e]));
+    } catch {
+      return new Map();
+    }
+  }
+
   return {
     kind: 'lmstudio',
     capabilities: RUNTIME_CAPABILITIES.lmstudio,
@@ -90,7 +118,8 @@ export function createLmStudioAdapter(ctx: RuntimeContext): RuntimeAdapter {
     },
 
     async listModels(baseUrl: string): Promise<ModelFacts[]> {
-      return (await models(baseUrl)).map((m) => toFacts(m, baseUrl));
+      const [live, disk] = await Promise.all([models(baseUrl), catalogue(baseUrl)]);
+      return live.map((m) => toFacts(m, baseUrl, disk.get(m.id)));
     },
 
     async start(opts: StartOptions): Promise<RuntimeStatus> {
@@ -158,17 +187,20 @@ async function gpuFlag(
   return share >= 0.999 ? 'max' : share.toFixed(2);
 }
 
-function toFacts(m: V0Model, baseUrl: string): ModelFacts {
+function toFacts(m: V0Model, baseUrl: string, disk?: LmsListEntry): ModelFacts {
   return {
     id: m.id,
     providerId: baseUrl,
-    // /api/v0/models publishes no size or geometry, so the planner will report
-    // `unknown` for LM Studio models until phase C reads GGUF metadata directly.
-    maxContext: m.max_context_length,
-    quantization: m.quantization,
+    // The HTTP API publishes no size, so the weights figure comes from the CLI
+    // catalogue. Layer geometry is available in neither, which is why an LM
+    // Studio projection reports its KV cache as unknown rather than inventing
+    // one: reading GGUF headers directly is phase C work.
+    weightsBytes: disk?.sizeBytes,
+    maxContext: m.max_context_length ?? disk?.maxContextLength ?? undefined,
+    quantization: m.quantization ?? disk?.quantization?.name,
+    parameterSize: disk?.paramsString,
     loaded: m.state === 'loaded',
-    loadedContext: m.loaded_context_length,
-    headDim: headDimOf(undefined, undefined),
+    loadedContext: m.loaded_context_length ?? undefined,
   };
 }
 

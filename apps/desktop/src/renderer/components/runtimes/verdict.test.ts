@@ -46,7 +46,11 @@ describe('verdictSentence', () => {
 
   it('admits it cannot tell, and names the missing field', () => {
     const s = verdictSentence(
-      plan({ verdict: 'unknown', reasons: [{ code: 'missing-metadata', detail: 'layer count' }] }),
+      plan({
+        verdict: 'unknown',
+        weightsBytes: 0,
+        reasons: [{ code: 'missing-metadata', detail: 'layer count' }],
+      }),
     );
     expect(s).toContain('Cannot tell');
     expect(s).toContain('layer count');
@@ -109,5 +113,43 @@ describe('formatting', () => {
     expect(formatTokens(8192)).toBe('8k');
     expect(formatTokens(131072)).toBe('128k');
     expect(formatTokens(512)).toBe('512');
+  });
+});
+
+describe('verdictSentence with partial metadata', () => {
+  it('reports the weights it does know instead of a flat cannot-tell', () => {
+    const s = verdictSentence(
+      plan({
+        verdict: 'unknown',
+        weightsBytes: 29.5 * GB,
+        kvCacheBytes: 0,
+        reasons: [{ code: 'missing-metadata', detail: 'layer count' }],
+      }),
+    );
+    // 29.5 GB of weights against 23 GB free: the weights alone already overflow,
+    // which is worth saying even though the total is unprojectable.
+    expect(s).toContain('29.5 GB');
+    expect(s).toContain('more than RTX 4090 has free');
+    expect(s).toContain('layer count');
+  });
+
+  it('says the weights fit when they do, while still admitting the total is unknown', () => {
+    const s = verdictSentence(
+      plan({
+        verdict: 'unknown',
+        weightsBytes: 10 * GB,
+        kvCacheBytes: 0,
+        reasons: [{ code: 'missing-metadata', detail: 'layer count' }],
+      }),
+    );
+    expect(s).toContain('fits in RTX 4090');
+    expect(s).toContain('cannot be projected');
+  });
+
+  it('still says cannot tell when it knows nothing at all', () => {
+    const s = verdictSentence(
+      plan({ verdict: 'unknown', weightsBytes: 0, reasons: [{ code: 'missing-metadata', detail: 'weights size' }] }),
+    );
+    expect(s).toContain('Cannot tell');
   });
 });

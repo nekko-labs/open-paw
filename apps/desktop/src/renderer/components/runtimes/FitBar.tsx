@@ -18,19 +18,38 @@ export function FitBar({ plan }: { plan: FitPlan }) {
   const pct = (bytes: number) => (bytes / scale) * 100;
   const edge = (budget / scale) * 100;
 
+  // Weights known, geometry not (the usual LM Studio case). Show the part we
+  // actually know and hatch the rest, rather than throwing away a real number
+  // because one term is missing.
   if (plan.verdict === 'unknown') {
+    const hasWeights = plan.weightsBytes > 0;
     return (
       <div className="mt-2">
         <div
-          className="h-6 w-full rounded-md"
+          className="flex h-6 w-full overflow-hidden rounded-md"
           style={{
             border: '1px dashed var(--line)',
             background:
               'repeating-linear-gradient(45deg, transparent, transparent 5px, color-mix(in srgb, var(--ink-faint) 12%, transparent) 5px, color-mix(in srgb, var(--ink-faint) 12%, transparent) 10px)',
           }}
-          title="Not enough information to project this model's memory use"
-        />
-        <p className="mt-1 text-[11px] text-ink-faint">No projection available</p>
+          title={
+            hasWeights
+              ? "The weights are known; the KV cache is not, so the total cannot be projected"
+              : "Not enough information to project this model's memory use"
+          }
+        >
+          {hasWeights && (
+            <div
+              style={{ width: `${Math.min(100, (plan.weightsBytes / budget) * 100)}%`, background: 'var(--accent)' }}
+              title={`Weights: ${formatBytes(plan.weightsBytes)}`}
+            />
+          )}
+        </div>
+        <p className="mt-1 text-[11px] text-ink-faint">
+          {hasWeights
+            ? `Weights ${formatBytes(plan.weightsBytes)} of ${formatBytes(budget)}${plan.deviceName ? ` on ${plan.deviceName}` : ''}. KV cache unknown.`
+            : 'No projection available'}
+        </p>
       </div>
     );
   }

@@ -62,13 +62,31 @@ export function computeFit(
   const missing = missingFields(facts, kv);
   if (missing.length > 0) {
     reasons.push({ code: 'missing-metadata', detail: missing.join(', ') });
+
+    // Knowing the weights but not the geometry is the common LM Studio case, and
+    // it is still worth something: the weights are a floor on what this needs, so
+    // if they alone overflow the machine we can say "will not load" with
+    // certainty. Anywhere short of that we say we cannot tell, because the KV
+    // cache is the term that decides it and we do not have it.
+    const knownFloor = facts.weightsBytes
+      ? facts.weightsBytes + estimateOverheadBytes(facts, req, opts.overheadFloorBytes)
+      : 0;
+    const ceiling = hw.unified
+      ? Math.max(budgetBytes, hw.systemRamFreeBytes)
+      : budgetBytes + Math.max(0, hw.systemRamFreeBytes - OS_RESERVE_BYTES);
+    const doomed = knownFloor > 0 && knownFloor > ceiling;
+    if (doomed) reasons.push({ code: 'exceeds-total-memory', bytes: knownFloor });
+    if (facts.weightsBytes && facts.weightsBytes > budgetBytes) {
+      reasons.push({ code: 'weights-exceed-device', bytes: facts.weightsBytes });
+    }
+
     return {
       ...base,
-      verdict: 'unknown',
+      verdict: doomed ? 'wont-load' : 'unknown',
       weightsBytes: facts.weightsBytes ?? 0,
       kvCacheBytes: kv ?? 0,
-      overheadBytes: 0,
-      requiredBytes: 0,
+      overheadBytes: facts.weightsBytes ? estimateOverheadBytes(facts, req, opts.overheadFloorBytes) : 0,
+      requiredBytes: knownFloor,
       spillBytes: 0,
       reasons,
       suggestions: [],
