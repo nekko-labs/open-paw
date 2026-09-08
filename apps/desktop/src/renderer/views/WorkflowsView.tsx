@@ -54,6 +54,16 @@ const STATUS_TONE: Record<WorkflowRunStatus, { color: string; label: string }> =
 /** Rows drawn per group before the "show all" toggle, so hundreds stay fast. */
 const ROWS_PER_GROUP = 12;
 
+/**
+ * Runs fired by an external event - a git trigger, a connector poll, or an
+ * inbound webhook - rather than by hand, a schedule, or the CLI. These are the
+ * CI-style runs, and they get a "runner" badge so they stand apart in the
+ * history. The triggerLabel itself ("GitHub · push · owner/repo") already says
+ * what fired it; the badge just marks the flavor.
+ */
+const isRunnerRun = (r: WorkflowRun): boolean =>
+  r.triggerKind === 'git' || r.triggerKind === 'connector' || r.triggerKind === 'webhook';
+
 export function WorkflowsView() {
   const pushToast = useStore((s) => s.pushToast);
   const skills = useStore((s) => s.installedSkillDefs);
@@ -223,7 +233,7 @@ export function WorkflowsView() {
             <div className="mt-4">
               <EmptyHint>
                 Nothing here yet. Start from a template: a build-and-verify loop, a reviewer that reacts to new pull
-                requests, or a nightly maintenance sweep.
+                requests, a local CI runner for your repo, or a nightly maintenance sweep.
               </EmptyHint>
               <div className="mt-3 grid gap-2 sm:grid-cols-3">
                 {WORKFLOW_TEMPLATES.filter((t) => t.id !== 'blank').map((t) => (
@@ -433,7 +443,8 @@ function WorkflowRow({
           )}
         </span>
 
-        <span className="shrink-0 text-[11px] text-ink-faint">
+        <span className="flex shrink-0 items-center gap-1.5 text-[11px] text-ink-faint">
+          {!live && last && isRunnerRun(last) && <Badge tone="info" title="Fired by an external event">runner</Badge>}
           {live
             ? 'running now'
             : last
@@ -549,6 +560,7 @@ function WorkflowDetail({ wf, runs, live }: { wf: Workflow; runs: WorkflowRun[];
                 >
                   <StatusDot color={STATUS_TONE[r.status].color} pulse={r.status === 'running'} />
                   <span className="min-w-0 flex-1 truncate">{r.triggerLabel || r.triggerKind}</span>
+                  {isRunnerRun(r) && <Badge tone="info" title="Fired by an external event">runner</Badge>}
                   <span className="shrink-0 font-mono text-[10px] text-ink-faint">{relative(r.startedAt)}</span>
                 </button>
               ))}

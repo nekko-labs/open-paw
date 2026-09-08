@@ -124,6 +124,102 @@ describe('action runners', () => {
     expect(body.context).toBe('agent-nekko/nightly-ci');
   });
 
+  it('github.setCommitStatus reads repo/sha out of a raw push webhook body', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 201 }));
+    const res = await runWorkflowAction(
+      'github.setCommitStatus',
+      cfg('github'),
+      { state: 'success' },
+      {
+        event: { kind: 'webhook', slug: 'ci', payload: { after: 'cafe01', repository: { full_name: 'acme/app' } } },
+        run: runInfo,
+      },
+    );
+    expect(res.isError).toBeUndefined();
+    const [url] = fetchMock.mock.calls[0];
+    expect(String(url)).toBe('https://api.github.com/repos/acme/app/statuses/cafe01');
+  });
+
+  it('github.setCommitStatus reads the head sha out of a raw pull_request body', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 201 }));
+    const res = await runWorkflowAction(
+      'github.setCommitStatus',
+      cfg('github'),
+      { state: 'pending' },
+      {
+        event: {
+          kind: 'webhook',
+          slug: 'ci',
+          payload: { repository: { full_name: 'acme/app' }, pull_request: { head: { sha: 'pr9sha' } } },
+        },
+        run: runInfo,
+      },
+    );
+    expect(res.isError).toBeUndefined();
+    const [url] = fetchMock.mock.calls[0];
+    expect(String(url)).toBe('https://api.github.com/repos/acme/app/statuses/pr9sha');
+  });
+
+  it('github.commentPR resolves repo and number from a raw pull_request body', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 201 }));
+    const res = await runWorkflowAction(
+      'github.commentPR',
+      cfg('github'),
+      { body: 'build failed' },
+      {
+        event: {
+          kind: 'webhook',
+          slug: 'ci',
+          payload: { repository: { full_name: 'acme/app' }, pull_request: { number: 9 } },
+        },
+        run: runInfo,
+      },
+    );
+    expect(res.isError).toBeUndefined();
+    const [url] = fetchMock.mock.calls[0];
+    expect(String(url)).toBe('https://api.github.com/repos/acme/app/issues/9/comments');
+  });
+
+  it('gitlab.commentMR resolves project and iid from a raw merge_request body', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 201 }));
+    const res = await runWorkflowAction(
+      'gitlab.commentMR',
+      cfg('gitlab', 'glpat'),
+      { body: 'pipeline failed' },
+      {
+        event: {
+          kind: 'webhook',
+          slug: 'ci',
+          payload: { project: { path_with_namespace: 'grp/app' }, object_attributes: { iid: 4 } },
+        },
+        run: runInfo,
+      },
+    );
+    expect(res.isError).toBeUndefined();
+    const [url] = fetchMock.mock.calls[0];
+    expect(String(url)).toBe('https://gitlab.com/api/v4/projects/grp%2Fapp/merge_requests/4/notes');
+  });
+
+  it('gitlab.setCommitStatus resolves project_id and the MR head commit', async () => {
+    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 200 }));
+    const res = await runWorkflowAction(
+      'gitlab.setCommitStatus',
+      cfg('gitlab', 'glpat'),
+      { state: 'failed' },
+      {
+        event: {
+          kind: 'webhook',
+          slug: 'ci',
+          payload: { project_id: 42, object_attributes: { last_commit: { id: 'glsha' } } },
+        },
+        run: runInfo,
+      },
+    );
+    expect(res.isError).toBeUndefined();
+    const [url] = fetchMock.mock.calls[0];
+    expect(String(url)).toContain('/api/v4/projects/42/statuses/glsha');
+  });
+
   it('github.setCommitStatus rejects a bad state without fetching', async () => {
     const res = await runWorkflowAction('github.setCommitStatus', cfg('github'), { repo: 'a/b', sha: 'x', state: 'bogus' }, {});
     expect(res.isError).toBe(true);

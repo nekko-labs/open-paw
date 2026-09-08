@@ -48,8 +48,8 @@
 
 ### PR 11 — `feat/git-runner`
 
-- [ ] **T6: status/comment actions** — `github.setCommitStatus`, `gitlab.setCommitStatus`, `github.commentPR`, `gitlab.commentMR` in the action registry.
-- [ ] **T7: Local CI runner template + docs** — template workflow (git trigger → checkout/merge → test → status → comment-on-fail) offered on the Workflows empty state and in the template gallery; `docs/git-runner.md` (poll vs webhook, security: per-trigger secrets, localhost default, "not an Actions-runner-protocol implementation" note); Command Center shows the runner badge on these runs.
+- [x] **T6: status/comment actions** — `github.setCommitStatus`, `gitlab.setCommitStatus`, `github.commentPR`, `gitlab.commentMR` in the action registry.
+- [x] **T7: Local CI runner template + docs** — template workflow (git trigger → checkout/merge → test → status → comment-on-fail) offered on the Workflows empty state and in the template gallery; `docs/git-runner.md` (poll vs webhook, security: per-trigger secrets, localhost default, "not an Actions-runner-protocol implementation" note); Command Center shows the runner badge on these runs.
 
 ## Self-review notes
 
