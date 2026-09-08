@@ -110,6 +110,8 @@ export function createLmStudioAdapter(ctx: RuntimeContext): RuntimeAdapter {
       return {
         kind: 'lmstudio',
         running: detection.running,
+        installed: detection.installed,
+        reason: detection.reason,
         owned: false,
         version: detection.version,
         baseUrl,

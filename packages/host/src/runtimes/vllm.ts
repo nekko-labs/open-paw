@@ -46,6 +46,7 @@ export function createVllmAdapter(ctx: RuntimeContext): RuntimeAdapter {
       return {
         kind: 'vllm',
         running: models !== null,
+        installed: false,
         owned: false,
         baseUrl,
         // vLLM serves exactly what it was launched with, so everything listed is

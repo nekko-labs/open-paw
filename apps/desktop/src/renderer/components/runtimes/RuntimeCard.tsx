@@ -105,7 +105,15 @@ export function RuntimeCard({
         )}
 
         <div className="ml-auto">
-          {caps.canStart ? (
+          {caps.canStart && status?.installed === false && !running ? (
+            <span
+              className="rounded-full border px-2 py-0.5 text-[11px] text-ink-faint"
+              style={{ borderColor: 'var(--line)' }}
+              title={status.reason}
+            >
+              Not installed
+            </span>
+          ) : caps.canStart ? (
             <button
               className="btn btn-outline py-1 text-[12px]"
               onClick={() => (running ? stop() : start())}

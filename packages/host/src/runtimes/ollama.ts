@@ -98,6 +98,8 @@ export function createOllamaAdapter(ctx: RuntimeContext): RuntimeAdapter {
       return {
         kind: 'ollama',
         running: detection.running,
+        installed: detection.installed,
+        reason: detection.reason,
         owned: false, // the supervisor overrides this for processes it started
         version: detection.version,
         baseUrl,

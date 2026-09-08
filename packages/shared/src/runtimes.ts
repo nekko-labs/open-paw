@@ -106,6 +106,10 @@ export interface ResidentModel {
 export interface RuntimeStatus {
   kind: RuntimeKind;
   running: boolean;
+  /** A binary or CLI we could start it with was found on this machine. */
+  installed?: boolean;
+  /** Why it cannot be started, when `installed` is false. */
+  reason?: string;
   /** We spawned this process and hold its handle. */
   owned: boolean;
   version?: string;
