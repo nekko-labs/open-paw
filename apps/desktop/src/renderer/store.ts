@@ -270,15 +270,21 @@ export const useStore = create<UiState>((set, get) => ({
   setOnboardingOpen: (open) => set({ onboardingOpen: open }),
 
   refreshSettings: async () => {
-    const settings = await window.kotrain.getSettings();
-    const onboardingOpen = shouldAutoOpenOnboarding(settings);
-    set({ settings, onboardingOpen, settingsLoaded: true });
-    get().applyTheme();
-    if (!get().activeProviderId && settings.defaultProviderId) {
-      set({ activeProviderId: settings.defaultProviderId, activeModelId: settings.defaultModelId ?? null });
-    }
-    if (!get().activeWorkspaceId && settings.workspaces?.[0]) {
-      set({ activeWorkspaceId: settings.workspaces[0].id });
+    try {
+      const settings = await window.kotrain.getSettings();
+      const onboardingOpen = shouldAutoOpenOnboarding(settings);
+      set({ settings, onboardingOpen, settingsLoaded: true });
+      get().applyTheme();
+      if (!get().activeProviderId && settings.defaultProviderId) {
+        set({ activeProviderId: settings.defaultProviderId, activeModelId: settings.defaultModelId ?? null });
+      }
+      if (!get().activeWorkspaceId && settings.workspaces?.[0]) {
+        set({ activeWorkspaceId: settings.workspaces[0].id });
+      }
+    } catch {
+      // Never leave the app on the loading gate: if settings can't be read,
+      // unblock the UI and let surfaces fall back to their empty states.
+      set({ settingsLoaded: true });
     }
   },
 

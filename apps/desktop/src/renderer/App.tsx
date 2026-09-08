@@ -246,6 +246,10 @@ export function App() {
         })}
       </nav>
 
+      </>)}
+
+      {/* Global overlays stay mounted even while settings load, so deep links,
+          toasts, and update banners keep working on any settings failure. */}
       <UpdateBanner />
       <RelayPairing />
       <ResourceHud />
@@ -253,7 +257,6 @@ export function App() {
       <CommandPalette />
       <DeepLinkListener />
       <Toasts />
-      </>)}
     </div>
   );
 }
