@@ -32,7 +32,8 @@ export function usageSummary(): UsageSummary {
     } catch {
       continue;
     }
-    const cost = estimateCostUSD(r.modelId, r.inputTokens, r.outputTokens);
+    // Subscription providers charge through the user's plan, not per API token.
+    const cost = r.auth === 'subscription' ? 0 : estimateCostUSD(r.modelId, r.inputTokens, r.outputTokens);
     summary.totalInput += r.inputTokens;
     summary.totalOutput += r.outputTokens;
     summary.totalCost += cost;
@@ -40,6 +41,8 @@ export function usageSummary(): UsageSummary {
     const bm = (summary.byModel[r.modelId] ??= { input: 0, output: 0 });
     bm.input += r.inputTokens;
     bm.output += r.outputTokens;
+    bm.cost = (bm.cost ?? 0) + cost;
+    if (r.auth === 'subscription') bm.subscription = true;
 
     const bp = (summary.byProvider[r.providerId] ??= { input: 0, output: 0 });
     bp.input += r.inputTokens;
@@ -49,8 +52,11 @@ export function usageSummary(): UsageSummary {
       const bs = (summary.bySession[r.sessionId] ??= { input: 0, output: 0 });
       bs.input += r.inputTokens;
       bs.output += r.outputTokens;
+      bs.cost = (bs.cost ?? 0) + cost;
       summary.bySessionCost[r.sessionId] = (summary.bySessionCost[r.sessionId] ?? 0) + cost;
     }
+
+    if (r.auth === 'subscription') summary.hasSubscriptionUsage = true;
 
     const day = new Date(r.ts).toISOString().slice(0, 10);
     const d = dailyMap.get(day) ?? { input: 0, output: 0, cost: 0 };

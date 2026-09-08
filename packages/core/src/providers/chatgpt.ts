@@ -60,12 +60,22 @@ export class ChatGptProvider implements Provider {
   }
 
   async listModels(): Promise<ModelInfo[]> {
-    return CHATGPT_MODELS.map((m) => ({
+    const custom = this.config.customModelId?.trim();
+    const all = CHATGPT_MODELS.map((m) => ({
       id: m.id,
       providerId: this.config.id,
       name: m.name,
       contextLength: m.ctx,
     }));
+    if (custom && !all.some((m) => m.id === custom)) {
+      all.push({
+        id: custom,
+        providerId: this.config.id,
+        name: `${custom} (custom)`,
+        contextLength: 128_000,
+      });
+    }
+    return all;
   }
 
   async test(): Promise<{ ok: boolean; message: string }> {

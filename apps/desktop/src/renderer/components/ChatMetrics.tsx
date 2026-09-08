@@ -17,11 +17,14 @@ const fmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1
 export function ContextGauge({
   bundle,
   cost,
+  subscription,
   skill,
   draftTokens = 0,
 }: {
   bundle: ContextBundle | null;
   cost?: number;
+  /** True when the chat runs on a subscription provider, so cost is $0. */
+  subscription?: boolean;
   /** The skill armed in the composer, folded into the token count when present. */
   skill?: { name: string; tokens: number } | null;
   /** Tokens of the unsent draft, so the gauge tracks what you're typing. */
@@ -70,11 +73,19 @@ export function ContextGauge({
           />
         </span>
       </span>
-      {cost != null && cost > 0 && (
+      {cost != null && cost > 0 ? (
         <span className="hidden sm:inline" title="Estimated cost of this chat (list prices; local models are free)">
           · {formatUSD(cost)}
         </span>
-      )}
+      ) : subscription ? (
+        <span
+          className="hidden sm:inline"
+          title="Runs on a subscription plan; no per-token API cost."
+          aria-label="Runs on a subscription plan; no per-token API cost."
+        >
+          · Subscription
+        </span>
+      ) : null}
       {/* Expanded breakdown: segmented bar + per-source rows with %, plus free space. */}
       <div
         className="pointer-events-none absolute bottom-7 left-0 z-40 hidden w-72 rounded-xl border border-line p-3 text-[11px] shadow-lg group-hover:block group-focus-within:block"

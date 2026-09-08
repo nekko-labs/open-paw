@@ -79,6 +79,7 @@ export function CommandCenterView() {
   const todayKey = new Date().toISOString().slice(0, 10);
   const todayTokens = usage?.daily.find((d) => d.date === todayKey);
   const tokensToday = todayTokens ? todayTokens.input + todayTokens.output : 0;
+  const isSubscriptionSpend = !!usage?.hasSubscriptionUsage && (usage?.totalCost ?? 0) === 0;
 
   const isRunningSession = useMemo(
     () => (s: Session) => running.has(s.id) || (childrenOf.get(s.id) ?? []).some((k) => running.has(k.id)),
@@ -151,7 +152,7 @@ export function CommandCenterView() {
           <StatDivider />
           <Stat value={tokensToday.toLocaleString()} label="tokens today" />
           <StatDivider />
-          <Stat value={formatUSD(usage?.totalCost ?? 0)} label="est. spend" />
+          <Stat value={isSubscriptionSpend ? 'Subscription' : formatUSD(usage?.totalCost ?? 0)} label="est. spend" />
         </div>
 
         {/* NOW — what is being worked on this second. */}
@@ -621,7 +622,7 @@ function InsightsSection({
       <p className="mt-1 text-[12px] text-ink-faint">{DESC[tab]}</p>
       <div className="mt-3">
         {tab === 'optimize' && <OptimizePanel tips={tips} onOpenModels={onOpenModels} />}
-        {tab === 'cost' && <CostPanel usage={usage} sessions={sessions} />}
+        {tab === 'cost' && <CostPanel usage={usage} sessions={sessions} providers={providers} />}
         {tab === 'usage' && <UsagePanel usage={usage} />}
         {tab === 'services' && <ServicesPanel providers={providers} usage={usage} />}
       </div>
@@ -695,15 +696,19 @@ function UsagePanel({ usage }: { usage: UsageSummary | null }) {
       )}
       {Object.keys(usage.byModel).length > 0 && (
         <div className="mt-4 space-y-1">
-          {Object.entries(usage.byModel).map(([model, v]) => (
-            <div key={model} className="flex justify-between gap-3 text-[12px]">
-              <span className="truncate font-mono text-ink-soft">{model}</span>
-              <span className="shrink-0 tabular-nums text-ink-faint">
-                {(v.input + v.output).toLocaleString()} tok
-                <span className="ml-2 text-ink">{formatUSD(estimateCostUSD(model, v.input, v.output))}</span>
-              </span>
-            </div>
-          ))}
+          {Object.entries(usage.byModel).map(([model, v]) => {
+            const cost = v.cost ?? estimateCostUSD(model, v.input, v.output);
+            const costLabel = cost > 0 ? formatUSD(cost) : v.subscription ? 'Subscription' : formatUSD(0);
+            return (
+              <div key={model} className="flex justify-between gap-3 text-[12px]">
+                <span className="truncate font-mono text-ink-soft" title={v.subscription ? 'Included in a subscription plan' : undefined}>{model}</span>
+                <span className="shrink-0 tabular-nums text-ink-faint" title={v.subscription ? 'No per-token API cost for subscription usage' : undefined}>
+                  {(v.input + v.output).toLocaleString()} tok
+                  <span className="ml-2 text-ink">{costLabel}</span>
+                </span>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -727,9 +732,9 @@ function ChartEmpty({ message, bars = 12 }: { message: string; bars?: number }) 
 }
 
 /** Cost breakdowns: monthly actual + projection, per-agent, per-model, and pricing. */
-function CostPanel({ usage, sessions }: { usage: UsageSummary | null; sessions: Session[] }) {
+function CostPanel({ usage, sessions, providers }: { usage: UsageSummary | null; sessions: Session[]; providers: ProviderConfig[] }) {
   const titleOf = (id: string) => sessions.find((s) => s.id === id)?.title ?? 'Chat';
-  const hasData = !!usage && (usage.totalCost ?? 0) > 0.0000001;
+  const hasData = !!usage && ((usage.totalCost ?? 0) > 0.0000001 || !!usage.hasSubscriptionUsage);
 
   // This month's actual + a simple linear projection to month-end.
   const monthKey = new Date().toISOString().slice(0, 7);
@@ -749,6 +754,18 @@ function CostPanel({ usage, sessions }: { usage: UsageSummary | null; sessions: 
 
   const recentCost = (usage?.daily ?? []).slice(-30);
   const maxDayCost = Math.max(0.0001, ...recentCost.map((d) => d.cost ?? 0));
+
+  const subscriptionChats = useMemo(() => {
+    if (!usage?.hasSubscriptionUsage) return [] as Session[];
+    return sessions.filter((s) => {
+      const t = usage.bySession[s.id];
+      const p = providers.find((p) => p.id === s.providerId);
+      return p?.auth === 'subscription' && t && t.input + t.output > 0;
+    });
+  }, [usage, sessions, providers]);
+  const subscriptionTokens = useMemo(() =>
+    subscriptionChats.reduce((n, s) => n + (usage?.bySession[s.id]?.input ?? 0) + (usage?.bySession[s.id]?.output ?? 0), 0),
+  [subscriptionChats, usage]);
 
   return (
     <>
@@ -797,6 +814,14 @@ function CostPanel({ usage, sessions }: { usage: UsageSummary | null; sessions: 
               </div>
             </div>
           )}
+          {subscriptionChats.length > 0 && topAgents.length === 0 && (
+            <div className="card mt-3 p-4">
+              <div className="text-[12px] font-medium">By agent</div>
+              <div className="mt-2 text-[12px] text-ink-soft">
+                {subscriptionChats.length} chat{subscriptionChats.length === 1 ? '' : 's'} ran on a subscription plan ({subscriptionTokens.toLocaleString()} tok). No API spend to show.
+              </div>
+            </div>
+          )}
         </>
       )}
 
@@ -811,7 +836,7 @@ function CostPanel({ usage, sessions }: { usage: UsageSummary | null; sessions: 
             </div>
           ))}
         </div>
-        <p className="mt-2 text-[11px] text-ink-faint">Published list prices, matched by model id. Estimates only, your billed amount may differ. Local models (Ollama / LM Studio / vLLM) cost $0.</p>
+        <p className="mt-2 text-[11px] text-ink-faint">Published list prices, matched by model id. Estimates only, your billed amount may differ. Local models (Ollama / LM Studio / vLLM) and subscription providers (Claude / ChatGPT plans) cost $0.</p>
       </details>
     </>
   );

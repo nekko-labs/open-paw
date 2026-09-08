@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { AgentEvent, AutoQuality, ChatMessage, Session, ToolCall, ContextBundle, IndexedFile, ModelInfo, SkillDef, PrInfo } from '@kotrain/shared';
-import { estimateCostUSD, pickAutoModel, AUTO_MODEL_ID, AUTO_QUALITIES, AUTO_QUALITY_META, matchSkills, estimateTokens, modelSupportsThinking, getSessionWorkspaceIds, extractPrUrls, collectSessionPrUrls, detectSessionWorkspace, decodeRate, formatRate, hasResumableProgress } from '@kotrain/shared';
+import { pickAutoModel, AUTO_MODEL_ID, AUTO_QUALITIES, AUTO_QUALITY_META, matchSkills, estimateTokens, modelSupportsThinking, getSessionWorkspaceIds, extractPrUrls, collectSessionPrUrls, detectSessionWorkspace, decodeRate, formatRate, hasResumableProgress } from '@kotrain/shared';
 import { useStore } from '../store.js';
 import { clearDraft, loadDraft, saveDraft } from '../composerDrafts.js';
 import { Markdown } from './Markdown.js';
@@ -340,11 +340,11 @@ export function ChatPane({ sessionId, onRunningChange }: { sessionId: string; on
     }).catch(() => { setModels([]); setModelsLoaded(true); });
   }, [providerId]);
 
-  // Per-chat estimated cost.
+  // Per-chat estimated cost. usageSummary already zeroes subscription providers.
   useEffect(() => {
     window.kotrain.getUsageSummary().then((u) => {
       const s = u.bySession[sessionId];
-      setCost(s ? estimateCostUSD(session?.modelId, s.input, s.output) : 0);
+      setCost(s ? (s.cost ?? 0) : 0);
     }).catch(() => setCost(0));
   }, [sessionId, session?.modelId, session?.messages.length]);
 
@@ -985,6 +985,7 @@ export function ChatPane({ sessionId, onRunningChange }: { sessionId: string; on
   };
 
   const isCloudModel = !LOCAL_KINDS.includes(providers.find((p) => p.id === providerId)?.kind ?? '');
+  const isSubscription = providers.some((p) => p.id === session?.providerId && p.auth === 'subscription');
   // Reasoning toggle: offered only for a concrete, reasoning-capable model.
   const selectedModelInfo = modelId && modelId !== AUTO_MODEL_ID ? models.find((m) => m.id === modelId) : undefined;
   const thinkingSupported = !!modelId && modelId !== AUTO_MODEL_ID && modelSupportsThinking({ id: modelId, name: selectedModelInfo?.name });
@@ -1601,6 +1602,7 @@ export function ChatPane({ sessionId, onRunningChange }: { sessionId: string; on
                   <ContextGauge
                     bundle={ctx}
                     cost={cost}
+                    subscription={isSubscription}
                     skill={activeSkill ? { name: activeSkill.name, tokens: estimateTokens(activeSkill.template) } : null}
                     draftTokens={draft.trim() ? estimateTokens(draft) : 0}
                   />

@@ -51,9 +51,10 @@ export function optimizationTips(input: InsightsInput, limit = 5): OptimizationT
 
   const hasLocal = providers.some((p) => p.enabled && LOCAL_KINDS.includes(p.kind));
 
-  // Per-model cost, to find the biggest spender.
+  // Per-model cost, to find the biggest spender. Prefer the pre-computed
+  // value from usageSummary, which zeroes subscription providers.
   const modelCosts = Object.entries(usage.byModel)
-    .map(([model, v]) => ({ model, cost: estimateCostUSD(model, v.input, v.output), tokens: v.input + v.output }))
+    .map(([model, v]) => ({ model, cost: v.cost ?? estimateCostUSD(model, v.input, v.output), tokens: v.input + v.output }))
     .filter((m) => m.cost > 0)
     .sort((a, b) => b.cost - a.cost);
   const totalCost = modelCosts.reduce((s, m) => s + m.cost, 0);
@@ -69,21 +70,19 @@ export function optimizationTips(input: InsightsInput, limit = 5): OptimizationT
     });
   }
 
-  // 2. Expensive model on short chats.
-  const pricedSessions = sessions.filter((s) => {
+  // 2. Expensive model on short chats. Prefer pre-computed session cost
+  // (which is $0 for subscription providers) so we don't flag them.
+  const sessionCost = (s: Session) => {
     const t = usage.bySession[s.id];
-    return t && estimateCostUSD(s.modelId, t.input, t.output) > 0;
-  });
+    return t ? (t.cost ?? estimateCostUSD(s.modelId, t.input, t.output)) : 0;
+  };
+  const pricedSessions = sessions.filter((s) => sessionCost(s) > 0);
   const shortExpensive = pricedSessions.filter((s) => {
     const msgs = s.messages.filter((m) => m.role === 'user' || m.role === 'assistant').length;
-    const t = usage.bySession[s.id]!;
-    return msgs <= 4 && estimateCostUSD(s.modelId, t.input, t.output) > 0.02;
+    return msgs <= 4 && sessionCost(s) > 0.02;
   });
   if (shortExpensive.length >= 2) {
-    const spend = shortExpensive.reduce((sum, s) => {
-      const t = usage.bySession[s.id]!;
-      return sum + estimateCostUSD(s.modelId, t.input, t.output);
-    }, 0);
+    const spend = shortExpensive.reduce((sum, s) => sum + sessionCost(s), 0);
     const alt = cheaperAlternative(shortExpensive[0].modelId ?? '');
     tips.push({
       id: 'cheaper-for-short',

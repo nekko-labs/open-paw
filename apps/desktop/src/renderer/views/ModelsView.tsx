@@ -18,6 +18,23 @@ const KINDS: ProviderKind[] = [
 ];
 const isLocal = (k: ProviderKind) => isLocalProvider(k);
 
+/** Format a subscription session expiry as a short, human-readable note. */
+function formatExpiry(expiresAt?: number): string | null {
+  if (!expiresAt) return null;
+  const now = Date.now();
+  const delta = expiresAt - now;
+  if (delta <= 0) return 'Session expired';
+  const mins = Math.ceil(delta / 60_000);
+  if (mins < 60) return `Session expires in ${mins}m`;
+  const hours = Math.floor(delta / 3_600_000);
+  if (hours < 24) {
+    const rem = Math.floor((delta % 3_600_000) / 60_000);
+    return `Session expires in ${hours}h ${rem}m`;
+  }
+  const days = Math.floor(delta / 86_400_000);
+  return `Session expires in ${days} day${days === 1 ? '' : 's'}`;
+}
+
 /** Provider kinds whose primary path is a subscription sign-in, mapped to the
  *  OAuth provider they sign in through. */
 const SUBSCRIPTION_KINDS: Partial<Record<ProviderKind, OAuthProvider>> = {
@@ -141,6 +158,8 @@ function AddProvider({ onDone }: { onDone: () => void }) {
   // field hides behind a quiet disclosure until the user asks for it. ChatGPT
   // is subscription-only, so it has no API-key disclosure at all.
   const [useApiKey, setUseApiKey] = useState(false);
+  // Free-text ChatGPT model override, for model ids not in the curated list.
+  const [customModelId, setCustomModelId] = useState('');
   const oauthProvider = SUBSCRIPTION_KINDS[kind];
 
   const pick = (k: ProviderKind) => {
@@ -149,6 +168,7 @@ function AddProvider({ onDone }: { onDone: () => void }) {
     setLabel(PROVIDER_DEFAULTS[k].label);
     setUseApiKey(false);
     setApiKey('');
+    setCustomModelId('');
   };
 
   const [testing, setTesting] = useState(false);
@@ -167,6 +187,7 @@ function AddProvider({ onDone }: { onDone: () => void }) {
       auth: 'subscription',
       tokenKey: status.tokenKey,
       accountId: status.accountId,
+      customModelId: chatgpt ? customModelId.trim() || undefined : undefined,
       enabled: true,
     });
     pushToast('success', `Signed in with your ${chatgpt ? 'ChatGPT' : 'Claude'} subscription.`);
@@ -234,6 +255,17 @@ function AddProvider({ onDone }: { onDone: () => void }) {
             <div className="mt-2.5">
               <SubscriptionSignIn oauthProvider={oauthProvider} onConnected={connectSubscription} />
             </div>
+            {kind === 'chatgpt' && (
+              <label className="mt-3 block text-[12px] font-medium text-ink-soft">
+                Custom model id (optional)
+                <input
+                  className="input mt-1 text-[12px]"
+                  value={customModelId}
+                  onChange={(e) => setCustomModelId(e.target.value)}
+                  placeholder="Override the curated list, e.g. gpt-5-codex"
+                />
+              </label>
+            )}
           </div>
         )}
         {PROVIDER_DEFAULTS[kind].needsKey && (kind !== 'anthropic' || useApiKey) && (
@@ -296,8 +328,14 @@ function ProviderCard({ provider, onChanged }: { provider: ProviderConfig; onCha
   // ever sees this sanitized status (connected/account/expiry, never a token).
   const subscription = provider.auth === 'subscription';
   const [sub, setSub] = useState<OAuthStatus | null>(null);
+  const [relinking, setRelinking] = useState(false);
+  const [customModel, setCustomModel] = useState(provider.customModelId ?? '');
   const subName = provider.kind === 'chatgpt' ? 'ChatGPT' : 'Claude';
   const subOAuthProvider: OAuthProvider = provider.kind === 'chatgpt' ? 'chatgpt' : 'claude';
+
+  useEffect(() => {
+    setCustomModel(provider.customModelId ?? '');
+  }, [provider.customModelId]);
 
   const isFavorite = (key: string) => (settings?.favoriteModels ?? []).includes(key);
   const toggleFavorite = async (key: string) => {
@@ -340,6 +378,7 @@ function ProviderCard({ provider, onChanged }: { provider: ProviderConfig; onCha
   }, [subscription, provider.tokenKey]);
 
   const signOutSubscription = async () => {
+    setRelinking(false);
     await window.kotrain.oauthSignOut(provider.id);
     setSub(await window.kotrain.oauthStatus(provider.id).catch(() => null));
     pushToast('info', `Signed out of the ${subName} subscription.`);
@@ -348,6 +387,7 @@ function ProviderCard({ provider, onChanged }: { provider: ProviderConfig; onCha
   // A re-auth (or a first connect on an existing card) returns a new tokenKey;
   // fold it onto the provider and re-check status against the saved config.
   const relinkSubscription = async (status: OAuthStatus) => {
+    setRelinking(false);
     // A re-auth can land under a different tokenKey; sign the old one out
     // before repointing the provider so it doesn't linger in the host store.
     if (provider.tokenKey && provider.tokenKey !== status.tokenKey) {
@@ -362,6 +402,18 @@ function ProviderCard({ provider, onChanged }: { provider: ProviderConfig; onCha
     setSub(await window.kotrain.oauthStatus(provider.id).catch(() => null));
     pushToast('success', `Signed in with your ${subName} subscription.`);
     onChanged();
+  };
+
+  // Persist a chatgpt custom model override without disturbing the rest of the card.
+  const saveCustomModel = async (next: string) => {
+    const trimmed = next.trim();
+    if (trimmed === (provider.customModelId ?? '')) return;
+    await window.kotrain.saveProvider({
+      ...provider,
+      customModelId: trimmed || undefined,
+    });
+    onChanged();
+    load();
   };
 
   // While connected, refresh the loaded state periodically — local servers
@@ -470,16 +522,54 @@ function ProviderCard({ provider, onChanged }: { provider: ProviderConfig; onCha
           {sub === null ? (
             <span className="text-ink-faint">Checking sign-in…</span>
           ) : sub.connected ? (
-            <div className="flex items-center justify-between gap-2">
-              <span className="inline-flex min-w-0 items-center gap-1.5 text-ink-soft">
-                <CheckIcon className="h-3.5 w-3.5 shrink-0 text-success" />
-                <span className="truncate">
-                  Signed in with {subName}{provider.accountId ? ` · ${provider.accountId}` : ''}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="inline-flex min-w-0 items-center gap-1.5 text-ink-soft">
+                  <CheckIcon className="h-3.5 w-3.5 shrink-0 text-success" />
+                  <span className="truncate">
+                    Signed in with {subName}{provider.accountId ? ` · ${provider.accountId}` : ''}
+                  </span>
                 </span>
-              </span>
-              <button className="shrink-0 text-ink-faint hover:text-ink" onClick={() => void signOutSubscription()}>
-                Sign out
-              </button>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    className="text-ink-faint hover:text-ink"
+                    onClick={() => setRelinking(true)}
+                  >
+                    Re-authenticate
+                  </button>
+                  <span className="text-ink-faint">·</span>
+                  <button className="text-ink-faint hover:text-ink" onClick={() => void signOutSubscription()}>
+                    Sign out
+                  </button>
+                </div>
+              </div>
+              {sub.expiresAt && (
+                <p style={{ color: (sub.expiresAt - Date.now()) < 3_600_000 ? 'var(--warning)' : 'var(--ink-faint)' }}>
+                  {formatExpiry(sub.expiresAt)}
+                </p>
+              )}
+              {relinking && (
+                <div className="space-y-2 pt-1">
+                  <p className="text-ink-faint">Sign in again to refresh the session or switch accounts.</p>
+                  <SubscriptionSignIn
+                    oauthProvider={subOAuthProvider}
+                    label={`Sign in with ${subName}`}
+                    onConnected={relinkSubscription}
+                  />
+                </div>
+              )}
+              {provider.kind === 'chatgpt' && (
+                <label className="mt-2 block text-[12px] font-medium text-ink-soft">
+                  Custom model id (optional)
+                  <input
+                    className="input mt-1 text-[12px]"
+                    value={customModel}
+                    onChange={(e) => setCustomModel(e.target.value)}
+                    onBlur={(e) => void saveCustomModel(e.target.value)}
+                    placeholder="Override the curated list, e.g. gpt-5-codex"
+                  />
+                </label>
+              )}
             </div>
           ) : (
             <div className="space-y-2">
