@@ -512,6 +512,7 @@ export async function sendChat(opts: SendOptions, send: Sender): Promise<void> {
             inputTokens: event.inputTokens,
             outputTokens: event.outputTokens,
             sessionId: opts.sessionId,
+            auth: provider.auth,
           });
         }
         // Checkpoint after every completed step, not just at the end. The agent

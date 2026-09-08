@@ -152,6 +152,8 @@ export interface UsageRecord {
   inputTokens: number;
   outputTokens: number;
   sessionId: string;
+  /** Subscription providers bill the user through their plan, not per token. */
+  auth?: 'apikey' | 'subscription';
 }
 
 export interface UsageSummary {
@@ -159,14 +161,16 @@ export interface UsageSummary {
   totalOutput: number;
   /** Estimated total spend (USD) over all recorded usage. */
   totalCost: number;
-  byModel: Record<string, { input: number; output: number }>;
+  byModel: Record<string, { input: number; output: number; cost?: number; subscription?: boolean }>;
   byProvider: Record<string, { input: number; output: number }>;
   /** Per-session token totals (keyed by sessionId) for per-chat cost. */
-  bySession: Record<string, { input: number; output: number }>;
+  bySession: Record<string, { input: number; output: number; cost?: number }>;
   /** Per-session estimated spend (USD), accurate to the model used per record. */
   bySessionCost: Record<string, number>;
   /** Daily buckets (YYYY-MM-DD → tokens + estimated cost) for the charts. */
   daily: Array<{ date: string; input: number; output: number; cost: number }>;
+  /** True if any recorded usage came from a subscription provider. */
+  hasSubscriptionUsage?: boolean;
 }
 
 /**

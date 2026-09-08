@@ -27,6 +27,8 @@ export interface ProviderConfig {
   tokenKey?: string;
   /** Whether this provider was auto-discovered on the local network. */
   discovered?: boolean;
+  /** Free-text model id override, currently used by the ChatGPT provider. */
+  customModelId?: string;
   enabled: boolean;
 }
 
