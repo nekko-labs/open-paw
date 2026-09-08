@@ -1,13 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { AgentEvent, ProviderConfig, Session, TerminalInfo, UsageSummary, AutomationTask } from '@kotrain/shared';
 import type { RemoteStatus } from '@kotrain/shared';
-import { estimateCostUSD, formatUSD, optimizationTips, MODEL_PRICING, taskCadence, classifySession, classifyAgent } from '@kotrain/shared';
+import { estimateCostUSD, formatUSD, optimizationTips, MODEL_PRICING, taskCadence, classifySession, classifyAgent, isLocalProvider } from '@kotrain/shared';
 import type { OptimizationTip, AgentType } from '@kotrain/shared';
 import { useStore } from '../store.js';
 import { Badge, EmptyHint, PanelList } from '../components/primitives/index.js';
 import { ChatIcon, ServerIcon, PlusIcon, CheckIcon, TerminalIcon, RobotIcon, TrashIcon } from '../icons.js';
 
-const LOCAL_KINDS = ['ollama', 'lmstudio', 'vllm', 'openai-compat'];
 const HOUR = 60 * 60_000;
 
 export function CommandCenterView() {
@@ -881,7 +880,7 @@ function WorkerCard({ provider, tokens }: { provider: ProviderConfig; tokens?: {
     window.kotrain.testProvider(provider.id).then((r) => setState(r.ok ? 'online' : 'offline')).catch(() => setState('offline'));
   }, [provider.id]);
   const total = tokens ? tokens.input + tokens.output : 0;
-  const isLocal = LOCAL_KINDS.includes(provider.kind);
+  const isLocal = isLocalProvider(provider.kind);
   return (
     <div className="card p-4">
       <div className="flex items-center justify-between">

@@ -20,6 +20,7 @@ export function createDispatcher(host: Host): (channel: string, args: any[]) => 
     [C.providersSave]: ([p]) => host.saveProvider(p),
     [C.providersRemove]: ([id]) => host.removeProvider(id),
     [C.providersDiscover]: () => host.discoverProviders(),
+    [C.providersProbe]: () => host.probeProviders(),
     [C.providersTest]: ([id]) => host.testProvider(id),
     [C.providersTestConfig]: ([cfg]) => host.testProviderConfig(cfg),
 

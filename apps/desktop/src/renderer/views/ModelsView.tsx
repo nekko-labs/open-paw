@@ -1,21 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import type { ModelInfo, OAuthProvider, OAuthStatus, ProviderConfig, ProviderKind } from '@kotrain/shared';
-import { PROVIDER_DEFAULTS, isLocalProvider } from '@kotrain/shared';
+import { isLocalProvider } from '@kotrain/shared';
 import { useStore } from '../store.js';
 import { Badge } from '../components/primitives/index.js';
 import { SubscriptionSignIn } from '../components/SubscriptionSignIn.js';
+import { AddProvider } from '../components/providers/AddProvider.js';
 import { PlusIcon, TrashIcon, CheckIcon, StarIcon } from '../icons.js';
 
-const KINDS: ProviderKind[] = [
-  'ollama',
-  'lmstudio',
-  'vllm',
-  'anthropic',
-  'chatgpt',
-  'openai',
-  'openrouter',
-  'openai-compat',
-];
 const isLocal = (k: ProviderKind) => isLocalProvider(k);
 
 /** Format a subscription session expiry as a short, human-readable note. */
@@ -34,13 +25,6 @@ function formatExpiry(expiresAt?: number): string | null {
   const days = Math.floor(delta / 86_400_000);
   return `Session expires in ${days} day${days === 1 ? '' : 's'}`;
 }
-
-/** Provider kinds whose primary path is a subscription sign-in, mapped to the
- *  OAuth provider they sign in through. */
-const SUBSCRIPTION_KINDS: Partial<Record<ProviderKind, OAuthProvider>> = {
-  anthropic: 'claude',
-  chatgpt: 'chatgpt',
-};
 
 export function ModelsView() {
   const { providers, refreshProviders, pushToast } = useStore();
@@ -145,169 +129,6 @@ function ProviderSection({
         ))}
       </div>
     </section>
-  );
-}
-
-function AddProvider({ onDone }: { onDone: () => void }) {
-  const pushToast = useStore((s) => s.pushToast);
-  const [kind, setKind] = useState<ProviderKind>('ollama');
-  const [label, setLabel] = useState('');
-  const [baseUrl, setBaseUrl] = useState(PROVIDER_DEFAULTS.ollama.baseUrl);
-  const [apiKey, setApiKey] = useState('');
-  // For Anthropic the subscription sign-in is the primary path; the API key
-  // field hides behind a quiet disclosure until the user asks for it. ChatGPT
-  // is subscription-only, so it has no API-key disclosure at all.
-  const [useApiKey, setUseApiKey] = useState(false);
-  // Free-text ChatGPT model override, for model ids not in the curated list.
-  const [customModelId, setCustomModelId] = useState('');
-  const oauthProvider = SUBSCRIPTION_KINDS[kind];
-
-  const pick = (k: ProviderKind) => {
-    setKind(k);
-    setBaseUrl(PROVIDER_DEFAULTS[k].baseUrl);
-    setLabel(PROVIDER_DEFAULTS[k].label);
-    setUseApiKey(false);
-    setApiKey('');
-    setCustomModelId('');
-  };
-
-  const [testing, setTesting] = useState(false);
-  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
-
-  // A completed sign-in only hands back a sanitized status (tokenKey, not the
-  // token). The provider saves with auth: 'subscription'; the host injects the
-  // fresh access token at request time.
-  const connectSubscription = async (status: OAuthStatus) => {
-    const chatgpt = status.provider === 'chatgpt' || kind === 'chatgpt';
-    await window.kotrain.saveProvider({
-      id: `${chatgpt ? 'chatgpt' : 'anthropic'}-${Date.now().toString(36)}`,
-      kind: chatgpt ? 'chatgpt' : 'anthropic',
-      label: label || (chatgpt ? 'ChatGPT (subscription)' : 'Claude (subscription)'),
-      baseUrl,
-      auth: 'subscription',
-      tokenKey: status.tokenKey,
-      accountId: status.accountId,
-      customModelId: chatgpt ? customModelId.trim() || undefined : undefined,
-      enabled: true,
-    });
-    pushToast('success', `Signed in with your ${chatgpt ? 'ChatGPT' : 'Claude'} subscription.`);
-    onDone();
-  };
-
-  const draft = (): ProviderConfig => ({
-    id: `${kind}-${Date.now().toString(36)}`,
-    kind,
-    label: label || PROVIDER_DEFAULTS[kind].label,
-    baseUrl,
-    apiKey: apiKey || undefined,
-    enabled: true,
-  });
-
-  const test = async () => {
-    setTesting(true);
-    setResult(null);
-    const r = await window.kotrain.testProviderConfig(draft());
-    setResult(r);
-    setTesting(false);
-  };
-
-  const save = async () => {
-    await window.kotrain.saveProvider(draft());
-    onDone();
-  };
-
-  return (
-    <div className="card mt-5 p-5">
-      <div className="grid grid-cols-2 gap-3">
-        <label className="col-span-2 text-[12px] font-medium text-ink-soft">
-          Provider type
-          <div className="mt-1 flex flex-wrap gap-2">
-            {KINDS.map((k) => (
-              <button
-                key={k}
-                onClick={() => pick(k)}
-                className={`chip ${kind === k ? 'text-white!' : ''}`}
-                style={kind === k ? { background: 'var(--accent)' } : undefined}
-              >
-                {PROVIDER_DEFAULTS[k].label}
-              </button>
-            ))}
-          </div>
-        </label>
-        <label className="text-[12px] font-medium text-ink-soft">
-          Label
-          <input className="input mt-1" value={label} onChange={(e) => setLabel(e.target.value)} placeholder={PROVIDER_DEFAULTS[kind].label} />
-        </label>
-        <label className="text-[12px] font-medium text-ink-soft">
-          Base URL
-          <input className="input mt-1" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
-        </label>
-        {oauthProvider && (
-          <div className="col-span-2 rounded-xl border p-4" style={{ borderColor: 'var(--line)', background: 'var(--surface-2)' }}>
-            <p className="text-[13px] font-medium">
-              Use your {oauthProvider === 'claude' ? 'Claude' : 'ChatGPT'} subscription
-            </p>
-            <p className="mt-0.5 text-[12px] text-ink-faint">
-              {oauthProvider === 'claude'
-                ? 'Sign in with your Claude Pro or Max account to run on your existing plan, with no API usage fees.'
-                : 'Sign in with your ChatGPT Plus, Pro, or Business account to run on your existing plan, with no API usage fees.'}
-            </p>
-            <div className="mt-2.5">
-              <SubscriptionSignIn oauthProvider={oauthProvider} onConnected={connectSubscription} />
-            </div>
-            {kind === 'chatgpt' && (
-              <label className="mt-3 block text-[12px] font-medium text-ink-soft">
-                Custom model id (optional)
-                <input
-                  className="input mt-1 text-[12px]"
-                  value={customModelId}
-                  onChange={(e) => setCustomModelId(e.target.value)}
-                  placeholder="Override the curated list, e.g. gpt-5-codex"
-                />
-              </label>
-            )}
-          </div>
-        )}
-        {PROVIDER_DEFAULTS[kind].needsKey && (kind !== 'anthropic' || useApiKey) && (
-          <label className="col-span-2 text-[12px] font-medium text-ink-soft">
-            API key
-            <input className="input mt-1" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-…" />
-          </label>
-        )}
-        {kind === 'anthropic' && (
-          <button
-            className="col-span-2 justify-self-start text-[12px] text-ink-faint hover:text-ink"
-            onClick={() => setUseApiKey((v) => !v)}
-          >
-            {useApiKey ? 'Back to subscription sign-in' : 'Use an API key instead (billed per token)'}
-          </button>
-        )}
-      </div>
-      <div className="mt-4 flex items-center justify-between gap-2">
-        <div className="min-w-0 text-[12px]">
-          {result && (
-            <span style={{ color: result.ok ? 'var(--success)' : 'var(--danger)' }} className="inline-flex items-center gap-1.5">
-              {result.ok && <CheckIcon className="h-3.5 w-3.5" />}
-              {result.ok ? 'Connected' : result.message}
-            </span>
-          )}
-        </div>
-        <div className="flex shrink-0 gap-2">
-          <button className="btn btn-ghost" onClick={onDone}>Cancel</button>
-          {/* For Anthropic the subscription sign-in completes the add itself;
-              test/save only make sense once the API-key path is revealed.
-              ChatGPT has no API-key path, so its sign-in always completes. */}
-          {(oauthProvider === undefined || (kind === 'anthropic' && useApiKey)) && (
-            <>
-              <button className="btn btn-outline" onClick={test} disabled={testing}>
-                {testing ? 'Testing…' : 'Test connection'}
-              </button>
-              <button className="btn btn-primary" onClick={save}>Save provider</button>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
   );
 }
 

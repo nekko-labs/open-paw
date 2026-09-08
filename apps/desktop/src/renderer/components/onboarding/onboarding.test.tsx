@@ -1,7 +1,7 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import type { AppSettings } from '@kotrain/shared';
+import type { AppSettings, OAuthStatus, ProviderConfig } from '@kotrain/shared';
 import { ONBOARDING_VERSION } from '@kotrain/shared';
 import { WizardShell } from './WizardShell.js';
 import { WelcomeStep } from './WelcomeStep.js';
@@ -20,14 +20,27 @@ vi.hoisted(() => {
   };
 });
 
+// The wizard steps read slices of the store; tests seed the slices they assert
+// on (e.g. an existing provider for the dedup check). Effects never run under
+// renderToStaticMarkup, so IPC methods are never needed here.
+const mockStoreState = vi.hoisted(() => ({
+  settings: null as AppSettings | null,
+  providers: [] as ProviderConfig[],
+  setView: () => {},
+  newChat: () => Promise.resolve(),
+  applyTheme: () => {},
+  refreshProviders: () => Promise.resolve(),
+  refreshSettings: () => Promise.resolve(),
+  pushToast: () => {},
+  setOnboardingOpen: () => {},
+}));
+
 vi.mock('../../store.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../store.js')>()
   return {
     ...actual,
-    useStore: (selector?: (s: unknown) => unknown) => {
-      const state = { settings: null, providers: [], setView: vi.fn(), newChat: vi.fn(), applyTheme: vi.fn() };
-      return selector ? selector(state) : state;
-    },
+    useStore: (selector?: (s: unknown) => unknown) =>
+      selector ? selector(mockStoreState) : mockStoreState,
   };
 });
 
@@ -125,13 +138,94 @@ describe('onboarding step content', () => {
     expect(html).toContain('aria-label="Nekko"');
   });
 
-  it('keeps the placeholder steps honest about landing later', () => {
-    const providers = renderToStaticMarkup(<ProvidersStep />);
-    expect(providers).toContain('Connect a model');
-    expect(providers).toContain('Models tab');
+  it('offers the online options, a local scan, and the Agent Nekko deep link', () => {
+    mockStoreState.providers = [];
+    const html = renderToStaticMarkup(<ProvidersStep />);
+    expect(html).toContain('Connect a model');
+    expect(html).toContain('>Claude<');
+    expect(html).toContain('>ChatGPT / OpenAI<');
+    expect(html).toContain('OpenRouter');
+    expect(html).toContain('OpenAI-compatible');
+    expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain('Agent Nekko');
+    expect(html).toContain('Open Models');
+    expect(html).toContain('Models tab');
+    // The local probe runs on mount; SSR shows the in-flight state.
+    expect(html).toContain('Checking for Ollama, LM Studio, and vLLM');
+  });
+
+  it('shows a configured provider kind as connected instead of offering a re-add', () => {
+    mockStoreState.providers = [
+      {
+        id: 'p1',
+        kind: 'anthropic',
+        label: 'Claude (subscription)',
+        baseUrl: 'https://api.anthropic.com',
+        auth: 'subscription',
+        enabled: true,
+      } as ProviderConfig,
+    ];
+    try {
+      const html = renderToStaticMarkup(<ProvidersStep />);
+      expect(html).toContain('Connected');
+      expect(html).toContain('Claude (subscription)');
+      // The subscription sign-in only renders inside a card that isn't
+      // connected, so it can't appear for the already-configured kind.
+      expect(html).not.toContain('Sign in with Claude');
+      // Other kinds still offer setup, and the default-provider offer appears.
+      expect(html).toContain('Set up');
+      expect(html).toContain('Use one as your default?');
+    } finally {
+      mockStoreState.providers = [];
+    }
+  });
+
+  it('labels a saved OpenAI API key honestly under the shared ChatGPT card', () => {
+    // The card covers both paths, so a plain API key must not read as a
+    // ChatGPT subscription in the connected state.
+    mockStoreState.providers = [
+      {
+        id: 'p1',
+        kind: 'openai',
+        label: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        apiKey: 'sk-test',
+        enabled: true,
+      } as ProviderConfig,
+    ];
+    try {
+      const html = renderToStaticMarkup(<ProvidersStep />);
+      expect(html).toContain('>ChatGPT / OpenAI<');
+      expect(html).toContain('Connected');
+      expect(html).toContain('OpenAI (API key)');
+      expect(html).not.toContain('Sign in with ChatGPT');
+    } finally {
+      mockStoreState.providers = [];
+    }
+  });
+
+  it('keeps the integrations placeholder honest about landing later', () => {
     const integrations = renderToStaticMarkup(<IntegrationsStep />);
     expect(integrations).toContain('kotrain mcp');
     expect(integrations).toContain('Connectors tab');
+  });
+
+  it('maps a subscription sign-in to a provider config without secrets', async () => {
+    const { subscriptionProviderConfig, matchingProviders } = await import('../providers/AddProvider.js');
+    const cfg = subscriptionProviderConfig({
+      tokenKey: 'chatgpt',
+      provider: 'chatgpt',
+      connected: true,
+      state: 'success',
+      accountId: 'acct_1',
+    } as OAuthStatus);
+    expect(cfg.kind).toBe('chatgpt');
+    expect(cfg.auth).toBe('subscription');
+    expect(cfg.tokenKey).toBe('chatgpt');
+    expect(cfg.accountId).toBe('acct_1');
+    expect(cfg).not.toHaveProperty('apiKey');
+    expect(matchingProviders([cfg], ['chatgpt', 'openai'])).toHaveLength(1);
+    expect(matchingProviders([cfg], ['anthropic'])).toHaveLength(0);
   });
 
   it('offers three first moves on the done step', () => {

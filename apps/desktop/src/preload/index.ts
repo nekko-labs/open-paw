@@ -32,6 +32,7 @@ const api: KotrainApi = {
   saveProvider: (p: ProviderConfig) => inv(IpcChannels.providersSave, p),
   removeProvider: (id) => inv(IpcChannels.providersRemove, id),
   discoverProviders: () => inv(IpcChannels.providersDiscover),
+  probeProviders: () => inv(IpcChannels.providersProbe),
   testProvider: (id) => inv(IpcChannels.providersTest, id),
   testProviderConfig: (cfg) => inv(IpcChannels.providersTestConfig, cfg),
 

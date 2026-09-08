@@ -60,8 +60,14 @@ export interface LmsProbe {
   reason?: string;
 }
 
-/** Local model-server kinds (on-device servers we can inspect and manage). */
-export const LOCAL_PROVIDER_KINDS: ProviderKind[] = ['ollama', 'lmstudio', 'vllm', 'openai-compat'];
+/**
+ * Local model-server kinds (on-device servers we can inspect and manage).
+ * `openai-compat` is deliberately absent: the kind is dual-use (a localhost
+ * server or a remote gateway), so it is grouped with the online/other
+ * providers everywhere and genuinely-local behavior keys off the loopback URL
+ * rather than the kind.
+ */
+export const LOCAL_PROVIDER_KINDS: ProviderKind[] = ['ollama', 'lmstudio', 'vllm'];
 
 /** Whether a provider kind is an on-device local model server. */
 export function isLocalProvider(kind: ProviderKind): boolean {

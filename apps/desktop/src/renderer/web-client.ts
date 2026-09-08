@@ -234,6 +234,7 @@ function makeWebClient(): KotrainApi {
     saveProvider: (p) => call(IpcChannels.providersSave, p),
     removeProvider: (id) => call(IpcChannels.providersRemove, id),
     discoverProviders: () => call(IpcChannels.providersDiscover),
+    probeProviders: () => call(IpcChannels.providersProbe),
     testProvider: (id) => call(IpcChannels.providersTest, id),
     testProviderConfig: (cfg) => call(IpcChannels.providersTestConfig, cfg),
 

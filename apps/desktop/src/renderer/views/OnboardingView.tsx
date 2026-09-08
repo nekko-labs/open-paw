@@ -164,7 +164,7 @@ export function OnboardingView() {
     >
       {step.id === 'welcome' && <WelcomeStep />}
       {step.id === 'theme' && <ThemeStep />}
-      {step.id === 'providers' && <ProvidersStep />}
+      {step.id === 'providers' && <ProvidersStep onExit={close} />}
       {step.id === 'integrations' && <IntegrationsStep />}
       {step.id === 'done' && <DoneStep onFinish={finish} />}
     </WizardShell>
