@@ -116,9 +116,7 @@ describe('OAuth core', () => {
       expect(captured.headers['Content-Type']).toBe('application/x-www-form-urlencoded');
     });
 
-    // Only run the loopback listener test from source; the compiled dist copy
-    // would race with source for the fixed ChatGPT loopback port.
-    it.skipIf(new URL(import.meta.url).pathname.includes('/dist/'))('accepts ChatGPT loopback callbacks on the redirectUri path and rejects other paths', async () => {
+    it('accepts ChatGPT loopback callbacks on the redirectUri path and rejects other paths', async () => {
       fetchMock.mockResolvedValueOnce(
         new Response(
           JSON.stringify({

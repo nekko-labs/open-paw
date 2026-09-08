@@ -137,18 +137,34 @@ export function createCloudServer(opts: CloudServerOptions): { app: FastifyInsta
       }
     });
 
+    const OAUTH_UNSUPPORTED = new Set<string>([IpcChannels.oauthBegin, IpcChannels.oauthFinish, IpcChannels.oauthCancel, IpcChannels.oauthSignOut, IpcChannels.providersImportCliAuth]);
+    const OAUTH_UNSUPPORTED_MESSAGE = 'OAuth sign-in is only available in the desktop app.';
+
     // --- Authenticated KotrainApi (per-account host, isolated data dir) ---
     api.post<{ Params: { channel: string }; Body: { args?: unknown[] } }>(
       '/api/:channel',
       async (req, reply) => {
         const account = store.verifyToken(bearer(req));
         if (!account) return reply.code(401).send({ error: 'unauthorized' });
+        const channel = req.params.channel;
+        if (OAUTH_UNSUPPORTED.has(channel)) {
+          return reply.code(400).send({ error: OAUTH_UNSUPPORTED_MESSAGE });
+        }
+        if (channel === IpcChannels.oauthStatus) {
+          const [providerConfigId] = req.body?.args ?? [];
+          return reply.send({
+            tokenKey: (providerConfigId as string) ?? '',
+            connected: false,
+            state: 'missing',
+            message: OAUTH_UNSUPPORTED_MESSAGE,
+          });
+        }
         const host = hostFor(account);
         const dir = store.dataDirFor(account.id);
         try {
           const result = await withDataDir(dir, () => {
-            gate(host, account, req.params.channel);
-            return createDispatcher(host)(req.params.channel, req.body?.args ?? []);
+            gate(host, account, channel);
+            return createDispatcher(host)(channel, req.body?.args ?? []);
           });
           reply.send(result ?? null);
         } catch (e) {

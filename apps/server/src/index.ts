@@ -7,7 +7,7 @@ import Fastify from 'fastify';
 import fastifyStatic from '@fastify/static';
 import websocket from '@fastify/websocket';
 import { createHost, createDispatcher } from '@kotrain/host';
-import { IpcEvents } from '@kotrain/shared';
+import { IpcChannels, IpcEvents } from '@kotrain/shared';
 import { runRelayAgent } from './relay-agent.js';
 import { runCli } from 'kotrain/run';
 import { isLoopbackHost, tokenMatches, validateBindSecurity } from './security.js';
@@ -113,10 +113,27 @@ async function main() {
     allowedOrigins: ALLOWED_ORIGINS,
   }));
 
+  const OAUTH_UNSUPPORTED = new Set<string>([IpcChannels.oauthBegin, IpcChannels.oauthFinish, IpcChannels.oauthCancel, IpcChannels.oauthSignOut, IpcChannels.providersImportCliAuth]);
+  const OAUTH_UNSUPPORTED_MESSAGE = 'OAuth sign-in is only available in the desktop app.';
+
   // One HTTP route fronts the whole KotrainApi via the shared dispatcher.
   app.post<{ Params: { channel: string }; Body: { args?: unknown[] } }>('/api/:channel', async (req, reply) => {
     try {
-      const result = await dispatch(req.params.channel, req.body?.args ?? []);
+      const channel = req.params.channel;
+      if (OAUTH_UNSUPPORTED.has(channel)) {
+        throw new Error(OAUTH_UNSUPPORTED_MESSAGE);
+      }
+      if (channel === IpcChannels.oauthStatus) {
+        const [providerConfigId] = req.body?.args ?? [];
+        reply.send({
+          tokenKey: (providerConfigId as string) ?? '',
+          connected: false,
+          state: 'missing',
+          message: OAUTH_UNSUPPORTED_MESSAGE,
+        });
+        return;
+      }
+      const result = await dispatch(channel, req.body?.args ?? []);
       reply.send(result ?? null);
     } catch (e) {
       reply.code(400).send({ error: (e as Error).message });

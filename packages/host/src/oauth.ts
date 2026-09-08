@@ -21,7 +21,6 @@ const CHATGPT_AUTHORIZE_URL = 'https://auth.openai.com/oauth/authorize';
 const CHATGPT_TOKEN_URL = 'https://auth.openai.com/oauth/token';
 const CHATGPT_SCOPES = 'openid profile email offline_access';
 const CHATGPT_REDIRECT_URI = 'http://localhost:1455/auth/callback';
-const CHATGPT_ORIGINATOR = 'codex_cli_rs';
 
 /** Milliseconds a pending OAuth session stays valid. */
 const SESSION_TTL_MS = 10 * 60 * 1000;
@@ -37,6 +36,7 @@ interface OAuthSession {
   mode: 'loopback' | 'manual';
   expiresAt: number;
   server?: ReturnType<typeof createServer>;
+  timer?: ReturnType<typeof setTimeout>;
 }
 
 const sessions = new Map<string, OAuthSession>();
@@ -148,22 +148,28 @@ function listenOnce(server: ReturnType<typeof createServer>, port: number): Prom
 }
 
 async function findClaudeLoopbackPort(
+  session: OAuthSession,
   handler: (req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => void,
-): Promise<{ server: ReturnType<typeof createServer>; port: number } | undefined> {
+): Promise<number | undefined> {
   for (let port = CLAUDE_LOOPBACK_PORT_START; port <= CLAUDE_LOOPBACK_PORT_END; port++) {
     const server = createServer(handler);
+    session.server = server;
     try {
       await listenOnce(server, port);
-      return { server, port };
+      return port;
     } catch (e: any) {
       try {
         server.close();
       } catch {
         /* best effort */
       }
-      if (e?.code !== 'EADDRINUSE') throw e;
+      if (e?.code !== 'EADDRINUSE') {
+        session.server = undefined;
+        throw e;
+      }
     }
   }
+  session.server = undefined;
   return undefined;
 }
 
@@ -171,30 +177,26 @@ async function startLoopback(
   session: OAuthSession,
   handler: (req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse) => void,
 ): Promise<boolean> {
+  if (session.provider === 'claude') {
+    const port = await findClaudeLoopbackPort(session, handler);
+    if (!port) return false;
+    session.redirectUri = `http://localhost:${port}/callback`;
+    return true;
+  }
+  const server = createServer(handler);
+  session.server = server;
   try {
-    if (session.provider === 'claude') {
-      const found = await findClaudeLoopbackPort(handler);
-      if (!found) return false;
-      session.server = found.server;
-      session.redirectUri = `http://localhost:${found.port}/callback`;
-      return true;
-    }
-    const server = createServer(handler);
+    await listenOnce(server, 1455);
+    session.redirectUri = CHATGPT_REDIRECT_URI;
+    return true;
+  } catch (e: any) {
     try {
-      await listenOnce(server, 1455);
-      session.server = server;
-      session.redirectUri = CHATGPT_REDIRECT_URI;
-      return true;
-    } catch (e: any) {
-      try {
-        server.close();
-      } catch {
-        /* best effort */
-      }
-      if (e?.code === 'EADDRINUSE') return false;
-      throw e;
+      server.close();
+    } catch {
+      /* best effort */
     }
-  } catch (e) {
+    session.server = undefined;
+    if (e?.code === 'EADDRINUSE') return false;
     throw e;
   }
 }
@@ -202,7 +204,8 @@ async function startLoopback(
 function scheduleSessionExpiry(session: OAuthSession): void {
   const ttl = session.expiresAt - Date.now();
   if (ttl <= 0) return;
-  setTimeout(() => {
+  if (session.timer) clearTimeout(session.timer);
+  session.timer = setTimeout(() => {
     if (sessions.get(session.id) === session) {
       closeSession(session);
     }
@@ -211,6 +214,10 @@ function scheduleSessionExpiry(session: OAuthSession): void {
 
 function closeSession(session: OAuthSession): void {
   sessions.delete(session.id);
+  if (session.timer) {
+    clearTimeout(session.timer);
+    session.timer = undefined;
+  }
   try {
     session.server?.close();
   } catch {
@@ -238,7 +245,7 @@ async function callbackHandler(
       res.end('missing code');
       return;
     }
-    if (state && state !== session.state) {
+    if (state !== session.state) {
       res.writeHead(400);
       res.end('invalid state');
       return;
@@ -282,14 +289,15 @@ export async function beginOAuth(provider: OAuthProvider): Promise<OAuthSessionI
     void callbackHandler(session, req, res);
   };
 
+  sessions.set(session.id, session);
+  scheduleSessionExpiry(session);
+
   const listening = await startLoopback(session, handler);
   if (listening) {
     session.mode = 'loopback';
   }
 
   const authUrl = buildAuthorizeUrl(provider, session.redirectUri, challenge, state);
-  sessions.set(session.id, session);
-  scheduleSessionExpiry(session);
 
   emitStatus({
     tokenKey: '',
@@ -312,17 +320,21 @@ function makeTokenKey(provider: OAuthProvider, accountId: string | undefined, se
 }
 
 /** Extract a code and optional state from a raw code, code#state, or full URL. */
-function parsePasted(pasted: string): { code: string; state?: string } {
+function parsePasted(pasted: string, session: OAuthSession): { code: string; state?: string } {
   const trimmed = pasted.trim();
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
     const url = new URL(trimmed);
+    const redirect = new URL(session.redirectUri);
+    if (url.hostname.toLowerCase() !== redirect.hostname.toLowerCase() || url.pathname !== redirect.pathname) {
+      throw new Error('Pasted URL does not match this session\'s redirect URI.');
+    }
     const code = url.searchParams.get('code') ?? undefined;
     const state = url.searchParams.get('state') ?? undefined;
     if (!code) throw new Error('No authorization code found in the URL.');
     return { code, state };
   }
   if (trimmed.includes('#')) {
-    const [code, state] = trimmed.split('#');
+    const [code, state] = trimmed.split('#', 2);
     return { code, state };
   }
   return { code: trimmed };
@@ -336,7 +348,9 @@ export async function finishOAuth(sessionId: string, pasted: string): Promise<OA
     throw new Error('OAuth session has expired. Start again.');
   }
 
-  const { code, state } = parsePasted(pasted);
+  const { code, state } = parsePasted(pasted, session);
+  // A pasted code without a state (bare code or a URL without a state) is accepted
+  // as the documented manual-fallback behavior.
   if (state && state !== session.state) {
     throw new Error('Invalid state parameter. The pasted code does not match this session.');
   }
@@ -487,6 +501,9 @@ function safeJson(text: string): Record<string, unknown> | undefined {
 }
 
 export async function ensureFreshToken(tokenKey: string, force = false): Promise<string> {
+  if (!tokenKey) {
+    throw new Error('No token key specified.');
+  }
   if (!force) {
     const existing = inFlight.get(tokenKey);
     if (existing) return existing;
@@ -510,16 +527,16 @@ export async function ensureFreshToken(tokenKey: string, force = false): Promise
   })();
 
   inFlight.set(tokenKey, promise);
-  promise.catch(() => {
-    if (inFlight.get(tokenKey) === promise) inFlight.delete(tokenKey);
-  });
   return promise.finally(() => {
     if (inFlight.get(tokenKey) === promise) inFlight.delete(tokenKey);
   });
 }
 
 export async function resolveSubscriptionProvider(config: ProviderConfig): Promise<ProviderConfig> {
-  if (config.auth !== 'subscription' || !config.tokenKey) return config;
+  if (config.auth !== 'subscription') return config;
+  if (!config.tokenKey) {
+    throw new Error('Provider is configured for subscription sign-in but has no token key. Sign in again in Settings.');
+  }
   const accessToken = await ensureFreshToken(config.tokenKey);
   return { ...config, apiKey: accessToken };
 }

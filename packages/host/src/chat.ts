@@ -414,7 +414,13 @@ export async function sendChat(opts: SendOptions, send: Sender): Promise<void> {
   session.modelId = opts.modelId;
   persist();
 
-  let resolvedProvider = await resolveSubscriptionProvider(provider);
+  let resolvedProvider: ProviderConfig;
+  try {
+    resolvedProvider = await resolveSubscriptionProvider(provider);
+  } catch (e) {
+    send({ type: 'error', sessionId: opts.sessionId, message: (e as Error).message });
+    return;
+  }
   let attempts = 0;
   let eventsSeen = false;
   let lastError: Error | undefined;
