@@ -6,6 +6,7 @@ import { useStore } from '../store.js';
 import { clearDraft, loadDraft, saveDraft } from '../composerDrafts.js';
 import { Markdown } from './Markdown.js';
 import { ContextGauge, EffortMenu } from './ChatMetrics.js';
+import { ContextWarning } from './ContextWarning.js';
 import { ChatControls } from './ChatControls.js';
 import { PromptAnalyzer } from './PromptAnalyzer.js';
 import { ScheduleTaskModal } from './ScheduleTaskModal.js';
@@ -1177,6 +1178,12 @@ export function ChatPane({ sessionId, onRunningChange }: { sessionId: string; on
                 </div>
                 );
               })()}
+              <ContextWarning
+                sessionId={sessionId}
+                used={ctx ? (ctx.items.filter((i) => i.included).reduce((s, i) => s + i.tokens, 0)) : 0}
+                windowTokens={ctx?.contextWindow ?? 0}
+                session={session}
+              />
               <ReplyStatus
                 streaming={streaming}
                 waiting={streaming && !liveText && liveActivity.length === 0}

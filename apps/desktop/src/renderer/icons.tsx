@@ -66,6 +66,7 @@ export const MaskIcon = (p: P) => (<S {...p}><path d="M4 8c0-1 1-2 2.5-2h11C19 6
 export const ListIcon = (p: P) => (<S {...p}><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01" /></S>);
 export const ToolStepIcon = (p: P) => (<S {...p}><path d="M12 3 3 8l9 5 9-5zM3 8v8l9 5 9-5V8" /></S>);
 export const ThoughtIcon = (p: P) => (<S {...p}><path d="M12 4a5 5 0 0 0-4.9 4A4 4 0 0 0 8 16h8a4 4 0 0 0 1-7.9A5 5 0 0 0 12 4z" /><path d="M9 20h.01M6.5 22h.01" /></S>);
+export const WarningIcon = (p: P) => (<S {...p}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3zM12 9v4M12 17h.01" /></S>);
 // Editor actions.
 export const UndoIcon = (p: P) => (<S {...p}><path d="M3 8h9a5 5 0 0 1 0 10H7" /><path d="m7 4-4 4 4 4" /></S>);
 export const RedoIcon = (p: P) => (<S {...p}><path d="M21 8h-9a5 5 0 0 0 0 10h5" /><path d="m17 4 4 4-4 4" /></S>);
