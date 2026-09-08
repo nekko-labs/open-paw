@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import type { ModelInfo, ProviderConfig, ProviderKind } from '@kotrain/shared';
+import type { ModelInfo, OAuthStatus, ProviderConfig, ProviderKind } from '@kotrain/shared';
 import { PROVIDER_DEFAULTS, isLocalProvider } from '@kotrain/shared';
 import { useStore } from '../store.js';
 import { Badge } from '../components/primitives/index.js';
+import { SubscriptionSignIn } from '../components/SubscriptionSignIn.js';
 import { PlusIcon, TrashIcon, CheckIcon, StarIcon } from '../icons.js';
 
 const KINDS: ProviderKind[] = ['ollama', 'lmstudio', 'vllm', 'anthropic', 'openai', 'openrouter', 'openai-compat'];
@@ -115,19 +116,43 @@ function ProviderSection({
 }
 
 function AddProvider({ onDone }: { onDone: () => void }) {
+  const pushToast = useStore((s) => s.pushToast);
   const [kind, setKind] = useState<ProviderKind>('ollama');
   const [label, setLabel] = useState('');
   const [baseUrl, setBaseUrl] = useState(PROVIDER_DEFAULTS.ollama.baseUrl);
   const [apiKey, setApiKey] = useState('');
+  // For Anthropic the subscription sign-in is the primary path; the API key
+  // field hides behind a quiet disclosure until the user asks for it.
+  const [useApiKey, setUseApiKey] = useState(false);
 
   const pick = (k: ProviderKind) => {
     setKind(k);
     setBaseUrl(PROVIDER_DEFAULTS[k].baseUrl);
     setLabel(PROVIDER_DEFAULTS[k].label);
+    setUseApiKey(false);
+    setApiKey('');
   };
 
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  // A completed sign-in only hands back a sanitized status (tokenKey, not the
+  // token). The provider saves with auth: 'subscription'; the host injects the
+  // fresh access token at request time.
+  const connectSubscription = async (status: OAuthStatus) => {
+    await window.kotrain.saveProvider({
+      id: `anthropic-${Date.now().toString(36)}`,
+      kind: 'anthropic',
+      label: label || 'Claude (subscription)',
+      baseUrl,
+      auth: 'subscription',
+      tokenKey: status.tokenKey,
+      accountId: status.accountId,
+      enabled: true,
+    });
+    pushToast('success', 'Signed in with your Claude subscription.');
+    onDone();
+  };
 
   const draft = (): ProviderConfig => ({
     id: `${kind}-${Date.now().toString(36)}`,
@@ -177,11 +202,30 @@ function AddProvider({ onDone }: { onDone: () => void }) {
           Base URL
           <input className="input mt-1" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
         </label>
-        {PROVIDER_DEFAULTS[kind].needsKey && (
+        {kind === 'anthropic' && (
+          <div className="col-span-2 rounded-xl border p-4" style={{ borderColor: 'var(--line)', background: 'var(--surface-2)' }}>
+            <p className="text-[13px] font-medium">Use your Claude subscription</p>
+            <p className="mt-0.5 text-[12px] text-ink-faint">
+              Sign in with your Claude Pro or Max account to run on your existing plan, with no API usage fees.
+            </p>
+            <div className="mt-2.5">
+              <SubscriptionSignIn oauthProvider="claude" onConnected={connectSubscription} />
+            </div>
+          </div>
+        )}
+        {PROVIDER_DEFAULTS[kind].needsKey && (kind !== 'anthropic' || useApiKey) && (
           <label className="col-span-2 text-[12px] font-medium text-ink-soft">
             API key
             <input className="input mt-1" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-…" />
           </label>
+        )}
+        {kind === 'anthropic' && (
+          <button
+            className="col-span-2 justify-self-start text-[12px] text-ink-faint hover:text-ink"
+            onClick={() => setUseApiKey((v) => !v)}
+          >
+            {useApiKey ? 'Back to subscription sign-in' : 'Use an API key instead (billed per token)'}
+          </button>
         )}
       </div>
       <div className="mt-4 flex items-center justify-between gap-2">
@@ -195,10 +239,16 @@ function AddProvider({ onDone }: { onDone: () => void }) {
         </div>
         <div className="flex shrink-0 gap-2">
           <button className="btn btn-ghost" onClick={onDone}>Cancel</button>
-          <button className="btn btn-outline" onClick={test} disabled={testing}>
-            {testing ? 'Testing…' : 'Test connection'}
-          </button>
-          <button className="btn btn-primary" onClick={save}>Save provider</button>
+          {/* For Anthropic the subscription sign-in completes the add itself;
+              test/save only make sense once the API-key path is revealed. */}
+          {(kind !== 'anthropic' || useApiKey) && (
+            <>
+              <button className="btn btn-outline" onClick={test} disabled={testing}>
+                {testing ? 'Testing…' : 'Test connection'}
+              </button>
+              <button className="btn btn-primary" onClick={save}>Save provider</button>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -218,6 +268,10 @@ function ProviderCard({ provider, onChanged }: { provider: ProviderConfig; onCha
   // available for a local instance with the CLI installed. `null` = not yet
   // probed; the reason feeds the fallback badge's tooltip.
   const [lms, setLms] = useState<{ available: boolean; reason?: string } | null>(null);
+  // Subscription providers keep their OAuth token host-side; the renderer only
+  // ever sees this sanitized status (connected/account/expiry, never a token).
+  const subscription = provider.auth === 'subscription';
+  const [sub, setSub] = useState<OAuthStatus | null>(null);
 
   const isFavorite = (key: string) => (settings?.favoriteModels ?? []).includes(key);
   const toggleFavorite = async (key: string) => {
@@ -244,8 +298,45 @@ function ProviderCard({ provider, onChanged }: { provider: ProviderConfig; onCha
     if (provider.kind === 'lmstudio') {
       window.kotrain.lmsAvailable(provider.id).then(setLms).catch(() => setLms({ available: false }));
     }
+    if (provider.auth === 'subscription') {
+      window.kotrain.oauthStatus(provider.id).then(setSub).catch(() => setSub(null));
+    }
     /* eslint-disable-next-line */
-  }, [provider.id]);
+  }, [provider.id, provider.tokenKey]);
+
+  // Keep the badge honest when the host refreshes or signs out the token this
+  // card points at (e.g. a mid-chat renewal lands while the page is open).
+  useEffect(() => {
+    if (!subscription) return;
+    return window.kotrain.onOAuthStatus((s) => {
+      if (s.tokenKey && s.tokenKey === provider.tokenKey) setSub(s);
+    });
+  }, [subscription, provider.tokenKey]);
+
+  const signOutSubscription = async () => {
+    await window.kotrain.oauthSignOut(provider.id);
+    setSub(await window.kotrain.oauthStatus(provider.id).catch(() => null));
+    pushToast('info', 'Signed out of the Claude subscription.');
+  };
+
+  // A re-auth (or a first connect on an existing card) returns a new tokenKey;
+  // fold it onto the provider and re-check status against the saved config.
+  const relinkSubscription = async (status: OAuthStatus) => {
+    // A re-auth can land under a different tokenKey; sign the old one out
+    // before repointing the provider so it doesn't linger in the host store.
+    if (provider.tokenKey && provider.tokenKey !== status.tokenKey) {
+      await window.kotrain.oauthSignOut(provider.id).catch(() => {});
+    }
+    await window.kotrain.saveProvider({
+      ...provider,
+      auth: 'subscription',
+      tokenKey: status.tokenKey || provider.tokenKey,
+      accountId: status.accountId ?? provider.accountId,
+    });
+    setSub(await window.kotrain.oauthStatus(provider.id).catch(() => null));
+    pushToast('success', 'Signed in with your Claude subscription.');
+    onChanged();
+  };
 
   // While connected, refresh the loaded state periodically — local servers
   // JIT-load/evict models as they're used, so this keeps the badges honest.
@@ -301,13 +392,28 @@ function ProviderCard({ provider, onChanged }: { provider: ProviderConfig; onCha
               <Badge tone="danger" variant="solid" title={conn.message}>Offline</Badge>
             )}
             {conn.state === 'testing' && <span className="chip">checking…</span>}
+            {subscription && (
+              <Badge
+                tone={sub?.connected ? 'success' : 'warning'}
+                variant="soft"
+                title="Runs on your Claude subscription instead of a metered API key"
+              >
+                Subscription
+              </Badge>
+            )}
             {provider.discovered && <span className="chip">discovered</span>}
           </div>
           <p className="mt-0.5 font-mono text-[11px] text-ink-faint">{provider.baseUrl}</p>
         </div>
         <button
           className="btn btn-ghost px-2"
-          onClick={async () => { await window.kotrain.removeProvider(provider.id); onChanged(); }}
+          onClick={async () => {
+            // Removing a subscription provider also drops its stored token so a
+            // deleted card can't leave a live session behind.
+            if (provider.tokenKey) await window.kotrain.oauthSignOut(provider.id).catch(() => {});
+            await window.kotrain.removeProvider(provider.id);
+            onChanged();
+          }}
           title="Remove"
         >
           <TrashIcon className="h-4 w-4" />
@@ -332,6 +438,35 @@ function ProviderCard({ provider, onChanged }: { provider: ProviderConfig; onCha
         )}
         {conn.state === 'fail' && <span className="text-[12px]" style={{ color: 'var(--danger)' }}>{conn.message}</span>}
       </div>
+
+      {subscription && (
+        <div className="mt-3 rounded-xl border p-3 text-[12px]" style={{ borderColor: 'var(--line)' }}>
+          {sub === null ? (
+            <span className="text-ink-faint">Checking sign-in…</span>
+          ) : sub.connected ? (
+            <div className="flex items-center justify-between gap-2">
+              <span className="inline-flex min-w-0 items-center gap-1.5 text-ink-soft">
+                <CheckIcon className="h-3.5 w-3.5 shrink-0 text-success" />
+                <span className="truncate">
+                  Signed in with Claude{provider.accountId ? ` · ${provider.accountId}` : ''}
+                </span>
+              </span>
+              <button className="shrink-0 text-ink-faint hover:text-ink" onClick={() => void signOutSubscription()}>
+                Sign out
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <p style={{ color: 'var(--warning)' }}>
+                {sub.state === 'error' && sub.message
+                  ? sub.message
+                  : 'Subscription session expired or signed out — sign in again.'}
+              </p>
+              <SubscriptionSignIn oauthProvider="claude" label="Sign in with Claude" onConnected={relinkSubscription} />
+            </div>
+          )}
+        </div>
+      )}
 
       {isOllama && (
         <div className="mt-3 flex gap-2">

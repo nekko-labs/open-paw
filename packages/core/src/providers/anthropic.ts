@@ -10,16 +10,46 @@ const CLAUDE_MODELS: Array<{ id: string; name: string; ctx: number }> = [
   { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5', ctx: 200000 },
 ];
 
+/**
+ * Subscription (OAuth) requests ride the Claude Code public client. The
+ * endpoint requires this beta flag and validates that the first system block
+ * is the Claude Code identity line, per the token's terms of use.
+ */
+const OAUTH_BETA = 'oauth-2025-04-20';
+const CLAUDE_CODE_SYSTEM_PREFIX = "You are Claude Code, Anthropic's official CLI for Claude.";
+
 /** Client for the Anthropic Messages API (native, with SSE streaming). */
 export class AnthropicProvider implements Provider {
   constructor(public readonly config: ProviderConfig) {}
 
   private headers(): Record<string, string> {
+    // Subscription mode: the host injects a fresh OAuth access token into
+    // config.apiKey, which goes out as a Bearer token, not an x-api-key.
+    if (this.config.auth === 'subscription') {
+      return {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${this.config.apiKey ?? ''}`,
+        'anthropic-version': '2023-06-01',
+        'anthropic-beta': OAUTH_BETA,
+      };
+    }
     return {
       'Content-Type': 'application/json',
       'x-api-key': this.config.apiKey ?? '',
       'anthropic-version': '2023-06-01',
     };
+  }
+
+  /**
+   * Subscription tokens are only valid for requests that identify as Claude
+   * Code, so the system prompt goes out as a block array with the required
+   * prefix first; the app's real system prompt follows as a second block.
+   */
+  private systemParam(system: string | undefined) {
+    if (this.config.auth !== 'subscription') return system;
+    const blocks: Array<{ type: 'text'; text: string }> = [{ type: 'text', text: CLAUDE_CODE_SYSTEM_PREFIX }];
+    if (system) blocks.push({ type: 'text', text: system });
+    return blocks;
   }
 
   async listModels(): Promise<ModelInfo[]> {
@@ -32,6 +62,11 @@ export class AnthropicProvider implements Provider {
   }
 
   async test(): Promise<{ ok: boolean; message: string }> {
+    if (this.config.auth === 'subscription') {
+      return this.config.apiKey
+        ? { ok: true, message: 'Signed in with a Claude subscription' }
+        : { ok: false, message: 'Not signed in. Sign in with Claude in the provider settings.' };
+    }
     if (!this.config.apiKey) return { ok: false, message: 'Missing API key' };
     return { ok: true, message: 'API key set' };
   }
@@ -42,7 +77,7 @@ export class AnthropicProvider implements Provider {
       max_tokens: req.maxOutputTokens ?? 4096,
       stream: true,
       temperature: req.temperature ?? 0.7,
-      system: req.system,
+      system: this.systemParam(req.system),
       messages: this.toAnthropicMessages(req),
       tools: req.tools?.map((t) => ({ name: t.name, description: t.description, input_schema: t.parameters })),
     };

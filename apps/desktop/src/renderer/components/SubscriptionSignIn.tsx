@@ -1,0 +1,207 @@
+import React, { useEffect, useRef, useState } from 'react';
+import type { OAuthProvider, OAuthSessionInfo, OAuthStatus } from '@kotrain/shared';
+import { useStore } from '../store.js';
+import { ExternalIcon } from '../icons.js';
+
+type Phase =
+  | { kind: 'idle' }
+  | { kind: 'starting' }
+  | { kind: 'waiting'; session: OAuthSessionInfo }
+  | { kind: 'error'; message: string };
+
+/**
+ * Subscription sign-in flow (browser OAuth + paste fallback). Renders only the
+ * controls; the parent decides what to persist via `onConnected`, which gets a
+ * sanitized OAuthStatus — the access token itself never crosses into the
+ * renderer.
+ *
+ * Today this is wired for Claude; ChatGPT sign-in reuses it in a later PR.
+ */
+export function SubscriptionSignIn({
+  oauthProvider = 'claude',
+  label = 'Sign in with Claude',
+  onConnected,
+}: {
+  oauthProvider?: OAuthProvider;
+  label?: string;
+  onConnected: (status: OAuthStatus) => void | Promise<void>;
+}) {
+  const pushToast = useStore((s) => s.pushToast);
+  const [phase, setPhase] = useState<Phase>({ kind: 'idle' });
+  const [pasted, setPasted] = useState('');
+  const [finishing, setFinishing] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const sessionRef = useRef<OAuthSessionInfo | null>(null);
+  const onConnectedRef = useRef(onConnected);
+  useEffect(() => {
+    onConnectedRef.current = onConnected;
+  });
+
+  // The host emits oauthStatus as the flow advances: 'pending' on begin,
+  // 'success' when the loopback callback (or a pasted code) exchanged, and
+  // 'error' if the exchange failed. Completion can also arrive as the
+  // oauthFinish return value, so whichever path lands first wins by clearing
+  // sessionRef; the other sees null and stands down.
+  useEffect(() => {
+    const off = window.kotrain.onOAuthStatus((s) => {
+      const session = sessionRef.current;
+      if (s.provider !== oauthProvider || !session) return;
+      if (s.state === 'success' && s.connected) {
+        sessionRef.current = null;
+        setPasted('');
+        setPhase({ kind: 'idle' });
+        // The parent's save (e.g. saveProvider) can still fail; surface it as
+        // a phase error instead of an unhandled rejection.
+        Promise.resolve()
+          .then(() => onConnectedRef.current(s))
+          .catch((e) => {
+            setPhase({ kind: 'error', message: (e as Error).message });
+          });
+      } else if (s.state === 'error') {
+        // A failed exchange leaves the host session (and its loopback
+        // listener) open, so close it out before dropping the ref.
+        void window.kotrain.oauthCancel(session.id).catch(() => {});
+        sessionRef.current = null;
+        setPhase({ kind: 'error', message: s.message ?? 'Sign-in failed.' });
+      }
+    });
+    return off;
+  }, [oauthProvider]);
+
+  // Abandon a dangling session (closed mid-flow, or the view changed) so its
+  // loopback listener and expiry timer don't linger host-side.
+  useEffect(
+    () => () => {
+      if (sessionRef.current) void window.kotrain.oauthCancel(sessionRef.current.id);
+    },
+    [],
+  );
+
+  const begin = async () => {
+    setPhase({ kind: 'starting' });
+    try {
+      const session = await window.kotrain.oauthBegin(oauthProvider);
+      sessionRef.current = session;
+      setPhase({ kind: 'waiting', session });
+      // Desktop maps this to shell.openExternal; the web build window.open()s it.
+      await window.kotrain.openPath(session.authUrl).catch(() => {});
+    } catch (e) {
+      sessionRef.current = null;
+      setPhase({ kind: 'error', message: (e as Error).message });
+    }
+  };
+
+  const cancel = async () => {
+    const session = sessionRef.current;
+    sessionRef.current = null;
+    setPasted('');
+    setPhase({ kind: 'idle' });
+    if (session) await window.kotrain.oauthCancel(session.id).catch(() => {});
+  };
+
+  const finish = async () => {
+    const session = sessionRef.current;
+    const text = pasted.trim();
+    if (!session || !text || finishing) return;
+    // Claim the session synchronously so a second Enter/click, or a success
+    // event landing while oauthFinish is in flight, can't complete it twice.
+    sessionRef.current = null;
+    setFinishing(true);
+    try {
+      const status = await window.kotrain.oauthFinish(session.id, text);
+      setPasted('');
+      setPhase({ kind: 'idle' });
+      await onConnectedRef.current(status);
+    } catch (e) {
+      setPhase({ kind: 'error', message: (e as Error).message });
+      // The failed exchange left the host session open; close it so its
+      // loopback listener and expiry timer don't linger.
+      void window.kotrain.oauthCancel(session.id).catch(() => {});
+    } finally {
+      setFinishing(false);
+    }
+  };
+
+  // Zero-browser path: reuse the sign-in the user already did in Claude Code.
+  // The host reads ~/.claude/.credentials.json into its token store under the
+  // 'claude' token key and reports only that it found one.
+  const importCli = async () => {
+    setImporting(true);
+    try {
+      const found = await window.kotrain.importCliAuth();
+      if (found.claude) {
+        await onConnectedRef.current({ tokenKey: 'claude', provider: 'claude', connected: true, state: 'success' });
+      } else {
+        pushToast('info', 'No Claude Code sign-in found on this machine.');
+      }
+    } catch (e) {
+      pushToast('error', (e as Error).message);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  if (phase.kind === 'waiting') {
+    const { session } = phase;
+    return (
+      <div className="space-y-2">
+        <p className="text-[12px] text-ink-faint">
+          {session.mode === 'loopback'
+            ? 'Finish signing in in the browser tab that opened; this window updates automatically.'
+            : 'Your browser could not reach back to the app, so sign-in finishes manually: after you authorize, copy the code the page shows and paste it below.'}
+        </p>
+        <button
+          className="inline-flex items-center gap-1 text-[12px] text-accent hover:underline"
+          onClick={() => void window.kotrain.openPath(session.authUrl).catch(() => {})}
+        >
+          <ExternalIcon className="h-3 w-3" /> Reopen the sign-in page
+        </button>
+        {session.mode === 'manual' && (
+          <div className="flex gap-2">
+            <input
+              className="input py-1.5 text-[12px]"
+              aria-label="Paste the sign-in code"
+              placeholder="Paste the code (code#state)"
+              value={pasted}
+              onChange={(e) => setPasted(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && !finishing && void finish()}
+              disabled={finishing}
+              autoFocus
+            />
+            <button className="btn btn-primary py-1.5 text-[12px]" onClick={() => void finish()} disabled={finishing || !pasted.trim()}>
+              {finishing ? 'Signing in…' : 'Complete sign-in'}
+            </button>
+          </div>
+        )}
+        <button
+          className="btn btn-ghost py-1 text-[12px]"
+          onClick={() => void cancel()}
+          disabled={finishing}
+        >
+          Cancel
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <button className="btn btn-primary" onClick={() => void begin()} disabled={phase.kind === 'starting'}>
+        {phase.kind === 'starting' ? 'Opening…' : label}
+      </button>
+      {phase.kind === 'error' && (
+        <p className="text-[12px]" style={{ color: 'var(--danger)' }}>
+          {phase.message}
+        </p>
+      )}
+      {oauthProvider === 'claude' && (
+        <p className="text-[11.5px] text-ink-faint">
+          Already signed in to Claude Code?{' '}
+          <button className="text-accent hover:underline" onClick={() => void importCli()} disabled={importing}>
+            {importing ? 'Importing…' : 'Import that sign-in'}
+          </button>
+        </p>
+      )}
+    </div>
+  );
+}
