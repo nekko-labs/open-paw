@@ -1,8 +1,9 @@
 /** Host-side subscription-limits capture and polling service. */
 
 import { EventEmitter } from 'node:events';
-import type { LimitWindow, SubscriptionLimits } from '@kotrain/shared';
+import type { LimitWindow, OAuthProvider, ProviderKind, SubscriptionLimits } from '@kotrain/shared';
 import { getToken, ensureFreshToken } from './oauth.js';
+import { getSettings } from './store.js';
 
 let events: EventEmitter | null = null;
 
@@ -67,13 +68,19 @@ export async function getLimits(tokenKey: string): Promise<SubscriptionLimits | 
 }
 
 /**
- * Capture Anthropic rate-limit headers from a subscription response.
- * If no recognized headers are present, the existing state is left unchanged.
+ * Capture provider rate-limit headers from a subscription response.
+ * Anthropic headers are only parsed for the anthropic/claude provider;
+ * other providers' headers are left alone. If no recognized headers are
+ * present, the existing state is left unchanged.
  */
 export function recordFromHeaders(
   tokenKey: string,
+  provider: OAuthProvider | ProviderKind,
   headers: Headers | Record<string, string> | Iterable<[string, string]>,
 ): SubscriptionLimits | undefined {
+  if (provider !== 'anthropic' && provider !== 'claude') {
+    return get(tokenKey);
+  }
   const limits = parseAnthropicHeaders(headers);
   if (limits.windows.length === 0) {
     return get(tokenKey);
@@ -157,7 +164,9 @@ async function pollChatGpt(
 ): Promise<SubscriptionLimits | undefined> {
   if (!accountId) return get(tokenKey);
 
-  const res = await fetch('https://chatgpt.com/backend-api/wham/usage', {
+  const configuredBase = getSettings().providers.find((p) => p.tokenKey === tokenKey)?.baseUrl;
+  const baseUrl = (configuredBase ?? 'https://chatgpt.com/backend-api').replace(/\/+$/, '');
+  const res = await fetch(`${baseUrl}/wham/usage`, {
     method: 'GET',
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -264,14 +273,20 @@ function parseAnthropicUsageJson(json: Record<string, unknown>): SubscriptionLim
     if (!Number.isFinite(utilization)) continue;
 
     const resetsAt = typeof obj.resets_at === 'string' ? Date.parse(obj.resets_at) : 0;
-    const status: LimitWindow['status'] = utilization >= 100 ? 'rate_limited' : 'allowed';
+    const reported = normalizeStatus(typeof obj.status === 'string' ? obj.status : undefined);
+    let status: LimitWindow['status'] = 'allowed';
+    if (reported === 'rate_limited' || utilization >= 1.0) {
+      status = 'rate_limited';
+    } else if (reported === 'warning' || utilization >= 0.8) {
+      status = 'warning';
+    }
 
     windows.push({
       id: spec.id,
       label: spec.label,
       scope: spec.scope,
       modelId: spec.modelId,
-      usedPercent: Math.round(utilization * 100) / 100,
+      usedPercent: Math.round(utilization * 100 * 100) / 100,
       resetAt: resetsAt > 0 ? resetsAt : 0,
       status,
     });
