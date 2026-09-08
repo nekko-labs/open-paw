@@ -24,6 +24,21 @@ export function viewEnabled(view: View, settings: AppSettings | null | undefined
   return settings?.experimental?.[view as ExperimentalView] === true;
 }
 
+/**
+ * Should the setup wizard open itself once settings load?
+ *
+ * `onboarding.completedAt` is unset on every install that predates the
+ * wizard, so gating on the flag alone would ambush existing users with a
+ * full-screen takeover on upgrade. A configured provider is the strongest
+ * "setup already happened" signal we have, so the wizard auto-opens only on a
+ * genuinely fresh install; everyone else can reach it from Settings → Replay
+ * setup.
+ */
+export function shouldAutoOpenOnboarding(settings: AppSettings | null | undefined): boolean {
+  if (!settings || settings.onboarding?.completedAt) return false;
+  return (settings.providers?.length ?? 0) === 0;
+}
+
 /** A message routed into a chat's composer from another surface (editor comment, design note). */
 export interface ComposerInbox {
   sessionId: string;
@@ -72,6 +87,8 @@ interface UiState {
   activeProviderId: string | null;
   activeModelId: string | null;
   contextPanelOpen: boolean;
+  /** Whether the first-run setup wizard is showing over the app. */
+  onboardingOpen: boolean;
   mascotMood: MascotMood;
   toasts: Toast[];
   paletteOpen: boolean;
@@ -143,6 +160,7 @@ interface UiState {
   newChat: () => Promise<void>;
   setMascotMood: (m: MascotMood) => void;
   setView: (v: View) => void;
+  setOnboardingOpen: (open: boolean) => void;
   refreshSettings: () => Promise<void>;
   refreshSessions: () => Promise<void>;
   setActiveSession: (id: string | null) => void;
@@ -208,6 +226,7 @@ export const useStore = create<UiState>((set, get) => ({
   activeModelId: null,
   // Default the context panel closed on small screens (phones).
   contextPanelOpen: typeof window !== 'undefined' ? window.innerWidth >= 1024 : true,
+  onboardingOpen: false,
   mascotMood: 'waving',
   toasts: [],
   paletteOpen: false,
@@ -245,11 +264,13 @@ export const useStore = create<UiState>((set, get) => ({
   // A destination that's been hidden can't be navigated to: land on the
   // Command Center instead of a dead end.
   setView: (v) => set((s) => ({ view: viewEnabled(v, s.settings) ? v : 'command' })),
+  setOnboardingOpen: (open) => set({ onboardingOpen: open }),
 
   refreshSettings: async () => {
     const settings = await window.kotrain.getSettings();
     set({ settings });
     get().applyTheme();
+    if (shouldAutoOpenOnboarding(settings)) set({ onboardingOpen: true });
     if (!get().activeProviderId && settings.defaultProviderId) {
       set({ activeProviderId: settings.defaultProviderId, activeModelId: settings.defaultModelId ?? null });
     }

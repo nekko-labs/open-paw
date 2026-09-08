@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import type { AppSettings, ChatMode, GuardrailRule, GuardrailAction, McpServerStatus, SandboxMode, ThemePreset } from '@kotrain/shared';
+import type { AppSettings, ChatMode, GuardrailRule, GuardrailAction, McpServerStatus, SandboxMode } from '@kotrain/shared';
 import { useStore } from '../store.js';
 import { Badge } from '../components/primitives/index.js';
 import { UpdateProgress, useUpdater } from '../components/UpdateBanner.js';
-import { DEFAULT_SPEC_METHODOLOGY, SPEC_METHODOLOGIES, ORCHESTRATION_STRATEGIES, DEFAULT_ORCHESTRATION, DEFAULT_MAX_STEPS, MAX_STEPS_RANGE, clampMaxSteps, MAX_OUTPUT_TOKENS_DEFAULT, MAX_OUTPUT_TOKENS_RANGE, clampMaxOutputTokens, THEME_PRESETS } from '@kotrain/shared';
+import { ThemePresetPicker } from '../components/ThemePresetPicker.js';
+import { DEFAULT_SPEC_METHODOLOGY, SPEC_METHODOLOGIES, ORCHESTRATION_STRATEGIES, DEFAULT_ORCHESTRATION, DEFAULT_MAX_STEPS, MAX_STEPS_RANGE, clampMaxSteps, MAX_OUTPUT_TOKENS_DEFAULT, MAX_OUTPUT_TOKENS_RANGE, clampMaxOutputTokens, ONBOARDING_VERSION } from '@kotrain/shared';
 import { ShieldIcon, SunIcon, TrashIcon, RobotIcon, WandIcon } from '../icons.js';
 import { RemoteAccess } from '../components/RemoteAccess.js';
 import { useT, LANGUAGES } from '../i18n.js';
@@ -39,6 +40,12 @@ export function SettingsView() {
 
   /** Re-read settings the host changed on its own (connecting Hypergate writes an MCP entry). */
   const reload = async () => setSettings(await window.kotrain.getSettings());
+
+  /** Reopen the first-run wizard: clear the completion flag, then show it. */
+  const replaySetup = async () => {
+    await update({ onboarding: { version: ONBOARDING_VERSION } });
+    useStore.getState().setOnboardingOpen(true);
+  };
 
   const updateGuardrail = async (rule: GuardrailRule) => {
     if (!settings) return;
@@ -80,6 +87,15 @@ export function SettingsView() {
                 <option key={l.code} value={l.code}>{l.label}</option>
               ))}
             </select>
+          </div>
+          <div className="mt-2 flex min-h-[40px] items-center justify-between gap-3 border-t border-line pt-3">
+            <div className="min-w-0">
+              <span className="text-[13px]">Setup wizard</span>
+              <p className="text-[11px] text-ink-faint">Reopen the first-run walkthrough (theme, providers, integrations).</p>
+            </div>
+            <button className="btn btn-outline shrink-0 py-1.5 text-[12px]" onClick={() => void replaySetup()}>
+              Replay setup
+            </button>
           </div>
         </section>
 
@@ -800,48 +816,6 @@ function UpdatesSection({ settings, onToggle }: { settings: AppSettings; onToggl
         </div>
       )}
     </section>
-  );
-}
-
-function ThemePresetPicker({ settings, update }: { settings: AppSettings; update: (patch: Partial<AppSettings>) => void }) {
-  const tr = useT();
-  const activeId = settings.themePreset ?? settings.theme;
-
-  const select = (preset: ThemePreset) => {
-    void update({
-      theme: preset.mode,
-      themePreset: preset.id,
-      accent: preset.accent,
-      accent2: preset.accent2,
-    });
-  };
-
-  return (
-    <div className="mt-4">
-      <span className="text-[13px]">{tr('settings.theme')}</span>
-      <div className="mt-2 grid grid-cols-4 gap-2">
-        {THEME_PRESETS.map((preset) => {
-          const active = activeId === preset.id;
-          const gradient = `conic-gradient(from 0deg, ${[...preset.swatch, preset.swatch[0]].join(', ')})`;
-          return (
-            <button
-              key={preset.id}
-              onClick={() => select(preset)}
-              title={preset.label}
-              className={`flex flex-col items-center gap-1.5 rounded-xl border p-2 text-[11px] font-medium transition-colors ${
-                active ? 'border-accent bg-accent-soft' : 'border-line bg-surface hover:bg-surface-2'
-              }`}
-            >
-              <span
-                className="h-10 w-10 rounded-full border border-line shadow-sm"
-                style={{ background: gradient }}
-              />
-              <span className={active ? 'text-accent' : 'text-ink-soft'}>{preset.label}</span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
   );
 }
 
