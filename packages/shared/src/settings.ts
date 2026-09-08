@@ -59,6 +59,10 @@ export interface ExperimentalFlags {
 export interface AppSettings {
   theme: ThemeMode;
   accent: string;
+  /** Secondary accent used for the brand gradient and border beam. */
+  accent2?: string;
+  /** Selected theme preset id (`system`, `nebula`, `terminal`, etc.). */
+  themePreset?: string;
   sandboxMode: SandboxMode;
   providers: ProviderConfig[];
   guardrails: GuardrailRule[];

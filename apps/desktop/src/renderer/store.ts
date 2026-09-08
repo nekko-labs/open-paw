@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { AppSettings, Session, ProviderConfig, ModelInfo, TerminalInfo, InstalledSkillRecord, SkillDef, PrInfo, HypergateInfo } from '@kotrain/shared';
-import { getMarketSkill, marketToSkillDef } from '@kotrain/shared';
+import { getMarketSkill, marketToSkillDef, THEME_PRESETS } from '@kotrain/shared';
 import type { MascotMood } from './components/Mascot.js';
 import { syncTitleBarOverlay } from './chrome.js';
 
@@ -329,16 +329,30 @@ export const useStore = create<UiState>((set, get) => ({
   toggleContextPanel: () => set((s) => ({ contextPanelOpen: !s.contextPanelOpen })),
 
   applyTheme: () => {
-    const theme = get().settings?.theme ?? 'system';
+    const settings = get().settings;
+    const theme = settings?.theme ?? 'system';
     const resolved =
       theme === 'system'
         ? window.matchMedia('(prefers-color-scheme: dark)').matches
           ? 'dark'
           : 'light'
         : theme;
-    document.documentElement.setAttribute('data-theme', resolved);
-    const accent = get().settings?.accent;
-    if (accent) document.documentElement.style.setProperty('--accent', accent);
+    const root = document.documentElement;
+    root.setAttribute('data-theme', resolved);
+
+    const presetId = settings?.themePreset;
+    if (presetId) root.setAttribute('data-preset', presetId);
+    else root.removeAttribute('data-preset');
+    const preset = presetId ? THEME_PRESETS.find((p) => p.id === presetId) : undefined;
+
+    if (settings?.accent) root.style.setProperty('--accent', settings.accent);
+    else if (preset) root.style.setProperty('--accent', preset.accent);
+    else root.style.removeProperty('--accent');
+
+    if (settings?.accent2) root.style.setProperty('--accent-2', settings.accent2);
+    else if (preset?.accent2) root.style.setProperty('--accent-2', preset.accent2);
+    else root.style.removeProperty('--accent-2');
+
     // The native window buttons sit in our title bar, so they have to follow
     // the theme with everything else.
     syncTitleBarOverlay();
