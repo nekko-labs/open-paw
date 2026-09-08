@@ -55,8 +55,8 @@ const STATUS_TONE: Record<WorkflowRunStatus, { color: string; label: string }> =
 const ROWS_PER_GROUP = 12;
 
 /**
- * Runs fired by an external event — a git trigger, a connector poll, or an
- * inbound webhook — rather than by hand, a schedule, or the CLI. These are the
+ * Runs fired by an external event - a git trigger, a connector poll, or an
+ * inbound webhook - rather than by hand, a schedule, or the CLI. These are the
  * CI-style runs, and they get a "runner" badge so they stand apart in the
  * history. The triggerLabel itself ("GitHub · push · owner/repo") already says
  * what fired it; the badge just marks the flavor.

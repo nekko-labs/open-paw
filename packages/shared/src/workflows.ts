@@ -116,8 +116,8 @@ export interface WorkflowStep {
  *
  * An `action` step's `run` names one entry here (`slack.postMessage`,
  * `github.setCommitStatus`, …) and its `params` carry that op's inputs. The
- * catalog is metadata only — op, grouping, label, and the params the editor
- * should render — so the editor can enumerate everything without hardcoding;
+ * catalog is metadata only - op, grouping, label, and the params the editor
+ * should render - so the editor can enumerate everything without hardcoding;
  * the code that performs each call lives in the host's action registry (see
  * core/connectors/actions.ts), which resolves credentials from the stored
  * connector config rather than the step.
@@ -138,7 +138,7 @@ export interface WorkflowActionParam {
 
 /** One callable integration op an `action` step can name. */
 export interface WorkflowActionSpec {
-  /** `<connector>.<op>` — stored on the step's `run`. */
+  /** `<connector>.<op>` - stored on the step's `run`. */
   op: string;
   /** Connector whose stored credentials run the op; undefined = none needed. */
   connector?: ConnectorKind;
@@ -1100,7 +1100,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
     id: 'local-ci-runner',
     name: 'Local CI runner',
     description:
-      'Use this machine as a CI runner: on a push or a new pull request, check out the commit, run your build and tests, and report the result back as a commit status (with a PR comment on failure). The shell steps are placeholders — edit them for your project. Setup recipes: docs/git-runner.md.',
+      'Use this machine as a CI runner: on a push or a new pull request, check out the commit, run your build and tests, and report the result back as a commit status (with a PR comment on failure). The shell steps are placeholders - edit them for your project. Setup recipes: docs/git-runner.md.',
     category: 'Build & test',
     build: () => {
       const checkout = newStepId();
@@ -1111,7 +1111,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
       const steps: WorkflowStep[] = [
           {
             id: checkout,
-            name: 'Check out the commit — edit for your project',
+            name: 'Check out the commit - edit for your project',
             kind: 'shell',
             run: [
               '# EDIT ME: fetch and check out the commit that fired this run.',
@@ -1122,7 +1122,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
           },
           {
             id: test,
-            name: 'Build and test — edit for your project',
+            name: 'Build and test - edit for your project',
             kind: 'shell',
             run: [
               "# EDIT ME: your project's real build and test commands.",
@@ -1142,7 +1142,7 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
               state: 'success',
               description: 'Local run passed',
             },
-            // Success is the last word — don't fall through into the failure steps.
+            // Success is the last word - don't fall through into the failure steps.
             onSuccess: { goto: 'end' },
           },
           {
@@ -1173,18 +1173,18 @@ export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
                 '```',
               ].join('\n'),
             },
-            // The run still ends as a failure — the comment only explains it.
+            // The run still ends as a failure - the comment only explains it.
             // On a push event there is no PR number, so this step fails too.
             onSuccess: { goto: 'fail' },
           },
         ];
       const triggers: WorkflowTrigger[] = [
-          // Fires when a git event is dispatched to this workflow — the
+          // Fires when a git event is dispatched to this workflow - the
           // workflow:event API, the CLI, or a relay in front of a provider
           // webhook (see docs/git-runner.md).
           { id: newStepId('trg'), kind: 'git', provider: 'github', events: ['push', 'pr_opened', 'pr_updated'] },
           // Poll-mode starter (works anywhere, desktop included): fill in the
-          // repo and arm it — the listener polls the GitHub connector. This one
+          // repo and arm it - the listener polls the GitHub connector. This one
           // covers pushes; add a second with event "PullRequestEvent" for PRs.
           {
             id: newStepId('trg'),
