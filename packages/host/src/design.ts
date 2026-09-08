@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto';
 import { createProvider } from '@kotrain/core';
 import type { DesignBoard, DesignPage, GenerateDesignInput } from '@kotrain/shared';
 import { dataDir, getSettings } from './store.js';
+import { resolveSubscriptionProvider } from './oauth.js';
 
 /**
  * Design board persistence + AI design generation. The board is a Figma-style
@@ -119,19 +120,24 @@ export async function generateDesign(workspaceId: string, input: GenerateDesignI
   }
 
   let out = '';
-  for await (const chunk of createProvider(providerCfg).chat({
-    model,
-    system: DESIGN_SYSTEM,
-    messages: [{
-      id: 'design',
-      role: 'user',
-      content: ask,
-      images: !existing && input.sketchDataUrl ? [input.sketchDataUrl] : undefined,
-      createdAt: Date.now(),
-    }],
-    temperature: 0.6,
-  })) {
-    if (chunk.type === 'text') out += chunk.delta;
+  try {
+    const resolved = await resolveSubscriptionProvider(providerCfg);
+    for await (const chunk of createProvider(resolved).chat({
+      model,
+      system: DESIGN_SYSTEM,
+      messages: [{
+        id: 'design',
+        role: 'user',
+        content: ask,
+        images: !existing && input.sketchDataUrl ? [input.sketchDataUrl] : undefined,
+        createdAt: Date.now(),
+      }],
+      temperature: 0.6,
+    })) {
+      if (chunk.type === 'text') out += chunk.delta;
+    }
+  } catch (e) {
+    throw new Error(`Design generation failed: ${(e as Error).message}`);
   }
 
   out = out.replace(/^```(?:html)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();

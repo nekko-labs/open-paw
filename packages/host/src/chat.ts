@@ -22,6 +22,7 @@ import { getSession, saveSession, createSession } from './sessions.js';
 import { executeTool } from './tools.js';
 import { recordUsage } from './usage.js';
 import { listMemory } from './memory.js';
+import { ensureFreshToken, resolveSubscriptionProvider } from './oauth.js';
 import { searchWorkspace } from './workspace.js';
 import { buildSpec } from './spec.js';
 import { syncMcp, mcpToolSpecs, isMcpTool, callMcpTool } from './mcp.js';
@@ -62,6 +63,10 @@ type Sender = (event: AgentEvent) => void;
 
 const abortControllers = new Map<string, AbortController>();
 const pendingApprovals = new Map<string, (approved: boolean) => void>();
+
+function isAuthFailure(message: string): boolean {
+  return /\b401\b|unauthorized|invalid auth|invalid api key|authentication/i.test(message);
+}
 
 /** Resolve a pending tool approval (called from IPC when the user clicks). */
 export function resolveApproval(toolCallId: string, approved: boolean): void {
@@ -200,7 +205,7 @@ function sessionDepth(sessionId: string): number {
 }
 
 function providerEndpoint(provider: ProviderConfig): URL | null {
-  if (!isLocalProvider(provider.kind) && !['anthropic', 'openai', 'openrouter'].includes(provider.kind)) return null;
+  if (!isLocalProvider(provider.kind) && !['anthropic', 'openai', 'openrouter', 'chatgpt'].includes(provider.kind)) return null;
   try {
     const url = new URL(provider.baseUrl);
     return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password ? url : null;
@@ -275,7 +280,8 @@ async function runSubAgent(
   if ('model_id' in inp) {
     let models;
     try {
-      models = await createProvider(provider).listModels();
+      const resolved = await resolveSubscriptionProvider(provider);
+      models = await createProvider(resolved).listModels();
     } catch {
       throw new Error('Could not verify the target provider model list. Check its availability; no child was created and no fallback was used.');
     }
@@ -408,110 +414,144 @@ export async function sendChat(opts: SendOptions, send: Sender): Promise<void> {
   session.modelId = opts.modelId;
   persist();
 
-  const abort = new AbortController();
-  abortControllers.set(opts.sessionId, abort);
-
-  const requestApproval = (call: ToolCall, reason: string, severity: 'low' | 'medium' | 'high') =>
-    new Promise<boolean>((resolveP) => {
-      pendingApprovals.set(call.id, resolveP);
-      send({ type: 'tool_approval_required', sessionId: opts.sessionId, call, reason, severity });
-    });
-
+  let resolvedProvider: ProviderConfig;
   try {
-    for await (const event of runAgent({
-      sessionId: opts.sessionId,
-      provider: createProvider(provider),
-      model: opts.modelId,
-      system,
-      history: session.messages,
-      tools,
-      executeTool: async (call) => {
-        if (!tools.some((tool) => tool.name === call.name)) {
-          return { toolCallId: call.id, output: 'This tool is disabled or unavailable for this chat.', isError: true };
-        }
-        const indirect = call.name === 'spawn_agent' || isMcpTool(call.name);
-        if (indirect && (mode === 'ask' || settings.sandboxMode === 'ask-everything')) {
-          const approved = await requestApproval(call, call.name === 'spawn_agent' ? 'Delegate work to a sub-agent' : `Call ${call.name}`, 'medium');
-          if (!approved) return { toolCallId: call.id, output: 'Call not approved by user.', isError: true };
-        }
-        if (call.name === 'report_experiment' && session.trainingRunId) {
-          try {
-            const output = reportExperiment(opts.sessionId, call.input as Record<string, unknown>);
-            return Promise.resolve({ toolCallId: call.id, output });
-          } catch (e) {
-            return Promise.resolve({ toolCallId: call.id, output: `Failed to record: ${(e as Error).message}`, isError: true });
-          }
-        }
-        if (call.name === 'report_artifact' && session.trainingRunId) {
-          try {
-            const output = reportArtifact(opts.sessionId, call.input as Record<string, unknown>);
-            return Promise.resolve({ toolCallId: call.id, output });
-          } catch (e) {
-            return Promise.resolve({ toolCallId: call.id, output: `Failed to record the artifact: ${(e as Error).message}`, isError: true });
-          }
-        }
-        if (call.name === 'update_plan' && session.trainingRunId) {
-          try {
-            const output = updateRunPlan(opts.sessionId, call.input as Record<string, unknown>);
-            return Promise.resolve({ toolCallId: call.id, output });
-          } catch (e) {
-            return Promise.resolve({ toolCallId: call.id, output: `Failed to update the plan: ${(e as Error).message}`, isError: true });
-          }
-        }
-        if (call.name === 'spawn_agent') {
-          return runSubAgent({ ...session, mode }, opts.providerId, opts.modelId, call.input, send)
-            .then((output) => ({ toolCallId: call.id, output }))
-            .catch((e) => ({ toolCallId: call.id, output: `Sub-agent failed: ${(e as Error).message}`, isError: true }));
-        }
-        return isMcpTool(call.name)
-          ? callMcpTool(call)
-          : executeTool(call, {
-              settings,
-              defaultCwd: session.workspaceId
-                ? settings.workspaces.find((w) => w.id === session.workspaceId)?.path ?? settings.workspaces[0]?.path
-                : settings.workspaces[0]?.path,
-              requestApproval,
-              mode,
-              sessionId: opts.sessionId,
-            });
-      },
-      temperature: EFFORT_TEMPERATURE[settings.effort ?? 'normal'],
-      maxIterations: clampMaxSteps(settings.maxSteps),
-      maxOutputTokens: clampMaxOutputTokens(settings.maxOutputTokens),
-      think: session.thinking,
-      maxHistoryTurns: opts.maxHistoryTurns,
-      resume: opts.resume,
-      signal: abort.signal,
-    })) {
-      if (event.type === 'usage') {
-        recordUsage({
-          ts: Date.now(),
-          providerId: opts.providerId,
-          modelId: opts.modelId,
-          inputTokens: event.inputTokens,
-          outputTokens: event.outputTokens,
-          sessionId: opts.sessionId,
-        });
-      }
-      // Checkpoint after every completed step, not just at the end. The agent
-      // loop appends each assistant message and tool result to `session.messages`
-      // as it goes, so writing here means a run that is killed mid-flight (a
-      // timeout, a crash, a quit) leaves the steps it finished on disk to resume
-      // from, instead of an hour of tool work existing only in memory.
-      //
-      // Written before the event goes out, so anything that reacts to it by
-      // re-reading the session (the chat pane does exactly that on `done`) is
-      // guaranteed to find the step it was just told about.
-      if (event.type === 'tool_result' || event.type === 'done' || event.type === 'error') {
-        persist();
-      }
-      send(event);
-    }
+    resolvedProvider = await resolveSubscriptionProvider(provider);
   } catch (e) {
     send({ type: 'error', sessionId: opts.sessionId, message: (e as Error).message });
-  } finally {
-    abortControllers.delete(opts.sessionId);
-    persist();
+    return;
+  }
+  let attempts = 0;
+  let eventsSeen = false;
+  let lastError: Error | undefined;
+  let abort = new AbortController();
+
+  while (attempts < 2) {
+    abort = new AbortController();
+    abortControllers.set(opts.sessionId, abort);
+    eventsSeen = false;
+
+    const requestApproval = (call: ToolCall, reason: string, severity: 'low' | 'medium' | 'high') =>
+      new Promise<boolean>((resolveP) => {
+        pendingApprovals.set(call.id, resolveP);
+        send({ type: 'tool_approval_required', sessionId: opts.sessionId, call, reason, severity });
+      });
+
+    try {
+      for await (const event of runAgent({
+        sessionId: opts.sessionId,
+        provider: createProvider(resolvedProvider),
+        model: opts.modelId,
+        system,
+        history: session.messages,
+        tools,
+        executeTool: async (call) => {
+          if (!tools.some((tool) => tool.name === call.name)) {
+            return { toolCallId: call.id, output: 'This tool is disabled or unavailable for this chat.', isError: true };
+          }
+          const indirect = call.name === 'spawn_agent' || isMcpTool(call.name);
+          if (indirect && (mode === 'ask' || settings.sandboxMode === 'ask-everything')) {
+            const approved = await requestApproval(call, call.name === 'spawn_agent' ? 'Delegate work to a sub-agent' : `Call ${call.name}`, 'medium');
+            if (!approved) return { toolCallId: call.id, output: 'Call not approved by user.', isError: true };
+          }
+          if (call.name === 'report_experiment' && session.trainingRunId) {
+            try {
+              const output = reportExperiment(opts.sessionId, call.input as Record<string, unknown>);
+              return Promise.resolve({ toolCallId: call.id, output });
+            } catch (e) {
+              return Promise.resolve({ toolCallId: call.id, output: `Failed to record: ${(e as Error).message}`, isError: true });
+            }
+          }
+          if (call.name === 'report_artifact' && session.trainingRunId) {
+            try {
+              const output = reportArtifact(opts.sessionId, call.input as Record<string, unknown>);
+              return Promise.resolve({ toolCallId: call.id, output });
+            } catch (e) {
+              return Promise.resolve({ toolCallId: call.id, output: `Failed to record the artifact: ${(e as Error).message}`, isError: true });
+            }
+          }
+          if (call.name === 'update_plan' && session.trainingRunId) {
+            try {
+              const output = updateRunPlan(opts.sessionId, call.input as Record<string, unknown>);
+              return Promise.resolve({ toolCallId: call.id, output });
+            } catch (e) {
+              return Promise.resolve({ toolCallId: call.id, output: `Failed to update the plan: ${(e as Error).message}`, isError: true });
+            }
+          }
+          if (call.name === 'spawn_agent') {
+            return runSubAgent({ ...session, mode }, opts.providerId, opts.modelId, call.input, send)
+              .then((output) => ({ toolCallId: call.id, output }))
+              .catch((e) => ({ toolCallId: call.id, output: `Sub-agent failed: ${(e as Error).message}`, isError: true }));
+          }
+          return isMcpTool(call.name)
+            ? callMcpTool(call)
+            : executeTool(call, {
+                settings,
+                defaultCwd: session.workspaceId
+                  ? settings.workspaces.find((w) => w.id === session.workspaceId)?.path ?? settings.workspaces[0]?.path
+                  : settings.workspaces[0]?.path,
+                requestApproval,
+                mode,
+                sessionId: opts.sessionId,
+              });
+        },
+        temperature: EFFORT_TEMPERATURE[settings.effort ?? 'normal'],
+        maxIterations: clampMaxSteps(settings.maxSteps),
+        maxOutputTokens: clampMaxOutputTokens(settings.maxOutputTokens),
+        think: session.thinking,
+        maxHistoryTurns: opts.maxHistoryTurns,
+        resume: opts.resume,
+        signal: abort.signal,
+      })) {
+        eventsSeen = true;
+        if (event.type === 'usage') {
+          recordUsage({
+            ts: Date.now(),
+            providerId: opts.providerId,
+            modelId: opts.modelId,
+            inputTokens: event.inputTokens,
+            outputTokens: event.outputTokens,
+            sessionId: opts.sessionId,
+          });
+        }
+        // Checkpoint after every completed step, not just at the end. The agent
+        // loop appends each assistant message and tool result to `session.messages`
+        // as it goes, so writing here means a run that is killed mid-flight (a
+        // timeout, a crash, a quit) leaves the steps it finished on disk to resume
+        // from, instead of an hour of tool work existing only in memory.
+        //
+        // Written before the event goes out, so anything that reacts to it by
+        // re-reading the session (the chat pane does exactly that on `done`) is
+        // guaranteed to find the step it was just told about.
+        if (event.type === 'tool_result' || event.type === 'done' || event.type === 'error') {
+          persist();
+        }
+        send(event);
+      }
+      lastError = undefined;
+      break;
+    } catch (e) {
+      const message = (e as Error).message;
+      if (provider.auth === 'subscription' && !eventsSeen && attempts === 0 && isAuthFailure(message)) {
+        attempts++;
+        try {
+          resolvedProvider = { ...provider, apiKey: await ensureFreshToken(provider.tokenKey!, true) };
+          continue;
+        } catch (refreshErr) {
+          lastError = refreshErr as Error;
+          break;
+        }
+      }
+      lastError = e as Error;
+      break;
+    } finally {
+      abortControllers.delete(opts.sessionId);
+      persist();
+    }
+  }
+
+  if (lastError) {
+    send({ type: 'error', sessionId: opts.sessionId, message: lastError.message });
   }
 
   // Keep the linked spec.md in sync with the conversation (best-effort).

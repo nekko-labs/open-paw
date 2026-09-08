@@ -12,6 +12,7 @@ import type {
   IndexStatus,
   UpdateInfo,
   TerminalEvent,
+  OAuthStatus,
 } from '@kotrain/shared';
 import { IpcChannels, IpcEvents } from '@kotrain/shared';
 import {
@@ -174,6 +175,13 @@ const api: KotrainApi = {
 
   getUsageSummary: () => inv(IpcChannels.usageSummary),
 
+  oauthBegin: (provider) => inv(IpcChannels.oauthBegin, provider),
+  oauthFinish: (sessionId, pasted) => inv(IpcChannels.oauthFinish, sessionId, pasted),
+  oauthCancel: (sessionId) => inv(IpcChannels.oauthCancel, sessionId),
+  oauthStatus: (providerConfigId) => inv(IpcChannels.oauthStatus, providerConfigId),
+  oauthSignOut: (providerConfigId) => inv(IpcChannels.oauthSignOut, providerConfigId),
+  importCliAuth: () => inv(IpcChannels.providersImportCliAuth),
+
   enableRemote: (relayUrl) => inv(IpcChannels.remoteEnable, relayUrl),
   disableRemote: () => inv(IpcChannels.remoteDisable),
   getRemoteStatus: () => inv(IpcChannels.remoteStatus),
@@ -197,6 +205,11 @@ const api: KotrainApi = {
     const listener = (_: unknown, e: AgentEvent) => cb(e);
     ipcRenderer.on(IpcEvents.agentEvent, listener);
     return () => ipcRenderer.removeListener(IpcEvents.agentEvent, listener);
+  },
+  onOAuthStatus: (cb: (s: OAuthStatus) => void) => {
+    const listener = (_: unknown, s: OAuthStatus) => cb(s);
+    ipcRenderer.on(IpcEvents.oauthStatus, listener);
+    return () => ipcRenderer.removeListener(IpcEvents.oauthStatus, listener);
   },
   onIndexProgress: (cb: (s: IndexStatus) => void) => {
     const listener = (_: unknown, s: IndexStatus) => cb(s);

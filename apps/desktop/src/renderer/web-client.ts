@@ -1,5 +1,5 @@
 import { IpcChannels, IpcEvents, deriveKey, seal, open, RELEASE_NOTES_URL } from '@kotrain/shared';
-import type { AppSettings, AgentEvent, IndexStatus, KotrainApi, AppInfo, UpdateInfo, TerminalEvent } from '@kotrain/shared';
+import type { AppSettings, AgentEvent, IndexStatus, KotrainApi, AppInfo, UpdateInfo, TerminalEvent, OAuthStatus } from '@kotrain/shared';
 
 /**
  * Browser transport for the web/Docker editions: implements the same KotrainApi
@@ -21,6 +21,7 @@ function makeWebClient(): KotrainApi {
   const tasksCbs = new Set<(t: import('@kotrain/shared').AutomationTask[]) => void>();
   const trainingCbs = new Set<(r: import('@kotrain/shared').TrainingRun[]) => void>();
   const workflowCbs = new Set<(s: import('@kotrain/shared').WorkflowsSnapshot) => void>();
+  const oauthStatusCbs = new Set<(s: OAuthStatus) => void>();
   // Server build version captured when this tab loaded (for refresh detection).
   let loadVersion: string | null = null;
   const dispatchEvent = (channel: string, payload: any) => {
@@ -31,6 +32,7 @@ function makeWebClient(): KotrainApi {
     else if (channel === IpcEvents.tasksUpdated) tasksCbs.forEach((cb) => cb(payload));
     else if (channel === IpcEvents.trainingUpdated) trainingCbs.forEach((cb) => cb(payload));
     else if (channel === IpcEvents.workflowsUpdated) workflowCbs.forEach((cb) => cb(payload));
+    else if (channel === IpcEvents.oauthStatus) oauthStatusCbs.forEach((cb) => cb(payload));
   };
 
   // Relay transport: when the page is opened with ?relay=&room=&key=[&pair=],
@@ -386,6 +388,13 @@ function makeWebClient(): KotrainApi {
 
     getUsageSummary: () => call(IpcChannels.usageSummary),
 
+    oauthBegin: (provider) => call(IpcChannels.oauthBegin, provider),
+    oauthFinish: (sessionId, pasted) => call(IpcChannels.oauthFinish, sessionId, pasted),
+    oauthCancel: (sessionId) => call(IpcChannels.oauthCancel, sessionId),
+    oauthStatus: (providerConfigId) => call(IpcChannels.oauthStatus, providerConfigId),
+    oauthSignOut: (providerConfigId) => call(IpcChannels.oauthSignOut, providerConfigId),
+    importCliAuth: () => call(IpcChannels.providersImportCliAuth),
+
     enableRemote: (relayUrl) => call(IpcChannels.remoteEnable, relayUrl),
     disableRemote: () => call(IpcChannels.remoteDisable),
     getRemoteStatus: () => call(IpcChannels.remoteStatus),
@@ -424,6 +433,10 @@ function makeWebClient(): KotrainApi {
     onAgentEvent: (cb) => {
       agentCbs.add(cb);
       return () => agentCbs.delete(cb);
+    },
+    onOAuthStatus: (cb) => {
+      oauthStatusCbs.add(cb);
+      return () => oauthStatusCbs.delete(cb);
     },
     onIndexProgress: (cb) => {
       indexCbs.add(cb);

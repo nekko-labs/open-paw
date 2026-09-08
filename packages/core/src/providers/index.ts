@@ -23,6 +23,8 @@ export function createProvider(config: ProviderConfig): Provider {
     case 'vllm':
     case 'openai-compat':
       return new OpenAICompatProvider(config);
+    case 'chatgpt':
+      throw new Error('ChatGPT provider is not implemented in this PR');
   }
 }
 
