@@ -318,3 +318,5 @@ app.on('window-all-closed', () => {
   closeWorkflowLoopbackListener();
   if (process.platform !== 'darwin') app.quit();
 });
+
+app.on('before-quit', closeWorkflowLoopbackListener);

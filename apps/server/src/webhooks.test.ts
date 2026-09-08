@@ -36,8 +36,7 @@ describe('POST /api/hooks/:slug', () => {
       triggers: [{ id: 't1', kind: 'webhook', webhookSecret: 'good-secret' }],
     });
     const res = await app.inject({ method: 'POST', url: '/api/hooks/my-workflow?key=bad-secret', payload: { foo: 1 } });
-    expect(res.statusCode).toBe(200);
-    expect(JSON.parse(res.body).started).toBe(0);
+    expect(res.statusCode).toBe(403);
     expect(host.listWorkflowRuns(wf.id)).toHaveLength(0);
   });
 

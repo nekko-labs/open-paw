@@ -19,6 +19,7 @@ const RATE_LIMIT = 60;
 
 let server: Server | null = null;
 let checkTimer: ReturnType<typeof setInterval> | null = null;
+let sweepTimer: ReturnType<typeof setInterval> | null = null;
 
 const rateBuckets = new Map<string, { count: number; resetAt: number }>();
 
@@ -26,9 +27,16 @@ function rateLimitKey(slug: string, ip: string | undefined): string {
   return `${slug}:${ip ?? 'unknown'}`;
 }
 
+function pruneRateBuckets(now: number): void {
+  for (const [key, bucket] of rateBuckets) {
+    if (now > bucket.resetAt) rateBuckets.delete(key);
+  }
+}
+
 function checkRateLimit(key: string, now: number): boolean {
   const bucket = rateBuckets.get(key);
   if (!bucket || now > bucket.resetAt) {
+    if (bucket) rateBuckets.delete(key);
     rateBuckets.set(key, { count: 1, resetAt: now + RATE_WINDOW_MS });
     return true;
   }
@@ -110,6 +118,10 @@ async function handle(req: IncomingMessage, res: ServerResponse, host: Host): Pr
     const runs = await host.dispatchWebhook(slug, secret, payload);
     send(res, 200, { started: runs.length });
   } catch (e) {
+    if ((e as Error & { code?: string }).code === 'WEBHOOK_UNAUTHORIZED') {
+      send(res, 403, { error: 'unauthorized' });
+      return;
+    }
     send(res, 400, { error: (e as Error).message });
   }
 }
@@ -147,12 +159,19 @@ export function manageWorkflowLoopbackListener(host: Host): void {
   };
   sync();
   checkTimer = setInterval(sync, 5_000);
+  if (!sweepTimer) {
+    sweepTimer = setInterval(() => pruneRateBuckets(Date.now()), RATE_WINDOW_MS);
+  }
 }
 
 export function closeWorkflowLoopbackListener(): void {
   if (checkTimer) {
     clearInterval(checkTimer);
     checkTimer = null;
+  }
+  if (sweepTimer) {
+    clearInterval(sweepTimer);
+    sweepTimer = null;
   }
   stopServer();
 }

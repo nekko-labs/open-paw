@@ -648,6 +648,14 @@ function describeEvent(e: WorkflowEvent): string {
   }
 }
 
+/** Thrown when a request reaches a webhook trigger with the wrong secret. */
+class WebhookUnauthorizedError extends Error {
+  readonly code = 'WEBHOOK_UNAUTHORIZED' as const;
+  constructor(message = 'unauthorized') {
+    super(message);
+  }
+}
+
 /** Dispatch a webhook that was already authenticated by its route. */
 function secretMatches(expected: string, supplied: string): boolean {
   if (expected.length !== supplied.length) return false;
@@ -660,15 +668,20 @@ function secretMatches(expected: string, supplied: string): boolean {
 
 /** Dispatch a webhook that was already authenticated by its route. */
 export async function dispatchWebhook(slug: string, secret: string, payload: Record<string, unknown>): Promise<WorkflowRun[]> {
+  let foundWebhook = false;
   for (const wf of loadWorkflows()) {
     if (!wf.enabled) continue;
     if (slugify(wf.name) !== slug) continue;
     for (const t of wf.triggers) {
       if (t.kind !== 'webhook' || !t.webhookSecret) continue;
+      foundWebhook = true;
       if (secretMatches(t.webhookSecret, secret)) {
         return dispatchWorkflowEvent({ kind: 'webhook', workflowId: wf.id, secret, slug, payload });
       }
     }
+  }
+  if (foundWebhook) {
+    throw new WebhookUnauthorizedError();
   }
   return [];
 }

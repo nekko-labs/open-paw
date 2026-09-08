@@ -20,9 +20,16 @@ function rateLimitKey(slug: string, ip: string | undefined): string {
   return `${slug}:${ip ?? 'unknown'}`;
 }
 
+function pruneRateBuckets(now: number): void {
+  for (const [key, bucket] of rateBuckets) {
+    if (now > bucket.resetAt) rateBuckets.delete(key);
+  }
+}
+
 function checkRateLimit(key: string, now: number): boolean {
   const bucket = rateBuckets.get(key);
   if (!bucket || now > bucket.resetAt) {
+    if (bucket) rateBuckets.delete(key);
     rateBuckets.set(key, { count: 1, resetAt: now + RATE_WINDOW_MS });
     return true;
   }
@@ -30,6 +37,11 @@ function checkRateLimit(key: string, now: number): boolean {
   bucket.count += 1;
   return true;
 }
+
+// Sweep stale rate-limit buckets so the map does not grow forever with
+// one-off slug:ip pairs.
+const sweepTimer = setInterval(() => pruneRateBuckets(Date.now()), RATE_WINDOW_MS);
+(sweepTimer as unknown as { unref?: () => void }).unref?.();
 
 export function parseWebhookPayload(raw: string): Record<string, unknown> {
   try {
@@ -63,6 +75,10 @@ export function registerWebhookRoutes(app: FastifyInstance, host: Host): void {
       const runs = await host.dispatchWebhook(slug, secret, payload);
       reply.send({ started: runs.length });
     } catch (e) {
+      if ((e as Error & { code?: string }).code === 'WEBHOOK_UNAUTHORIZED') {
+        reply.code(403).send({ error: 'unauthorized' });
+        return;
+      }
       reply.code(400).send({ error: (e as Error).message });
     }
   });
