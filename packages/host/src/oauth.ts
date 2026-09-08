@@ -134,11 +134,6 @@ function buildAuthorizeUrl(
   url.searchParams.set('code_challenge', challenge);
   url.searchParams.set('code_challenge_method', 'S256');
   url.searchParams.set('state', state);
-  if (provider === 'chatgpt') {
-    url.searchParams.set('id_token_add_organizations', 'true');
-    url.searchParams.set('codex_cli_simplified_flow', 'true');
-    url.searchParams.set('originator', CHATGPT_ORIGINATOR);
-  }
   return url.toString();
 }
 
@@ -230,7 +225,8 @@ async function callbackHandler(
 ): Promise<void> {
   try {
     const url = new URL(req.url ?? '/', 'http://localhost');
-    if (url.pathname !== '/callback') {
+    const callbackPath = new URL(session.redirectUri).pathname;
+    if (url.pathname !== callbackPath) {
       res.writeHead(404);
       res.end('not found');
       return;
@@ -378,7 +374,7 @@ function tokenFromResponse(provider: OAuthProvider, json: Record<string, unknown
   if (!accessToken) throw new Error('Token response missing access_token.');
 
   const idToken = json.id_token as string | undefined;
-  const accountId = provider === 'chatgpt' ? (idToken ? extractAccountId(idToken) : undefined) ?? extractAccountId(accessToken) : undefined;
+  const accountId = provider === 'chatgpt' ? (idToken ? extractAccountId(idToken) : undefined) : undefined;
 
   const expiresIn = typeof json.expires_in === 'number' ? json.expires_in : 3600;
   const scopes = json.scope as string | undefined;

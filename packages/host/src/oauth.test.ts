@@ -2,6 +2,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createHash, randomBytes } from 'node:crypto';
+import http from 'node:http';
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { setDataDir } from './paths.js';
 import {
@@ -80,6 +81,12 @@ describe('OAuth core', () => {
       expect(url.pathname).toBe('/oauth/authorize');
       expect(url.searchParams.get('client_id')).toBe('app_EMoamEEZ73f0CkXaXp7hrann');
       expect(url.searchParams.get('redirect_uri')).toBe('http://localhost:1455/auth/callback');
+      expect(url.searchParams.get('response_type')).toBe('code');
+      expect(url.searchParams.get('scope')).toBe('openid profile email offline_access');
+      expect(url.searchParams.get('code_challenge_method')).toBe('S256');
+      expect(url.searchParams.has('id_token_add_organizations')).toBe(false);
+      expect(url.searchParams.has('codex_cli_simplified_flow')).toBe(false);
+      expect(url.searchParams.has('originator')).toBe(false);
       const state = url.searchParams.get('state');
       expect(state).toBeTruthy();
 
@@ -107,6 +114,35 @@ describe('OAuth core', () => {
       expect(params.get('client_id')).toBe('app_EMoamEEZ73f0CkXaXp7hrann');
       expect(params.get('code')).toBe('codex-code');
       expect(captured.headers['Content-Type']).toBe('application/x-www-form-urlencoded');
+    });
+
+    // Only run the loopback listener test from source; the compiled dist copy
+    // would race with source for the fixed ChatGPT loopback port.
+    it.skipIf(new URL(import.meta.url).pathname.includes('/dist/'))('accepts ChatGPT loopback callbacks on the redirectUri path and rejects other paths', async () => {
+      fetchMock.mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            access_token: 'chatgpt-access',
+            refresh_token: 'chatgpt-refresh',
+            id_token: makeFakeIdToken('chatgpt-account-123'),
+            expires_in: 3600,
+            scope: 'openid profile email offline_access',
+          }),
+          { status: 200, headers: { 'Content-Type': 'application/json' } },
+        ),
+      );
+
+      const session = await beginOAuth('chatgpt');
+      const authUrl = new URL(session.authUrl);
+      expect(authUrl.searchParams.get('redirect_uri')).toBe('http://localhost:1455/auth/callback');
+      const state = authUrl.searchParams.get('state')!;
+
+      const wrong = await requestStatus(`/callback?code=loopback-code&state=${state}`);
+      expect(wrong).toBe(404);
+
+      const right = await requestStatus(`/auth/callback?code=loopback-code&state=${state}`);
+      expect(right).toBe(200);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -252,4 +288,13 @@ function makeFakeIdToken(accountId: string): string {
   })).toString('base64url');
   const signature = randomBytes(16).toString('base64url');
   return `${header}.${payload}.${signature}`;
+}
+
+function requestStatus(path: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    http.get({ hostname: 'localhost', port: 1455, path, agent: false }, (res) => {
+      res.resume();
+      res.on('end', () => resolve(res.statusCode ?? 0));
+    }).on('error', reject);
+  });
 }
