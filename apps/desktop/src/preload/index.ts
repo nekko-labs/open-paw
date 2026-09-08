@@ -43,6 +43,12 @@ const api: KotrainApi = {
   unloadModel: (providerId, model) => inv(IpcChannels.modelUnload, providerId, model),
   lmsAvailable: (providerId) => inv(IpcChannels.lmsProbe, providerId),
   stopServer: (providerId) => inv(IpcChannels.serverStop, providerId),
+  runtimeStatus: (providerId) => inv(IpcChannels.runtimeStatus, providerId),
+  runtimeStart: (providerId) => inv(IpcChannels.runtimeStart, providerId),
+  runtimeStop: (providerId, force) => inv(IpcChannels.runtimeStop, providerId, force),
+  runtimeLoad: (providerId, modelId, params) => inv(IpcChannels.runtimeLoad, providerId, modelId, params),
+  runtimeFacts: (providerId) => inv(IpcChannels.runtimeFacts, providerId),
+  runtimePlan: (providerId, modelId, req) => inv(IpcChannels.runtimePlan, providerId, modelId, req),
   getGpuStats: () => inv(IpcChannels.gpuStats),
   getSystemStats: () => inv(IpcChannels.systemStats),
 

@@ -246,6 +246,12 @@ function makeWebClient(): KotrainApi {
     unloadModel: (providerId, model) => call(IpcChannels.modelUnload, providerId, model),
     lmsAvailable: (providerId) => call(IpcChannels.lmsProbe, providerId),
     stopServer: (providerId) => call(IpcChannels.serverStop, providerId),
+    runtimeStatus: (providerId) => call(IpcChannels.runtimeStatus, providerId),
+    runtimeStart: (providerId) => call(IpcChannels.runtimeStart, providerId),
+    runtimeStop: (providerId, force) => call(IpcChannels.runtimeStop, providerId, force),
+    runtimeLoad: (providerId, modelId, params) => call(IpcChannels.runtimeLoad, providerId, modelId, params),
+    runtimeFacts: (providerId) => call(IpcChannels.runtimeFacts, providerId),
+    runtimePlan: (providerId, modelId, req) => call(IpcChannels.runtimePlan, providerId, modelId, req),
     getGpuStats: () => call(IpcChannels.gpuStats),
     getSystemStats: () => call(IpcChannels.systemStats),
 
