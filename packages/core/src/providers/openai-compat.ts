@@ -1,6 +1,7 @@
 import type { ModelInfo, ProviderConfig, ToolCall } from '@kotrain/shared';
 import type { Provider, ChatRequest, ProviderChunk, ToolSpec } from './types.js';
 import { parseSSE } from './sse.js';
+import { DecodeClock } from './decode-clock.js';
 
 /**
  * Client for any OpenAI-compatible /chat/completions endpoint. Covers OpenAI,
@@ -31,7 +32,7 @@ export class OpenAICompatProvider implements Provider {
     const h: Record<string, string> = { 'Content-Type': 'application/json' };
     if (this.config.apiKey) h['Authorization'] = `Bearer ${this.config.apiKey}`;
     if (this.config.kind === 'openrouter') {
-      h['HTTP-Referer'] = 'https://github.com/nekko-labs/kotrain';
+      h['HTTP-Referer'] = 'https://github.com/nekko-labs/agent-nekko';
       h['X-Title'] = 'Kotrain';
     }
     return h;
@@ -97,6 +98,10 @@ export class OpenAICompatProvider implements Provider {
       stream: true,
       stream_options: { include_usage: true },
       temperature: req.temperature ?? 0.7,
+      // Output cap: without it a looping local model streams until its context
+      // window fills. `max_tokens` is honoured by every openai-compat server we
+      // target (newer OpenAI models also accept it as a deprecated alias).
+      ...(req.maxOutputTokens ? { max_tokens: req.maxOutputTokens } : {}),
       messages: this.toOpenAIMessages(req),
       tools: req.tools?.map(toOpenAITool),
       ...(req.think !== undefined && localKind ? { chat_template_kwargs: { enable_thinking: req.think } } : {}),
@@ -120,6 +125,10 @@ export class OpenAICompatProvider implements Provider {
 
     // Accumulate streamed tool-call fragments by index.
     const toolAcc = new Map<number, { id: string; name: string; args: string }>();
+    // Times the decode phase for the tok/s figure. `include_usage` puts the usage
+    // chunk after the last content chunk, so the clock covers exactly the span in
+    // which the tokens it reports were generated.
+    const decode = new DecodeClock();
 
     for await (const data of parseSSE(res)) {
       let chunk: any;
@@ -134,12 +143,17 @@ export class OpenAICompatProvider implements Provider {
       // of thought as `reasoning_content` (or `reasoning`) before the answer.
       const reasoning = delta?.reasoning_content ?? delta?.reasoning;
       if (reasoning) {
+        decode.mark();
         yield { type: 'reasoning', delta: reasoning as string };
       }
       if (delta?.content) {
+        decode.mark();
         yield { type: 'text', delta: delta.content as string };
       }
       if (delta?.tool_calls) {
+        // Tool arguments are generated tokens too, so a response that only calls
+        // a tool still has a decode rate to report.
+        decode.mark();
         for (const tc of delta.tool_calls) {
           const idx = tc.index ?? 0;
           const cur = toolAcc.get(idx) ?? { id: tc.id ?? `call_${idx}`, name: '', args: '' };
@@ -150,10 +164,12 @@ export class OpenAICompatProvider implements Provider {
         }
       }
       if (chunk.usage) {
+        decode.stop();
         yield {
           type: 'usage',
           inputTokens: chunk.usage.prompt_tokens ?? 0,
           outputTokens: chunk.usage.completion_tokens ?? 0,
+          outputMs: decode.elapsed(),
         };
       }
       if (choice?.finish_reason) {

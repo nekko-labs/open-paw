@@ -23,7 +23,10 @@ export function TrainingView() {
     return window.kotrain.onTrainingUpdated(setRuns);
   }, []);
 
-  const mine = runs.filter((r) => r.kind === 'training');
+  // Goal runs are listed here too. The Goals tab they used to live on is now
+  // Workflows, and the engine still holds any goal run started before that, so
+  // this is where an existing one stays reachable rather than being orphaned.
+  const mine = runs.filter((r) => r.kind === 'training' || r.kind === 'goal');
   const selected = mine.find((r) => r.id === selectedId) ?? mine[0] ?? null;
 
   return (

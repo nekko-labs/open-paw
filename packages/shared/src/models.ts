@@ -71,16 +71,34 @@ export interface GpuDevice {
 }
 
 /**
+ * Where a GPU reading came from. `nvidia-smi` is the NVIDIA driver query (Windows
+ * and Linux); `ioreg` is the macOS accelerator driver's own statistics, which
+ * needs no admin rights (unlike `powermetrics`).
+ */
+export type GpuSource = 'nvidia-smi' | 'ioreg' | 'none';
+
+/**
  * Aggregate GPU/VRAM stats, surfaced in the Chat metrics bar and Command Center.
  * `source` records where the numbers came from so the UI can label them honestly;
  * totals are summed across all devices.
  */
 export interface GpuStats {
-  source: 'nvidia-smi' | 'none';
+  source: GpuSource;
   devices: GpuDevice[];
   totalMB: number;
   usedMB: number;
   freeMB: number;
+  /**
+   * The GPU shares one memory pool with the CPU (Apple Silicon), so `totalMB` is
+   * system RAM rather than a dedicated card's VRAM. The UI labels the memory
+   * meter differently when this is set, so nobody reads it as discrete VRAM.
+   */
+  unified?: boolean;
+}
+
+/** How the memory meter should name itself for a given GPU source. */
+export function gpuMemoryLabel(stats: Pick<GpuStats, 'unified'> | null): string {
+  return stats?.unified ? 'GPU memory' : 'VRAM';
 }
 
 /**

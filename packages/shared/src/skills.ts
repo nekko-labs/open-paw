@@ -364,20 +364,35 @@ export const SKILL_CATEGORIES: SkillCategory[] = [
 
 // --- Workflow layout (pure; consumed by the Skills tab visualizer) ---
 
-export interface LaidOutNode extends SkillNode {
+/** Where the layout placed a node. */
+export interface NodePlacement {
   layer: number;
   row: number;
   x: number;
   y: number;
 }
 
-export interface WorkflowLayout {
-  nodes: LaidOutNode[];
-  edges: SkillEdge[];
+export type LaidOutNode = SkillNode & NodePlacement;
+
+export interface WorkflowLayout<N = LaidOutNode, E = SkillEdge> {
+  nodes: N[];
+  edges: E[];
   width: number;
   height: number;
   nodeW: number;
   nodeH: number;
+}
+
+/** The minimum a node needs to be laid out. */
+export interface GraphNode {
+  id: string;
+}
+
+/** The minimum an edge needs; `back` edges are drawn as loops, not layered. */
+export interface GraphEdge {
+  from: string;
+  to: string;
+  back?: boolean;
 }
 
 export interface LayoutOptions {
@@ -393,8 +408,15 @@ export interface LayoutOptions {
  * from a root over forward edges (back/loop edges are ignored for layering);
  * nodes sharing a layer are stacked and vertically centred so fan-outs splay
  * symmetrically. Pure + deterministic so it can be unit-tested.
+ *
+ * Generic over the node and edge shapes: it only reads ids and edge ends, and
+ * carries everything else through untouched, so a skill's graph and a workflow's
+ * step graph are drawn by the same code.
  */
-export function layoutWorkflow(workflow: SkillWorkflow, opts: LayoutOptions = {}): WorkflowLayout {
+export function layoutWorkflow<N extends GraphNode, E extends GraphEdge>(
+  workflow: { nodes: N[]; edges: E[] },
+  opts: LayoutOptions = {},
+): WorkflowLayout<N & NodePlacement, E> {
   const nodeW = opts.nodeW ?? 156;
   const nodeH = opts.nodeH ?? 60;
   const gapX = opts.gapX ?? 64;
@@ -424,7 +446,7 @@ export function layoutWorkflow(workflow: SkillWorkflow, opts: LayoutOptions = {}
   }
 
   // Group nodes by layer, preserving declaration order within a layer.
-  const layers = new Map<number, SkillNode[]>();
+  const layers = new Map<number, N[]>();
   for (const n of workflow.nodes) {
     const l = layer.get(n.id) ?? 0;
     if (!layers.has(l)) layers.set(l, []);
@@ -435,7 +457,7 @@ export function layoutWorkflow(workflow: SkillWorkflow, opts: LayoutOptions = {}
   const maxRows = Math.max(...[...layers.values()].map((g) => g.length), 1);
   const canvasInner = colHeight(maxRows);
 
-  const laid: LaidOutNode[] = [];
+  const laid: Array<N & NodePlacement> = [];
   for (const [l, group] of [...layers.entries()].sort((a, b) => a[0] - b[0])) {
     const colH = colHeight(group.length);
     const startY = margin + (canvasInner - colH) / 2;

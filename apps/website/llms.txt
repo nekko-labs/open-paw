@@ -1,61 +1,91 @@
-# Kotrain
+# Agent Nekko
 
-> Open-source, local-first AI chat, cowork, and coding in one calm window. Kotrain's headline feature is **first-class local model support**: point it at Ollama, LM Studio, or vLLM in one click, alongside every major cloud provider. Desktop, self-hosted web, and Docker editions run the same engine and the same UI. MIT licensed, by Nekko Labs.
+> AI help on your computer, for coding and everyday work. Agent Nekko helps you write, code, and handle repeat tasks using AI on your computer or online services. Choose the AI for each job, review what it does, and keep supported work offline after setup. Free, open-source software under the MIT license, by Nekko Labs. Voice and desktop control are planned, not available today.
 
-Local model UIs are essentially a chat box around a model with no awareness of your files or projects. Terminal agents are powerful but blind. Kotrain sits in between: an IDE-like surface where the agent reads, edits, searches, and runs inside your actual codebases, with every action visible through a context-provenance inspector and approval prompts.
+A model is the AI you choose. Local means it runs on your computer rather than an online service. A model runner is the software that loads and runs that AI, such as Ollama, LM Studio, or vLLM. An AI agent can use tools to work on a task, rather than only reply in a chat.
 
-## Key facts
+Nekko, the mascot, is a hand-drawn, slender outline cat with ginger ears and tail, slim sunglasses, an earpiece, and a small collar and tie. The website uses the same relaxed leaning pose as the desktop app: Nekko rests one paw against a short edge with crossed ankles.
 
-- **What it is**: a local-first AI coding and cowork app (Electron + React) that unifies conversation and coding into one surface.
-- **Local models first**: one-click setup for Ollama, LM Studio, and vLLM, plus every major cloud provider. Verified end-to-end against a live LM Studio server, including reasoning models and the full multi-step tool-calling agent loop.
-- **Editions** (same engine, same UI, different transport): **Desktop** (macOS, Windows, Linux) available; **self-hosted web** (`npx kotrain` or `npm run web`, fully offline) available; **Docker** (`docker compose up`, workspaces as volumes) available; **phone remote control** (pair by QR, end-to-end encrypted, managed relay free in beta or self-host it) available; **Kotrain Cloud** (paid, hosted, always-on Zero-Data-Retention mode, cloud history and files) planned.
-- **Privacy**: local-first. Inference and tools stay on your machine, data lives in `~/.kotrain`. Kotrain Cloud's relay is an end-to-end-encrypted pipe to your own paired agent, so driving a local model from your phone stays private by design.
-- **Licence**: MIT, open source, developed in the open with contributions welcome.
+## Identity and current distribution
 
-## Features
+- Primary website: https://agentnekko.com/
+- Backup domain: nekkoagent.com. Use agentnekko.com as the canonical URL.
+- The product was previously called Kotrain. The rebrand uses `agent-nekko` for new slugs, executable names, and npm package names. Current public release assets and legacy commands still use Kotrain during the cutover; source changes do not imply a published package or repository move.
+- Source and releases remain at https://github.com/nekko-labs/agent-nekko. Do not substitute an unverified repository or package name.
 
-Kotrain's second pitch, after local models, is **the harness**: the scaffolding around the model that decides how well a model you run yourself performs on real work. It splits into what the model sees, what it can reach, and what happens when it gets something wrong.
+## Five ways to use Nekko
 
-**Unified chat / cowork / code** in one window, no mode switching.
+### 1. Use AI on your computer or online
 
-What it sees:
+Work in the Nekko app with AI on your computer or an online service such as Anthropic, OpenAI, or OpenRouter. You can also connect supported coding tools through the command-line interface (CLI) or MCP, a standard for connecting AI tools. Claude Code, Cursor, Codex, and OpenClaw can connect where their CLI or MCP configuration supports it. These are configurable connections, not bundled native integrations or a claim of testing every client.
 
-- **Context Inspector**: every file, guideline, memory entry, and index snippet entering the next prompt, with per-source token counts, a window-headroom bar, and a toggle or pin on each. The unsent draft is counted as you type it.
-- **Grounded retrieval**: a multi-folder index (file tree, code outline, search) so a large repo arrives as the relevant slice instead of a wall of text.
-- **Guidelines and memory**: `AGENTS.md` / `CLAUDE.md` plus a markdown memory store, global and per project, each entry individually switchable.
-- **A living spec**: build `SPEC.md` (plus a plan and task list) from the conversation and feed it back as context.
-- **Prompt analyzer**: offline, zero-latency analysis of your draft with an A to F score and click-to-fill suggestions.
+The current MCP command is `kotrain mcp`; see the CLI documentation for setup. Nekko can also connect to other MCP servers to use their tools.
 
-What it can reach:
+### 2. Choose the right AI for the job
 
-- **Sub-agents and swarms**: scoped subtasks run in fresh child sessions with their own context, under a solo / balanced / swarm strategy with depth limits.
-- **Skills**: real procedures (research, plan, review, security-review, test, commit, PR) with visualized workflows, plus a marketplace.
-- **MCP in both directions**: connect stdio or streamable-HTTP MCP servers, including [Hypergate](https://hypergate.app) as a gateway, and run Kotrain itself as an MCP server.
-- **Connectors**: Linear, Slack, Discord, Gmail, and Drive, folded into context as snippets.
-- **Goal loops that terminate**: plan first, re-inject the plan each iteration, bounded context window, turn and time budgets, and stall detection.
+Choose a powerful online model for difficult planning, then a model on your computer or a cheaper online service for smaller tasks. Model selection is available per chat and workflow. The unreleased rebrand source also adds explicit provider/model targets for delegated tasks, called sub-agents, checked against the target's model list without automatic fallback. These source changes are not in older published releases. Automatically choosing the best model remains a future direction, not a shipped guarantee.
 
-When it's wrong:
+Running AI on your own hardware has no per-token local API bill. Tokens are the small pieces of text that AI models process. Hardware, electricity, paid providers, and hosted services can still cost money. Quality, memory needs, and speed depend on the model and computer.
 
-- **Guardrails by default**: a risky-command classifier behind an editable allow / ask / deny policy; Ask, Guardrails, or YOLO per chat.
-- **Sandbox out of the box**: file access jailed to your folders, with optional Docker isolation for shell commands.
-- **Diff review**: agent edits land in a Changes panel as a line diff, keep or revert at line, file, or all.
-- **Recovery**: an empty reply is retried with a nudge and then surfaced, and "Reset here" rewinds the chat to any earlier message.
+### 3. Automate repetitive work
 
-- **Kotrain**, a hand-drawn astronaut cat that works in zero-g while the model thinks.
+Save a series of steps as a workflow. Steps can be AI instructions, saved procedures called skills, terminal commands, or other workflows. Run them manually, on a schedule, or through supported events. Set up recurring checks, called watchers, and review run history, success or failure paths, and limited retries.
 
-## Install
+The computer and the app running the workflow must stay on for scheduled tasks and checks. This is not an always-on cloud service.
 
-Grab the installer for your OS from the [latest release](https://github.com/nekko-labs/kotrain/releases/latest): Windows `.msi`/`.exe`, macOS `.dmg`, Linux `.AppImage`/`.deb`. macOS builds are not notarized yet, so clear the quarantine flag once with `xattr -cr "/Applications/Kotrain.app"` after installing.
+### 4. Manage your AI models in one place
 
-## Pages
+Connect an existing Ollama, LM Studio, or vLLM model runner, use the controls each supports inside Nekko, and add online AI services when needed. You do not have to replace a setup that already works.
 
-- [Home](https://kotrain.com/): what Kotrain is, the features, local-model support, the editions, and downloads.
+- Find model runners on your computer and inspect available or loaded models.
+- Download, load, and unload Ollama models.
+- Load and unload LM Studio models on your computer when its `lms` command-line tool is installed.
+- vLLM models stay loaded with the server; there is no universal per-model unload control.
+- Inspect usage and stop supported model-server processes on your computer.
 
-## Docs and source
+These are connections and controls for separately installed software. Nekko does not bundle or automatically install a model runner today. The technical terms for these runners and their controls are runtimes and model lifecycle management.
 
-- [GitHub repository](https://github.com/nekko-labs/kotrain): source, issues, releases.
-- [README](https://github.com/nekko-labs/kotrain/blob/main/README.md): overview, install, editions, and troubleshooting.
-- [Walkthrough](https://github.com/nekko-labs/kotrain/blob/main/docs/WALKTHROUGH.md): a picture-by-picture tour of the app.
-- [Remote access](https://github.com/nekko-labs/kotrain/blob/main/docs/REMOTE.md): phone pairing and self-hosting the relay.
-- [Contributing](https://github.com/nekko-labs/kotrain/blob/main/CONTRIBUTING.md): how to pick up a first issue.
-- [Releases](https://github.com/nekko-labs/kotrain/releases): installers for every platform.
+### 5. Control your computer by voice (planned)
+
+Planned, not available today: AI on your computer would understand instructions and speak back, using local speech recognition when you choose voice input. The intended safety controls are scoped, approved apps and actions, confirmations for sensitive steps, and a visible stop control. These controls reduce risk; they are not a guarantee that every action is safe.
+
+Guided setup would check your processor (CPU), memory (RAM), graphics memory or unified memory, available storage, operating system, supported AI software, and each model's minimum requirements. It would choose suitable AI and speech models plus other needed software. You would preview the plan and approve one install click, then separately accept required operating-system permission prompts. Setup would not silently grant permissions.
+
+In technical terms, the planned setup would select a local intent LLM, text-to-speech (TTS), speech-to-text (STT) when voice input is used, and other required runtimes based on hardware and OS/backend compatibility.
+
+Initial model and software downloads would need internet access or a prepared offline bundle. After setup, supported actions are intended to remain offline with no cloud fallback. Neither the guided installer nor the offline bundle is available today.
+
+Current implementation provides file and terminal tools and CPU/RAM plus macOS/NVIDIA hardware metrics. It does not yet provide voice, desktop control, or a setup recommender. This fifth pillar is a product direction, not a shipped feature or a delivery-date promise.
+
+## Choose what stays on your computer
+
+With an AI model and its runner already installed on your computer, supported tasks can run offline. Online AI services, downloads, connectors, and remote services need internet access and may send data to the providers you configure. Choosing local AI does not mean every operation stays local. Desktop, self-hosted browser, and Docker editions share the same core software. Data paths currently retain the Kotrain name, including `~/.kotrain` for CLI and web defaults.
+
+## See what your AI is doing
+
+- Context Inspector: see the files, instructions, and notes included in each request. Turn them on or off and inspect their token counts.
+- Search across project folders, view files, edit them in the app, and review changes line by line.
+- Use `AGENTS.md` / `CLAUDE.md` instructions and saved project notes.
+- Delegate smaller tasks, reuse saved procedures, and set limits on longer work.
+- Configure which terminal commands are allowed, need approval, or are blocked. Keep file tools within selected folders, with optional Docker isolation for terminal commands.
+
+## What we are planning next
+
+Alongside voice and computer control, Agent Nekko is exploring shared team workflows and dividing jobs across spare team computers. Another direction is a local CI and task-runner alternative for repeated jobs such as code tests, with possible cloud runners for extra capacity. These ideas have no delivery date or availability promise. They do not imply GitHub Actions compatibility, managed team compute, or hosted runners are available now.
+
+## Choose how to use Nekko
+
+Get the current desktop installer from the [latest release](https://github.com/nekko-labs/agent-nekko/releases/latest): Windows `.exe`/`.msi`, macOS `.dmg`, Linux `.AppImage`/`.deb`. The website detects the platform and resolves real release assets, falling back to GitHub Releases if the API is unavailable.
+
+For the browser version you run yourself, use a source checkout, install dependencies with `npm install`, then run `npm run web`. Running `npx kotrain` without a command shows CLI help, not the browser app. Use `docker compose up` from a checkout for Docker, and `kotrain mcp` for a configured CLI installation. The rebrand source adds an `agent-nekko` executable alongside legacy commands; do not assume this is included in older published packages. The `agent-nekko` npm package itself has not been published. See the install documentation for prerequisites and unsigned-build guidance before installing.
+
+## Pages and source
+
+- [Home](https://agentnekko.com/): five ways to use Nekko, including planned voice and computer control, plus model controls, future plans, and downloads.
+- [GitHub repository](https://github.com/nekko-labs/agent-nekko): source, issues, releases.
+- [README](https://github.com/nekko-labs/agent-nekko/blob/main/README.md): install, editions, and troubleshooting.
+- [CLI and MCP](https://github.com/nekko-labs/agent-nekko/blob/main/apps/cli/README.md): current commands and client configuration.
+- [Walkthrough](https://github.com/nekko-labs/agent-nekko/blob/main/docs/WALKTHROUGH.md): a tour of the app.
+- [Remote access](https://github.com/nekko-labs/agent-nekko/blob/main/docs/REMOTE.md): phone pairing and self-hosting the relay.
+- [Contributing](https://github.com/nekko-labs/agent-nekko/blob/main/CONTRIBUTING.md): how to contribute.
+- [Releases](https://github.com/nekko-labs/agent-nekko/releases): current installers.

@@ -1,6 +1,7 @@
 import type { ModelInfo, ProviderConfig, ToolCall } from '@kotrain/shared';
 import type { Provider, ChatRequest, ProviderChunk } from './types.js';
 import { parseSSE } from './sse.js';
+import { DecodeClock } from './decode-clock.js';
 
 /** Known Claude models surfaced when the /models endpoint isn't used. */
 const CLAUDE_MODELS: Array<{ id: string; name: string; ctx: number }> = [
@@ -38,7 +39,7 @@ export class AnthropicProvider implements Provider {
   async *chat(req: ChatRequest): AsyncIterable<ProviderChunk> {
     const body = {
       model: req.model,
-      max_tokens: 4096,
+      max_tokens: req.maxOutputTokens ?? 4096,
       stream: true,
       temperature: req.temperature ?? 0.7,
       system: req.system,
@@ -59,6 +60,9 @@ export class AnthropicProvider implements Provider {
 
     let curTool: { id: string; name: string; json: string } | null = null;
     let inputTokens = 0;
+    // Times the decode phase for the tok/s figure: from the first generated
+    // token to the `message_delta` that reports the output count.
+    const decode = new DecodeClock();
 
     for await (const data of parseSSE(res)) {
       let ev: any;
@@ -77,6 +81,9 @@ export class AnthropicProvider implements Provider {
           }
           break;
         case 'content_block_delta':
+          // Tool arguments are generated tokens too, so they start the clock even
+          // though they surface as one `tool_call` at the end of the block.
+          decode.mark();
           if (ev.delta?.type === 'text_delta') {
             yield { type: 'text', delta: ev.delta.text as string };
           } else if (ev.delta?.type === 'input_json_delta' && curTool) {
@@ -92,7 +99,8 @@ export class AnthropicProvider implements Provider {
           break;
         case 'message_delta':
           if (ev.usage?.output_tokens != null) {
-            yield { type: 'usage', inputTokens, outputTokens: ev.usage.output_tokens };
+            decode.stop();
+            yield { type: 'usage', inputTokens, outputTokens: ev.usage.output_tokens, outputMs: decode.elapsed() };
           }
           break;
         case 'message_stop':

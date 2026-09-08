@@ -1,7 +1,12 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import type { VaizerCatalog, VaizerCatalogSkill } from '@kotrain/shared';
-import { VAIZER_CATALOG_URL, VAIZER_SNAPSHOT, vaizerSkillMdUrl } from '@kotrain/shared';
+import {
+  VAIZER_CATALOG_URL,
+  VAIZER_SNAPSHOT,
+  vaizerLegacySkillMdUrl,
+  vaizerSkillMdUrl,
+} from '@kotrain/shared';
 import { dataDir } from './store.js';
 
 /**
@@ -71,15 +76,25 @@ export async function getVaizerCatalog(refresh = false): Promise<VaizerCatalog> 
   }
 }
 
-/** Fetch a Vaizer skill's verbatim SKILL.md (used at install time). */
+/**
+ * Fetch a Vaizer skill's verbatim SKILL.md (used at install time).
+ *
+ * Tries the current bundled-plugin path first, then the pre-2026-08-28
+ * per-skill path. Keeping both means the marketplace restructure does not
+ * decide whether an install gets the real skill or just the catalog summary,
+ * whichever side is updated first.
+ */
 export async function getVaizerSkillMd(slug: string): Promise<string | null> {
   if (!/^[a-z0-9-]+$/.test(slug)) return null;
-  try {
-    const res = await fetch(vaizerSkillMdUrl(slug), { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
-    if (!res.ok) return null;
-    const text = await res.text();
-    return text.trim().length > 0 ? text : null;
-  } catch {
-    return null;
+  for (const url of [vaizerSkillMdUrl(slug), vaizerLegacySkillMdUrl(slug)]) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+      if (!res.ok) continue;
+      const text = await res.text();
+      if (text.trim().length > 0) return text;
+    } catch {
+      // Try the next candidate; a network failure on one is not a verdict.
+    }
   }
+  return null;
 }

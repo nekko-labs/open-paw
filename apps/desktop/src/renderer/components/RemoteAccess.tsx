@@ -12,7 +12,7 @@ import { Badge } from './primitives/index.js';
 
 /** Managed relay (free during beta; becomes a Kotrain Cloud perk). */
 export const MANAGED_RELAY_URL = 'wss://kotrain-relay.fly.dev';
-const SELF_HOST_DOCS = 'https://github.com/nekko-labs/kotrain/blob/main/docs/REMOTE.md';
+const SELF_HOST_DOCS = 'https://github.com/nekko-labs/agent-nekko/blob/main/docs/REMOTE.md';
 
 export function RemoteAccess() {
   const [status, setStatus] = useState<RemoteStatus>({ enabled: false });
@@ -148,7 +148,7 @@ export function RemoteAccess() {
             </button>
           </div>
           <p className="text-[11.5px] text-ink-faint">
-            The default is the managed Kotrain relay (free during beta). Privacy purists can{' '}
+            The default is the managed Agent Nekko relay (free during beta). Privacy purists can{' '}
             <a className="underline" href={SELF_HOST_DOCS} target="_blank" rel="noreferrer">
               self-host the relay
             </a>{' '}
@@ -220,7 +220,7 @@ export function RemoteAccess() {
               {qr && <img src={qr} alt="Pairing QR" width={132} height={132} className="rounded-lg border border-line" />}
               <div className="min-w-0">
                 <div className="text-[12px]">
-                  Scan from the Kotrain app (or open the link in your phone's browser). One device,{' '}
+                  Scan from the Agent Nekko app (or open the link in your phone's browser). One device,{' '}
                   <span className="font-mono font-medium">{Math.floor(secsLeft / 60)}:{String(secsLeft % 60).padStart(2, '0')}</span>{' '}
                   left.
                 </div>

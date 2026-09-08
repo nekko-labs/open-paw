@@ -120,13 +120,17 @@ export const TrainingColorIcon = (p: P) => (
   </Svg>
 );
 
-/** Goals — a bullseye with an arrow in the gold. */
-export const GoalsColorIcon = (p: P) => (
+/** Workflows — a node graph: steps, a branch, and a dashed loop back. */
+export const WorkflowsColorIcon = (p: P) => (
   <Svg {...p}>
-    <circle cx="11" cy="13" r="8.4" fill="#fda4af" />
-    <circle cx="11" cy="13" r="5.6" fill="#fff1f2" />
-    <circle cx="11" cy="13" r="2.9" fill="#f43f5e" />
-    <path d="M11 13 18.6 5.4" stroke="#8b5e34" strokeWidth="1.8" strokeLinecap="round" />
-    <path d="M17.2 4.2l3.4-.8-.8 3.4-2.2-.4z" fill="#4ade80" />
+    {/* A three-node pipeline with a branch and a loop back, the shape of the
+        thing itself: run a step, and route where it goes next. */}
+    <path d="M8.6 7.4h3.2" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" />
+    <path d="M14.4 8.9v4.6a1.6 1.6 0 0 1-1.6 1.6H9.4" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+    <path d="M6.2 9.2v6.4a1.8 1.8 0 0 0 1.8 1.8h1.2" stroke="#fb923c" strokeWidth="1.4" strokeLinecap="round" strokeDasharray="2.4 2.4" fill="none" />
+    <rect x="3" y="4.6" width="5.8" height="5.6" rx="1.7" fill="#a5b4fc" />
+    <rect x="12" y="4.6" width="8.4" height="5.6" rx="1.7" fill="#6366f1" />
+    <rect x="6.2" y="14" width="8.4" height="5.6" rx="1.7" fill="#34d399" />
+    <circle cx="17.8" cy="16.8" r="2.5" fill="#fbbf24" />
   </Svg>
 );

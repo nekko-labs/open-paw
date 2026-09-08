@@ -1,0 +1,695 @@
+import React, { useMemo, useState } from 'react';
+import type {
+  GitEvent,
+  GitProvider,
+  NewWorkflow,
+  SkillDef,
+  Workflow,
+  WorkflowStep,
+  WorkflowStepKind,
+  WorkflowTransition,
+  WorkflowTrigger,
+  WorkflowTriggerKind,
+} from '@kotrain/shared';
+import {
+  DEFAULT_WORKFLOW_CATEGORIES,
+  GIT_EVENTS,
+  GIT_PROVIDERS,
+  UNCATEGORIZED,
+  WORKFLOW_STEP_KINDS,
+  WORKFLOW_TRIGGER_KINDS,
+  cliCommand,
+  formatEvery,
+  isValidCron,
+  newStepId,
+  nextCronRun,
+  unreachableSteps,
+} from '@kotrain/shared';
+import { useStore } from '../store.js';
+import { Modal } from './primitives/index.js';
+import { WorkflowCanvas } from './WorkflowCanvas.js';
+import { CloseIcon, PlusIcon } from '../icons.js';
+
+/**
+ * Create or edit one workflow: what it's called, when it fires, and the steps it
+ * runs. The step editor is where the routing lives, each step picks where the run
+ * goes next on success and on failure, and the canvas above redraws as you change
+ * it so a loop back to an earlier step is visible while you're building it.
+ *
+ * Nothing is saved until Save, so an abandoned edit leaves the workflow alone.
+ */
+
+interface Draft {
+  name: string;
+  description: string;
+  category: string;
+  enabled: boolean;
+  workspaceId?: string;
+  steps: WorkflowStep[];
+  triggers: WorkflowTrigger[];
+}
+
+function toDraft(wf?: Workflow): Draft {
+  return {
+    name: wf?.name ?? '',
+    description: wf?.description ?? '',
+    category: wf?.category ?? UNCATEGORIZED,
+    enabled: wf?.enabled ?? true,
+    workspaceId: wf?.workspaceId,
+    steps: (wf?.steps ?? []).map((s) => ({ ...s })),
+    triggers: (wf?.triggers ?? [{ id: newStepId('trg'), kind: 'manual' }]).map((t) => ({ ...t })),
+  };
+}
+
+export function WorkflowEditor({
+  workflow,
+  seed,
+  workflows,
+  skills,
+  onClose,
+  onSave,
+}: {
+  /** The workflow being edited, or undefined when creating one. */
+  workflow?: Workflow;
+  /** Starting steps/triggers for a new workflow (from a template). */
+  seed?: { name?: string; category?: string; description?: string; steps: WorkflowStep[]; triggers: WorkflowTrigger[] };
+  /** Every workflow, so a `workflow` step can pick a target. */
+  workflows: Workflow[];
+  /** Installed skills, so a `skill` step can pick one. */
+  skills: SkillDef[];
+  onClose: () => void;
+  onSave: (patch: NewWorkflow) => Promise<void> | void;
+}) {
+  const settings = useStore((s) => s.settings);
+  const [draft, setDraft] = useState<Draft>(() => {
+    const base = toDraft(workflow);
+    return seed
+      ? {
+          ...base,
+          name: seed.name ?? base.name,
+          description: seed.description ?? base.description,
+          category: seed.category ?? base.category,
+          steps: seed.steps,
+          triggers: seed.triggers,
+        }
+      : base;
+  });
+  const [busy, setBusy] = useState(false);
+  const [selectedStep, setSelectedStep] = useState<string | null>(null);
+
+  const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((d) => ({ ...d, [key]: value }));
+  const patchStep = (id: string, patch: Partial<WorkflowStep>) =>
+    set('steps', draft.steps.map((s) => (s.id === id ? { ...s, ...patch } : s)));
+  const patchTrigger = (id: string, patch: Partial<WorkflowTrigger>) =>
+    set('triggers', draft.triggers.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+
+  const unreachable = useMemo(() => new Set(unreachableSteps(draft.steps)), [draft.steps]);
+  const canSave = draft.name.trim().length > 0 && draft.steps.length > 0 && !busy;
+
+  const save = async () => {
+    if (!canSave) return;
+    setBusy(true);
+    try {
+      await onSave({
+        name: draft.name.trim(),
+        description: draft.description.trim() || undefined,
+        category: draft.category.trim() || UNCATEGORIZED,
+        enabled: draft.enabled,
+        workspaceId: draft.workspaceId,
+        steps: draft.steps,
+        triggers: draft.triggers,
+      });
+      onClose();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const addStep = () =>
+    setDraft((d) => ({
+      ...d,
+      steps: [...d.steps, { id: newStepId(), name: `Step ${d.steps.length + 1}`, kind: 'prompt', run: '' }],
+    }));
+
+  const removeStep = (id: string) =>
+    setDraft((d) => ({
+      ...d,
+      // Any route that pointed at the removed step falls back to the default, so
+      // the workflow can't be left pointing at something that isn't there.
+      steps: d.steps
+        .filter((s) => s.id !== id)
+        .map((s) => ({
+          ...s,
+          onSuccess: routeStillValid(s.onSuccess, id) ? s.onSuccess : undefined,
+          onFailure: routeStillValid(s.onFailure, id) ? s.onFailure : undefined,
+        })),
+    }));
+
+  const moveStep = (id: string, delta: number) =>
+    setDraft((d) => {
+      const i = d.steps.findIndex((s) => s.id === id);
+      const j = i + delta;
+      if (i < 0 || j < 0 || j >= d.steps.length) return d;
+      const steps = [...d.steps];
+      [steps[i], steps[j]] = [steps[j], steps[i]];
+      return { ...d, steps };
+    });
+
+  return (
+    <Modal title={workflow ? `Edit ${workflow.name}` : 'New workflow'} onClose={onClose} align="top" className="w-full max-w-4xl px-4">
+      <div className="card max-h-[86vh] overflow-y-auto p-5">
+        <div className="flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-[15px] font-semibold">{workflow ? 'Edit workflow' : 'New workflow'}</h2>
+            <p className="mt-0.5 text-[12px] text-ink-faint">
+              Steps run in order unless a step routes elsewhere. Point a failure back at an earlier step to build a
+              retry loop.
+            </p>
+          </div>
+          <button className="btn btn-ghost px-2! py-1!" aria-label="Close" onClick={onClose}>
+            <CloseIcon className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Identity */}
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Name</span>
+            <input
+              className="input w-full"
+              placeholder="Review every new PR"
+              value={draft.name}
+              onChange={(e) => set('name', e.target.value)}
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Category</span>
+            <input
+              className="input w-full"
+              list="wf-categories"
+              placeholder={UNCATEGORIZED}
+              value={draft.category}
+              onChange={(e) => set('category', e.target.value)}
+            />
+            <datalist id="wf-categories">
+              {DEFAULT_WORKFLOW_CATEGORIES.map((c) => <option key={c} value={c} />)}
+            </datalist>
+          </label>
+          <label className="block sm:col-span-2">
+            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink-faint">
+              Description (optional)
+            </span>
+            <input
+              className="input w-full"
+              placeholder="What this does, and when you'd want it"
+              value={draft.description}
+              onChange={(e) => set('description', e.target.value)}
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-ink-faint">Workspace</span>
+            <select className="input w-full" value={draft.workspaceId ?? ''} onChange={(e) => set('workspaceId', e.target.value || undefined)}>
+              <option value="">(first workspace)</option>
+              {(settings?.workspaces ?? []).map((w) => (
+                <option key={w.id} value={w.id}>{w.name ?? w.path}</option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-end gap-2 pb-1.5">
+            <input type="checkbox" checked={draft.enabled} onChange={(e) => set('enabled', e.target.checked)} />
+            <span className="text-[12.5px]">Enabled (triggers fire)</span>
+          </label>
+        </div>
+
+        {/* Canvas preview */}
+        <div className="mt-5">
+          <div className="flex items-baseline gap-2">
+            <h3 className="text-[13px] font-semibold">The graph</h3>
+            <span className="text-[11.5px] text-ink-faint">updates as you edit</span>
+          </div>
+          <div className="mt-2">
+            <WorkflowCanvas steps={draft.steps} selectedId={selectedStep} onSelect={setSelectedStep} />
+          </div>
+          {unreachable.size > 0 && (
+            <p className="mt-2 text-[11.5px]" style={{ color: 'var(--warning)' }}>
+              {unreachable.size} step{unreachable.size === 1 ? '' : 's'} can never run: nothing routes to{' '}
+              {draft.steps.filter((s) => unreachable.has(s.id)).map((s) => `"${s.name}"`).join(', ')}.
+            </p>
+          )}
+        </div>
+
+        {/* Steps */}
+        <div className="mt-5">
+          <div className="flex items-baseline gap-2">
+            <h3 className="text-[13px] font-semibold">Steps</h3>
+            <span className="text-[11.5px] text-ink-faint">{draft.steps.length}</span>
+            <button className="btn btn-outline ml-auto px-2! py-1! text-[12px]" onClick={addStep}>
+              <PlusIcon className="h-3 w-3" /> Add step
+            </button>
+          </div>
+          <div className="mt-2 space-y-2">
+            {draft.steps.length === 0 && (
+              <p className="rounded-xl border border-dashed border-line px-4 py-3.5 text-[12.5px] text-ink-faint">
+                A workflow needs at least one step.
+              </p>
+            )}
+            {draft.steps.map((step, i) => (
+              <StepEditor
+                key={step.id}
+                step={step}
+                index={i}
+                total={draft.steps.length}
+                steps={draft.steps}
+                workflows={workflows.filter((w) => w.id !== workflow?.id)}
+                skills={skills}
+                unreachable={unreachable.has(step.id)}
+                onPatch={(patch) => patchStep(step.id, patch)}
+                onRemove={() => removeStep(step.id)}
+                onMove={(d) => moveStep(step.id, d)}
+                onFocus={() => setSelectedStep(step.id)}
+                highlighted={selectedStep === step.id}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Triggers */}
+        <div className="mt-5">
+          <div className="flex items-baseline gap-2">
+            <h3 className="text-[13px] font-semibold">Triggers</h3>
+            <span className="text-[11.5px] text-ink-faint">what starts it</span>
+            <button
+              className="btn btn-outline ml-auto px-2! py-1! text-[12px]"
+              onClick={() => set('triggers', [...draft.triggers, { id: newStepId('trg'), kind: 'manual' }])}
+            >
+              <PlusIcon className="h-3 w-3" /> Add trigger
+            </button>
+          </div>
+          <div className="mt-2 space-y-2">
+            {draft.triggers.length === 0 && (
+              <p className="rounded-xl border border-dashed border-line px-4 py-3.5 text-[12.5px] text-ink-faint">
+                No triggers, so this only runs when you press Run.
+              </p>
+            )}
+            {draft.triggers.map((trigger) => (
+              <TriggerEditor
+                key={trigger.id}
+                trigger={trigger}
+                slugSource={draft.name}
+                onPatch={(patch) => patchTrigger(trigger.id, patch)}
+                onRemove={() => set('triggers', draft.triggers.filter((t) => t.id !== trigger.id))}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-5 flex items-center gap-2 border-t border-line pt-4">
+          <button className="btn btn-primary" disabled={!canSave} onClick={() => void save()}>
+            {workflow ? 'Save changes' : 'Create workflow'}
+          </button>
+          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+          {!draft.name.trim() && <span className="text-[11.5px] text-ink-faint">A name is required.</span>}
+          {draft.name.trim() && draft.steps.length === 0 && (
+            <span className="text-[11.5px] text-ink-faint">Add at least one step.</span>
+          )}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/** Whether a route survives the removal of step `goneId`. */
+function routeStillValid(t: WorkflowTransition | undefined, goneId: string): boolean {
+  return !t || t.goto !== 'step' || t.stepId !== goneId;
+}
+
+function StepEditor({
+  step, index, total, steps, workflows, skills, unreachable, onPatch, onRemove, onMove, onFocus, highlighted,
+}: {
+  step: WorkflowStep;
+  index: number;
+  total: number;
+  steps: WorkflowStep[];
+  workflows: Workflow[];
+  skills: SkillDef[];
+  unreachable: boolean;
+  onPatch: (patch: Partial<WorkflowStep>) => void;
+  onRemove: () => void;
+  onMove: (delta: number) => void;
+  onFocus: () => void;
+  highlighted: boolean;
+}) {
+  const kindMeta = WORKFLOW_STEP_KINDS.find((k) => k.kind === step.kind);
+  return (
+    <div
+      className="card px-3.5 py-3"
+      style={highlighted ? { boxShadow: '0 0 0 2px var(--accent)' } : undefined}
+      onFocusCapture={onFocus}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-mono text-[10.5px] text-ink-faint">{index + 1}</span>
+        <input
+          className="input min-w-0 flex-1 py-1! text-[12.5px]"
+          placeholder="Step name"
+          value={step.name}
+          onChange={(e) => onPatch({ name: e.target.value })}
+        />
+        <select
+          className="input w-[112px] py-1! text-[12px]"
+          value={step.kind}
+          // Switching kind clears `run`: a shell command is not a valid skill id,
+          // and a half-converted step is worse than an empty one.
+          onChange={(e) => onPatch({ kind: e.target.value as WorkflowStepKind, run: '' })}
+        >
+          {WORKFLOW_STEP_KINDS.map((k) => <option key={k.kind} value={k.kind}>{k.label}</option>)}
+        </select>
+        <span className="flex shrink-0 items-center gap-1">
+          <button className="btn btn-ghost px-1.5! py-1! text-[12px]" disabled={index === 0} aria-label="Move up" onClick={() => onMove(-1)}>↑</button>
+          <button className="btn btn-ghost px-1.5! py-1! text-[12px]" disabled={index === total - 1} aria-label="Move down" onClick={() => onMove(1)}>↓</button>
+          <button className="btn btn-ghost px-1.5! py-1! text-[12px] text-danger" aria-label="Remove step" onClick={onRemove}>✕</button>
+        </span>
+      </div>
+      {kindMeta && <p className="mt-1 text-[11px] text-ink-faint">{kindMeta.hint}</p>}
+      {unreachable && (
+        <p className="mt-1 text-[11px]" style={{ color: 'var(--warning)' }}>Nothing routes here, so this step never runs.</p>
+      )}
+
+      {/* What it runs, per kind */}
+      <div className="mt-2">
+        {step.kind === 'prompt' && (
+          <textarea
+            className="input min-h-[56px] w-full resize-y text-[12.5px]"
+            placeholder="What the agent should do in this step"
+            value={step.run}
+            onChange={(e) => onPatch({ run: e.target.value })}
+          />
+        )}
+        {step.kind === 'shell' && (
+          <div className="grid gap-2 sm:grid-cols-[1fr_150px]">
+            <input
+              className="input w-full font-mono text-[12px]"
+              placeholder="npm run typecheck && npm test"
+              value={step.run}
+              onChange={(e) => onPatch({ run: e.target.value })}
+            />
+            <input
+              className="input w-full text-[12px]"
+              placeholder="working dir (optional)"
+              value={step.cwd ?? ''}
+              onChange={(e) => onPatch({ cwd: e.target.value || undefined })}
+            />
+          </div>
+        )}
+        {step.kind === 'skill' && (
+          <select className="input w-full text-[12.5px]" value={step.run} onChange={(e) => onPatch({ run: e.target.value })}>
+            <option value="">Pick a skill…</option>
+            {skills.map((s) => <option key={s.id} value={s.id}>/{s.name} — {s.description}</option>)}
+          </select>
+        )}
+        {step.kind === 'workflow' && (
+          <select className="input w-full text-[12.5px]" value={step.run} onChange={(e) => onPatch({ run: e.target.value })}>
+            <option value="">Pick a workflow…</option>
+            {workflows.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+          </select>
+        )}
+        {(step.kind === 'prompt' || step.kind === 'skill') && (
+          <input
+            className="input mt-2 w-full text-[12px]"
+            placeholder="Extra context for this step (optional)"
+            value={step.with ?? ''}
+            onChange={(e) => onPatch({ with: e.target.value || undefined })}
+          />
+        )}
+      </div>
+
+      {/* Retry + routing */}
+      <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <label className="block">
+          <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-ink-faint">Retries</span>
+          <input
+            type="number"
+            min={0}
+            max={10}
+            className="input w-full py-1! tabular-nums"
+            value={step.retries ?? 0}
+            onChange={(e) => onPatch({ retries: Math.max(0, Math.min(10, Number(e.target.value) || 0)) || undefined })}
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-ink-faint">Timeout (s)</span>
+          <input
+            type="number"
+            min={0}
+            className="input w-full py-1! tabular-nums"
+            placeholder="600"
+            value={step.timeoutSec ?? ''}
+            onChange={(e) => onPatch({ timeoutSec: Number(e.target.value) || undefined })}
+          />
+        </label>
+        <RouteSelect
+          label="On success"
+          value={step.onSuccess}
+          steps={steps}
+          selfId={step.id}
+          defaultLabel={index === total - 1 ? 'Finish the run' : `Next step (${steps[index + 1]?.name || '—'})`}
+          onChange={(t) => onPatch({ onSuccess: t })}
+        />
+        <RouteSelect
+          label="On failure"
+          value={step.onFailure}
+          steps={steps}
+          selfId={step.id}
+          defaultLabel={step.continueOnError ? 'Carry on' : 'Fail the run'}
+          onChange={(t) => onPatch({ onFailure: t })}
+        />
+      </div>
+      <label className="mt-2 flex items-center gap-2">
+        <input
+          type="checkbox"
+          checked={!!step.continueOnError}
+          onChange={(e) => onPatch({ continueOnError: e.target.checked || undefined })}
+        />
+        <span className="text-[11.5px] text-ink-soft">Keep going even if this step fails</span>
+      </label>
+    </div>
+  );
+}
+
+/** Route picker: the default, an explicit end, a hard fail, or a named step. */
+function RouteSelect({
+  label, value, steps, selfId, defaultLabel, onChange,
+}: {
+  label: string;
+  value?: WorkflowTransition;
+  steps: WorkflowStep[];
+  selfId: string;
+  defaultLabel: string;
+  onChange: (t: WorkflowTransition | undefined) => void;
+}) {
+  const current = !value ? 'default' : value.goto === 'step' ? `step:${value.stepId}` : value.goto;
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-ink-faint">{label}</span>
+      <select
+        className="input w-full py-1! text-[12px]"
+        value={current}
+        onChange={(e) => {
+          const v = e.target.value;
+          if (v === 'default') return onChange(undefined);
+          if (v === 'end') return onChange({ goto: 'end' });
+          if (v === 'fail') return onChange({ goto: 'fail' });
+          if (v === 'next') return onChange({ goto: 'next' });
+          onChange({ goto: 'step', stepId: v.slice('step:'.length) });
+        }}
+      >
+        <option value="default">Default ({defaultLabel})</option>
+        <option value="next">Next step</option>
+        <option value="end">Finish, successfully</option>
+        <option value="fail">Stop, as a failure</option>
+        {steps.map((s) => (
+          <option key={s.id} value={`step:${s.id}`}>
+            Go to: {s.name || '(unnamed)'}{s.id === selfId ? ' (itself)' : ''}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function TriggerEditor({
+  trigger, slugSource, onPatch, onRemove,
+}: {
+  trigger: WorkflowTrigger;
+  slugSource: string;
+  onPatch: (patch: Partial<WorkflowTrigger>) => void;
+  onRemove: () => void;
+}) {
+  const meta = WORKFLOW_TRIGGER_KINDS.find((k) => k.kind === trigger.kind);
+  const cronValid = !trigger.cron || isValidCron(trigger.cron);
+  const nextFire = trigger.cron && cronValid ? nextCronRun(trigger.cron) : undefined;
+  const events = new Set(trigger.events ?? []);
+
+  return (
+    <div className="card px-3.5 py-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          className="input w-[132px] py-1! text-[12px]"
+          value={trigger.kind}
+          onChange={(e) => onPatch({ kind: e.target.value as WorkflowTriggerKind })}
+        >
+          {WORKFLOW_TRIGGER_KINDS.map((k) => <option key={k.kind} value={k.kind}>{k.label}</option>)}
+        </select>
+        <span className="min-w-0 flex-1 truncate text-[11.5px] text-ink-faint">{meta?.hint}</span>
+        <label className="flex shrink-0 items-center gap-1.5">
+          <input type="checkbox" checked={trigger.enabled !== false} onChange={(e) => onPatch({ enabled: e.target.checked })} />
+          <span className="text-[11.5px]">Armed</span>
+        </label>
+        <button className="btn btn-ghost px-1.5! py-1! text-[12px] text-danger" aria-label="Remove trigger" onClick={onRemove}>✕</button>
+      </div>
+
+      {trigger.kind === 'schedule' && (
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          <label className="block">
+            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-ink-faint">Cron</span>
+            <input
+              className="input w-full font-mono text-[12px]"
+              placeholder="0 3 * * *"
+              value={trigger.cron ?? ''}
+              onChange={(e) => onPatch({ cron: e.target.value || undefined })}
+            />
+            {trigger.cron && !cronValid && (
+              <span className="mt-1 block text-[11px] text-danger">
+                Not a valid 5-field expression (minute hour day month weekday).
+              </span>
+            )}
+            {nextFire && (
+              <span className="mt-1 block text-[11px] text-ink-faint">Next: {new Date(nextFire).toLocaleString()}</span>
+            )}
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
+              Or every N minutes
+            </span>
+            <input
+              type="number"
+              min={1}
+              className="input w-full py-1! tabular-nums"
+              placeholder="60"
+              disabled={!!trigger.cron}
+              value={trigger.intervalMs ? Math.round(trigger.intervalMs / 60_000) : ''}
+              onChange={(e) => onPatch({ intervalMs: Number(e.target.value) ? Number(e.target.value) * 60_000 : undefined })}
+            />
+            {trigger.intervalMs && !trigger.cron && (
+              <span className="mt-1 block text-[11px] text-ink-faint">Runs every {formatEvery(trigger.intervalMs)}.</span>
+            )}
+            {trigger.cron && <span className="mt-1 block text-[11px] text-ink-faint">Cron takes precedence.</span>}
+          </label>
+        </div>
+      )}
+
+      {trigger.kind === 'cli' && (
+        <label className="mt-2 block">
+          <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-ink-faint">Command</span>
+          <input
+            className="input w-full font-mono text-[12px]"
+            placeholder={slugSource ? cliCommand({ name: slugSource } as Workflow, undefined) : 'workflow-name'}
+            value={trigger.command ?? ''}
+            onChange={(e) => onPatch({ command: e.target.value || undefined })}
+          />
+          <span className="mt-1 block text-[11px] text-ink-faint">
+            Run it with <code className="font-mono">kotrain workflow trigger {trigger.command?.trim() || (slugSource ? cliCommand({ name: slugSource } as Workflow, undefined) : '<command>')}</code>
+          </span>
+        </label>
+      )}
+
+      {trigger.kind === 'slack' && (
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          <label className="block">
+            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-ink-faint">Channel</span>
+            <input
+              className="input w-full text-[12px]"
+              placeholder="builds"
+              value={trigger.channel ?? ''}
+              onChange={(e) => onPatch({ channel: e.target.value || undefined })}
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
+              Only when it contains
+            </span>
+            <input
+              className="input w-full text-[12px]"
+              placeholder="ship it"
+              value={trigger.keyword ?? ''}
+              onChange={(e) => onPatch({ keyword: e.target.value || undefined })}
+            />
+          </label>
+        </div>
+      )}
+
+      {trigger.kind === 'git' && (
+        <div className="mt-2 space-y-2">
+          <div className="grid gap-2 sm:grid-cols-3">
+            <label className="block">
+              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-ink-faint">Provider</span>
+              <select
+                className="input w-full py-1! text-[12px]"
+                value={trigger.provider ?? 'github'}
+                onChange={(e) => onPatch({ provider: e.target.value as GitProvider })}
+              >
+                {GIT_PROVIDERS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+              </select>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-ink-faint">Repo</span>
+              <input
+                className="input w-full text-[12px]"
+                placeholder="owner/name (any)"
+                value={trigger.repo ?? ''}
+                onChange={(e) => onPatch({ repo: e.target.value || undefined })}
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-ink-faint">Branches</span>
+              <input
+                className="input w-full text-[12px]"
+                placeholder="main, release/* (any)"
+                value={(trigger.branches ?? []).join(', ')}
+                onChange={(e) => {
+                  const list = e.target.value.split(',').map((s) => s.trim()).filter(Boolean);
+                  onPatch({ branches: list.length ? list : undefined });
+                }}
+              />
+            </label>
+          </div>
+          <div>
+            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-ink-faint">Events</span>
+            <div className="flex flex-wrap gap-1.5">
+              {GIT_EVENTS.map((e) => {
+                const on = events.has(e.id);
+                return (
+                  <button
+                    key={e.id}
+                    className={`rounded-full border px-2.5 py-0.5 text-[11px] transition ${on ? 'border-transparent' : 'border-line text-ink-faint'}`}
+                    style={on ? { background: 'var(--accent-soft)', color: 'var(--accent)' } : undefined}
+                    onClick={() => {
+                      const next = new Set(events);
+                      if (on) next.delete(e.id);
+                      else next.add(e.id);
+                      onPatch({ events: next.size ? ([...next] as GitEvent[]) : undefined });
+                    }}
+                  >
+                    {e.label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-1 text-[11px] text-ink-faint">
+              {events.size === 0 ? 'No events picked, so any event from this provider starts it.' : `${events.size} selected.`}
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

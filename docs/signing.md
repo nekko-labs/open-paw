@@ -13,7 +13,7 @@ worked.
 
 | Platform | Mechanism | Wired | Blocked on |
 | --- | --- | --- | --- |
-| macOS | Developer ID codesign + notarization | ✅ wired | the org secrets being set |
+| macOS | Developer ID codesign + notarization | ✅ live since v0.6.0 | nothing |
 | Windows | Authenticode | ✅ secret-gated | the org secrets being set |
 | Linux | none (AppImage/deb are unsigned) | n/a | n/a |
 
@@ -76,22 +76,51 @@ Run on a Mac that has the Developer ID certificate **and its private key** in
 the login keychain (`security find-identity -v -p codesigning` to confirm).
 Requires org-admin on `nekko-labs`.
 
-```bash
-security export -k login.keychain-db -t identities -f pkcs12 \
-  -o /tmp/nekko-signing.p12
-```
+Export the `.p12` from **Keychain Access** (login → My Certificates → expand the
+`Developer ID Application: Nekko Labs LLC` row so the private key goes with it →
+Export), rather than with `security export -t identities`, which dumps *every*
+identity in the keychain into one bundle. Either way you choose an export
+password, which becomes `MACOS_CERT_PASSWORD`.
 
-That prompts for an export password and for keychain access. Then:
+Then, and read the warning below before pasting:
 
 ```bash
 gh secret set MACOS_SIGNING_CERTS_P12 --org nekko-labs --visibility all < <(base64 -i /tmp/nekko-signing.p12)
-gh secret set MACOS_CERT_PASSWORD --org nekko-labs --visibility all
 gh secret set APPLE_API_KEY_P8 --org nekko-labs --visibility all < AuthKey_XXXXXXXX.p8
-gh secret set APPLE_API_KEY_ID --org nekko-labs --visibility all
-gh secret set APPLE_API_ISSUER --org nekko-labs --visibility all
+gh secret set APPLE_API_KEY_ID --org nekko-labs --visibility all --body AuthKeyIdHere
+```
+
+> **Do not paste those as a block with the two interactive ones.** `gh secret
+> set` without `--body` reads its value from **stdin**, so a pasted command on
+> the following line is consumed as the secret. That is how `MACOS_CERT_PASSWORD`
+> once ended up holding the literal text `gh secret set MACOS_CERT_PASSWORD
+> --org nekko-labs --visibility all`, which surfaced only as `MAC verification
+> failed during PKCS12 import (wrong password?)` in a release job.
+
+Set the two interactive secrets one at a time. In zsh the prompt form is
+`"VAR?prompt"`, not bash's `-p`:
+
+```bash
+read -rs "P?p12 password: " && gh secret set MACOS_CERT_PASSWORD --org nekko-labs --visibility all --body "$P" && unset P
+read -rs "P?issuer UUID: " && gh secret set APPLE_API_ISSUER --org nekko-labs --visibility all --body "$P" && unset P
 ```
 
 Then delete the export: `rm -P /tmp/nekko-signing.p12`.
+
+**Verifying the `.p12` locally is a trap.** Keychain encrypts the payload with
+`RC2-40-CBC`, which OpenSSL 3 moved to the legacy provider, so
+`openssl pkcs12 -info` fails with `unsupported ... RC2-40-CBC` and reads like a
+bad password. Pass `-legacy`. The password check that actually matters is the
+MAC: a genuinely wrong password says `Mac verify error: invalid password?`,
+while reaching the cipher error at all means the password was accepted.
+
+```bash
+openssl pkcs12 -in /tmp/nekko-signing.p12 -info -noout -legacy
+```
+
+Look for a **Shrouded Keybag** line, which confirms the private key is in the
+export. macOS `security import` reads the legacy encryption natively, so no
+re-export is needed for CI.
 
 ## Windows
 

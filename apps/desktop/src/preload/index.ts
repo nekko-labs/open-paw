@@ -148,6 +148,16 @@ const api: KotrainApi = {
   stopTrainingRun: (id) => inv(IpcChannels.trainingStop, id),
   addTrainingHint: (id, text) => inv(IpcChannels.trainingHint, id, text),
 
+  listWorkflows: () => inv(IpcChannels.workflowsList),
+  createWorkflow: (input) => inv(IpcChannels.workflowCreate, input),
+  updateWorkflow: (id, patch) => inv(IpcChannels.workflowUpdate, id, patch),
+  deleteWorkflow: (id) => inv(IpcChannels.workflowDelete, id),
+  duplicateWorkflow: (id) => inv(IpcChannels.workflowDuplicate, id),
+  runWorkflow: (id) => inv(IpcChannels.workflowRun, id),
+  cancelWorkflowRun: (runId) => inv(IpcChannels.workflowCancel, runId),
+  listWorkflowRuns: (workflowId) => inv(IpcChannels.workflowRuns, workflowId),
+  dispatchWorkflowEvent: (event) => inv(IpcChannels.workflowEvent, event),
+
   listConnectors: () => inv(IpcChannels.connectorsList),
   connectConnector: (kind: ConnectorKind, token, settings) => inv(IpcChannels.connectorConnect, kind, token, settings),
   disconnectConnector: (kind: ConnectorKind) => inv(IpcChannels.connectorDisconnect, kind),
@@ -217,6 +227,11 @@ const api: KotrainApi = {
     const listener = (_: unknown, runs: import('@kotrain/shared').TrainingRun[]) => cb(runs);
     ipcRenderer.on(IpcEvents.trainingUpdated, listener);
     return () => ipcRenderer.removeListener(IpcEvents.trainingUpdated, listener);
+  },
+  onWorkflowsUpdated: (cb) => {
+    const listener = (_: unknown, snapshot: import('@kotrain/shared').WorkflowsSnapshot) => cb(snapshot);
+    ipcRenderer.on(IpcEvents.workflowsUpdated, listener);
+    return () => ipcRenderer.removeListener(IpcEvents.workflowsUpdated, listener);
   },
   onDeepLink: (cb: (url: string) => void) => {
     const listener = (_: unknown, url: string) => cb(url);

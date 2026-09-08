@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'fs';
+import { randomBytes } from 'crypto';
 import { join } from 'path';
 import type { Session } from '@kotrain/shared';
 import { dataDir } from './store.js';
@@ -142,7 +143,11 @@ export function dequeuePrompt(id: string, index: number): Session | null {
 export function createSession(workspaceId?: string, parentSessionId?: string, supportingWorkspaceIds?: string[]): Session {
   const now = Date.now();
   const s: Session = {
-    id: `s_${now.toString(36)}_${Math.floor(Math.random() * 1e6).toString(36)}`,
+    // Crypto-random suffix, not Math.random: a session id names a file in the
+    // data dir and is passed around as a handle, and the remote transport lets
+    // one reach the network, so it should not be guessable from a timestamp.
+    // Same readable `s_<time>_<rand>` shape as before; ids are never parsed.
+    id: `s_${now.toString(36)}_${randomBytes(6).toString('base64url')}`,
     title: parentSessionId ? 'Sub-agent' : 'New chat',
     workspaceId,
     supportingWorkspaceIds: supportingWorkspaceIds?.length ? supportingWorkspaceIds : undefined,

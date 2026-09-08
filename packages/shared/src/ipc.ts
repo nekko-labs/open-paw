@@ -11,6 +11,7 @@ import type { DirEntry, FileContent, FileChange, LineComment } from './files.js'
 import type { DesignBoard, DesignPage, GenerateDesignInput } from './design.js';
 import type { AutomationTask, NewTask } from './tasks.js';
 import type { TrainingRun, NewTrainingRun } from './training.js';
+import type { NewWorkflow, Workflow, WorkflowEvent, WorkflowRun, WorkflowsSnapshot } from './workflows.js';
 import type { ConnectorConfig, ConnectorKind, ConnectorResource } from './connectors.js';
 import type { GuardrailRule } from './guardrails.js';
 import type { AppInfo, UpdateInfo } from './update.js';
@@ -141,6 +142,21 @@ export const IpcChannels = {
   trainingStop: 'training:stop',
   trainingHint: 'training:hint',
 
+  workflowsList: 'workflows:list',
+  workflowCreate: 'workflow:create',
+  workflowUpdate: 'workflow:update',
+  workflowDelete: 'workflow:delete',
+  workflowDuplicate: 'workflow:duplicate',
+  workflowRun: 'workflow:run',
+  workflowCancel: 'workflow:cancel',
+  workflowRuns: 'workflow:runs',
+  /**
+   * Feed an external event to the listeners. One door for every transport: the
+   * CLI calls it directly, and the web edition's generic `/api/:channel` route
+   * makes it the endpoint a Slack app or a git provider webhook posts to.
+   */
+  workflowEvent: 'workflow:event',
+
   connectorsList: 'connectors:list',
   connectorConnect: 'connector:connect',
   connectorDisconnect: 'connector:disconnect',
@@ -181,6 +197,7 @@ export const IpcEvents = {
   changesUpdated: 'changes:updated',
   tasksUpdated: 'tasks:updated',
   trainingUpdated: 'training:updated',
+  workflowsUpdated: 'workflows:updated',
   deepLink: 'app:deepLink',
 } as const;
 
@@ -363,6 +380,21 @@ export interface KotrainApi {
   /** Inject a hint / new approach / new-data pointer into the next turn. */
   addTrainingHint(id: string, text: string): Promise<TrainingRun[]>;
 
+  /** Workflows: GitHub-Actions-style automation with routed steps and triggers. */
+  listWorkflows(): Promise<WorkflowsSnapshot>;
+  createWorkflow(input: NewWorkflow): Promise<Workflow | undefined>;
+  updateWorkflow(id: string, patch: Partial<Workflow>): Promise<Workflow | undefined>;
+  deleteWorkflow(id: string): Promise<WorkflowsSnapshot>;
+  duplicateWorkflow(id: string): Promise<Workflow | undefined>;
+  /** Start a workflow by hand; resolves when the run finishes. */
+  runWorkflow(id: string): Promise<WorkflowRun | undefined>;
+  /** Stop a run in progress (aborts whatever step is mid-flight). */
+  cancelWorkflowRun(runId: string): Promise<void>;
+  /** Run history, newest first, for one workflow or all of them. */
+  listWorkflowRuns(workflowId?: string): Promise<WorkflowRun[]>;
+  /** Offer an event to every listening workflow; returns the runs it started. */
+  dispatchWorkflowEvent(event: WorkflowEvent): Promise<WorkflowRun[]>;
+
   listConnectors(): Promise<ConnectorConfig[]>;
   connectConnector(kind: ConnectorKind, token: string, settings?: Record<string, string>): Promise<ConnectorConfig[]>;
   disconnectConnector(kind: ConnectorKind): Promise<ConnectorConfig[]>;
@@ -412,6 +444,8 @@ export interface KotrainApi {
   onTasksUpdated(cb: (tasks: AutomationTask[]) => void): () => void;
   /** Fires when any training/goal run changes (experiments, hints, status). */
   onTrainingUpdated(cb: (runs: TrainingRun[]) => void): () => void;
+  /** Fires when a workflow is edited or any run advances a step. */
+  onWorkflowsUpdated(cb: (snapshot: WorkflowsSnapshot) => void): () => void;
   /**
    * Fires when another app asks Kotrain to do something through a `kotrain://`
    * URL: today, Hypergate's "Connect Kotrain" button. Desktop only, since the

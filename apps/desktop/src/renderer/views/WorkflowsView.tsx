@@ -1,0 +1,601 @@
+import React, { useEffect, useMemo, useState } from 'react';
+import type {
+  Workflow,
+  WorkflowFilter,
+  WorkflowGrouping,
+  WorkflowRun,
+  WorkflowRunStatus,
+  WorkflowStep,
+  WorkflowTrigger,
+  WorkflowTriggerKind,
+  WorkflowsSnapshot,
+} from '@kotrain/shared';
+import {
+  UNCATEGORIZED,
+  WORKFLOW_TEMPLATES,
+  WORKFLOW_TRIGGER_KINDS,
+  cliCommand,
+  filterWorkflows,
+  formatDuration,
+  groupWorkflows,
+  listenerKeys,
+  listenerLabel,
+  runDurationMs,
+  stepSummary,
+  triggerLabel,
+} from '@kotrain/shared';
+import { useStore } from '../store.js';
+import { Badge, EmptyHint, Modal, StatusDot } from '../components/primitives/index.js';
+import { WorkflowCanvas } from '../components/WorkflowCanvas.js';
+import { WorkflowEditor } from '../components/WorkflowEditor.js';
+import { PlusIcon } from '../icons.js';
+import { STATUS } from '../tokens.js';
+
+/**
+ * The Workflows tab: automation modelled on GitHub Actions, where a step can be
+ * an agent prompt, a skill, another workflow, or a shell command.
+ *
+ * Built for an install that accumulates hundreds of these. The left rail filters
+ * (search, state, trigger kind, category) and the list is grouped either by
+ * category ("what do I have?") or by event listener ("what happens when a PR
+ * opens?"), because those are the two ways a long list actually gets navigated.
+ * A row expands into the step canvas and that workflow's run history, so the
+ * shape of a workflow and how it last behaved are one click from the list.
+ */
+
+const STATUS_TONE: Record<WorkflowRunStatus, { color: string; label: string }> = {
+  queued: { color: STATUS.neutral, label: 'queued' },
+  running: { color: STATUS.running, label: 'running' },
+  success: { color: STATUS.success, label: 'passed' },
+  failure: { color: STATUS.danger, label: 'failed' },
+  cancelled: { color: STATUS.neutral, label: 'cancelled' },
+};
+
+/** Rows drawn per group before the "show all" toggle, so hundreds stay fast. */
+const ROWS_PER_GROUP = 12;
+
+export function WorkflowsView() {
+  const pushToast = useStore((s) => s.pushToast);
+  const skills = useStore((s) => s.installedSkillDefs);
+  const [snapshot, setSnapshot] = useState<WorkflowsSnapshot>({ workflows: [], runs: [] });
+  const [filter, setFilter] = useState<WorkflowFilter>({});
+  const [grouping, setGrouping] = useState<WorkflowGrouping>('category');
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Workflow | null>(null);
+  const [creating, setCreating] = useState<{ seed?: ReturnType<typeof seedFromTemplate> } | null>(null);
+  const [picking, setPicking] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  useEffect(() => {
+    void window.kotrain.listWorkflows().then(setSnapshot).catch(() => {});
+    return window.kotrain.onWorkflowsUpdated(setSnapshot);
+  }, []);
+
+  const { workflows, runs } = snapshot;
+  const visible = useMemo(() => filterWorkflows(workflows, filter), [workflows, filter]);
+  const groups = useMemo(() => groupWorkflows(visible, grouping), [visible, grouping]);
+  const runsByWorkflow = useMemo(() => {
+    const map = new Map<string, WorkflowRun[]>();
+    for (const run of runs) {
+      const list = map.get(run.workflowId);
+      if (list) list.push(run);
+      else map.set(run.workflowId, [run]);
+    }
+    return map;
+  }, [runs]);
+
+  const categories = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const wf of workflows) {
+      const key = wf.category || UNCATEGORIZED;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  }, [workflows]);
+
+  const runNow = async (wf: Workflow) => {
+    setBusyId(wf.id);
+    try {
+      const run = await window.kotrain.runWorkflow(wf.id);
+      if (!run) pushToast('error', `"${wf.name}" didn't start. It may already be running, or have no steps.`);
+      else if (run.status === 'success') pushToast('success', `"${wf.name}" passed.`);
+      else pushToast('error', `"${wf.name}" ${run.status}${run.message ? `: ${run.message}` : ''}`);
+    } catch (e) {
+      pushToast('error', `Could not run "${wf.name}": ${(e as Error).message}`);
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const remove = async (wf: Workflow) => {
+    if (!confirm(`Delete "${wf.name}"? Its run history goes too.`)) return;
+    setSnapshot(await window.kotrain.deleteWorkflow(wf.id));
+  };
+
+  const duplicate = async (wf: Workflow) => {
+    const copy = await window.kotrain.duplicateWorkflow(wf.id);
+    if (copy) {
+      pushToast('info', `Copied as "${copy.name}", disabled until you turn it on.`);
+      setExpanded(copy.id);
+    }
+  };
+
+  const toggleEnabled = async (wf: Workflow) => {
+    await window.kotrain.updateWorkflow(wf.id, { enabled: !wf.enabled });
+  };
+
+  return (
+    <div className="flex h-full min-h-0">
+      {/* Filters */}
+      <aside className="flex w-60 shrink-0 flex-col overflow-y-auto border-r border-(--line) px-3 py-3">
+        <input
+          className="input w-full text-[12.5px]"
+          placeholder="Search workflows…"
+          value={filter.query ?? ''}
+          onChange={(e) => setFilter((f) => ({ ...f, query: e.target.value || undefined }))}
+        />
+
+        <FilterGroup label="Group by">
+          <div className="flex gap-1">
+            {(['category', 'listener'] as WorkflowGrouping[]).map((g) => (
+              <button
+                key={g}
+                className={`flex-1 rounded-lg border px-2 py-1 text-[11.5px] transition ${grouping === g ? 'border-transparent' : 'border-line text-ink-faint'}`}
+                style={grouping === g ? { background: 'var(--accent-soft)', color: 'var(--accent)' } : undefined}
+                onClick={() => setGrouping(g)}
+              >
+                {g === 'category' ? 'Category' : 'Listener'}
+              </button>
+            ))}
+          </div>
+        </FilterGroup>
+
+        <FilterGroup label="State">
+          <div className="flex gap-1">
+            {([undefined, 'enabled', 'disabled'] as const).map((s) => (
+              <button
+                key={s ?? 'all'}
+                className={`flex-1 rounded-lg border px-2 py-1 text-[11.5px] transition ${filter.state === s ? 'border-transparent' : 'border-line text-ink-faint'}`}
+                style={filter.state === s ? { background: 'var(--accent-soft)', color: 'var(--accent)' } : undefined}
+                onClick={() => setFilter((f) => ({ ...f, state: s }))}
+              >
+                {s ? s[0].toUpperCase() + s.slice(1) : 'All'}
+              </button>
+            ))}
+          </div>
+        </FilterGroup>
+
+        <FilterGroup label="Trigger">
+          <div className="flex flex-wrap gap-1">
+            {WORKFLOW_TRIGGER_KINDS.map((k) => {
+              const on = filter.triggerKind === k.kind;
+              return (
+                <button
+                  key={k.kind}
+                  className={`rounded-full border px-2 py-0.5 text-[11px] transition ${on ? 'border-transparent' : 'border-line text-ink-faint'}`}
+                  style={on ? { background: 'var(--accent-soft)', color: 'var(--accent)' } : undefined}
+                  onClick={() => setFilter((f) => ({ ...f, triggerKind: on ? undefined : (k.kind as WorkflowTriggerKind) }))}
+                >
+                  {k.label}
+                </button>
+              );
+            })}
+          </div>
+        </FilterGroup>
+
+        <FilterGroup label={`Categories (${categories.length})`}>
+          <div className="space-y-0.5">
+            <CategoryRow label="All" count={workflows.length} active={!filter.category} onClick={() => setFilter((f) => ({ ...f, category: undefined }))} />
+            {categories.map(([name, count]) => (
+              <CategoryRow
+                key={name}
+                label={name}
+                count={count}
+                active={filter.category === name}
+                onClick={() => setFilter((f) => ({ ...f, category: f.category === name ? undefined : name }))}
+              />
+            ))}
+          </div>
+        </FilterGroup>
+      </aside>
+
+      {/* List */}
+      <div className="min-w-0 flex-1 overflow-y-auto p-4">
+        <div className="mx-auto max-w-5xl">
+          <div className="flex flex-wrap items-baseline gap-2">
+            <h1 className="text-lg font-bold tracking-tight">Workflows</h1>
+            <span className="text-[12px] text-ink-faint">
+              {visible.length === workflows.length
+                ? `${workflows.length} total`
+                : `${visible.length} of ${workflows.length}`}
+            </span>
+            <button className="btn btn-primary ml-auto py-1.5!" onClick={() => setPicking(true)}>
+              <PlusIcon className="h-3.5 w-3.5" /> New workflow
+            </button>
+          </div>
+          <p className="mt-1 text-[12.5px] text-ink-soft">
+            Steps run in order, and route where you point them: a verify step that finds problems can send the run
+            back to build and try again. Fire them by hand, on a schedule, from the CLI, from Slack, or off a pull
+            request.
+          </p>
+
+          {workflows.length === 0 && (
+            <div className="mt-4">
+              <EmptyHint>
+                Nothing here yet. Start from a template: a build-and-verify loop, a reviewer that reacts to new pull
+                requests, or a nightly maintenance sweep.
+              </EmptyHint>
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                {WORKFLOW_TEMPLATES.filter((t) => t.id !== 'blank').map((t) => (
+                  <button
+                    key={t.id}
+                    className="card px-3 py-2.5 text-left transition hover:bg-(--surface-2)"
+                    onClick={() => setCreating({ seed: seedFromTemplate(t.id) })}
+                  >
+                    <div className="text-[12.5px] font-semibold">{t.name}</div>
+                    <p className="mt-1 text-[11px] leading-snug text-ink-faint">{t.description}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {workflows.length > 0 && visible.length === 0 && (
+            <EmptyHint className="mt-4">
+              Nothing matches those filters.{' '}
+              <button className="underline" onClick={() => setFilter({})}>Clear them</button>.
+            </EmptyHint>
+          )}
+
+          <div className="mt-4 space-y-4">
+            {groups.map((group) => (
+              <WorkflowGroupBlock
+                key={group.key}
+                label={group.label}
+                workflows={group.workflows}
+                runsByWorkflow={runsByWorkflow}
+                grouping={grouping}
+                expanded={expanded}
+                busyId={busyId}
+                onExpand={(id) => setExpanded((cur) => (cur === id ? null : id))}
+                onRun={runNow}
+                onEdit={setEditing}
+                onDuplicate={duplicate}
+                onDelete={remove}
+                onToggle={toggleEnabled}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {picking && (
+        <TemplatePicker
+          onPick={(id) => {
+            setPicking(false);
+            setCreating({ seed: seedFromTemplate(id) });
+          }}
+          onClose={() => setPicking(false)}
+        />
+      )}
+
+      {(creating || editing) && (
+        <WorkflowEditor
+          workflow={editing ?? undefined}
+          seed={creating?.seed}
+          workflows={workflows}
+          skills={skills}
+          onClose={() => { setCreating(null); setEditing(null); }}
+          onSave={async (patch) => {
+            if (editing) await window.kotrain.updateWorkflow(editing.id, patch as Partial<Workflow>);
+            else {
+              const created = await window.kotrain.createWorkflow(patch);
+              if (created) setExpanded(created.id);
+            }
+            setSnapshot(await window.kotrain.listWorkflows());
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Steps + triggers from a template id, for a new workflow's starting state. */
+function seedFromTemplate(id: string) {
+  const template = WORKFLOW_TEMPLATES.find((t) => t.id === id) ?? WORKFLOW_TEMPLATES[WORKFLOW_TEMPLATES.length - 1];
+  const { steps, triggers } = template.build();
+  return {
+    name: template.id === 'blank' ? '' : template.name,
+    description: template.id === 'blank' ? '' : template.description,
+    category: template.category,
+    steps,
+    triggers,
+  } as { name: string; description: string; category: string; steps: WorkflowStep[]; triggers: WorkflowTrigger[] };
+}
+
+function FilterGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="mt-4">
+      <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-ink-faint">{label}</p>
+      {children}
+    </div>
+  );
+}
+
+function CategoryRow({ label, count, active, onClick }: { label: string; count: number; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      className={`flex w-full items-center gap-2 rounded-lg px-2 py-1 text-left text-[12px] transition hover:bg-(--surface-2) ${active ? 'bg-(--surface-2) font-medium' : ''}`}
+      onClick={onClick}
+    >
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      <span className="font-mono text-[10.5px] tabular-nums text-ink-faint">{count}</span>
+    </button>
+  );
+}
+
+function WorkflowGroupBlock({
+  label, workflows, runsByWorkflow, grouping, expanded, busyId, onExpand, onRun, onEdit, onDuplicate, onDelete, onToggle,
+}: {
+  label: string;
+  workflows: Workflow[];
+  runsByWorkflow: Map<string, WorkflowRun[]>;
+  grouping: WorkflowGrouping;
+  expanded: string | null;
+  busyId: string | null;
+  onExpand: (id: string) => void;
+  onRun: (wf: Workflow) => void;
+  onEdit: (wf: Workflow) => void;
+  onDuplicate: (wf: Workflow) => void;
+  onDelete: (wf: Workflow) => void;
+  onToggle: (wf: Workflow) => void;
+}) {
+  const [open, setOpen] = useState(true);
+  const [showAll, setShowAll] = useState(false);
+  const shown = showAll ? workflows : workflows.slice(0, ROWS_PER_GROUP);
+  const hidden = workflows.length - shown.length;
+
+  return (
+    <section>
+      <button className="flex w-full items-baseline gap-2 py-1 text-left" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        <span className="w-3 text-[10px] text-ink-faint">{open ? '▾' : '▸'}</span>
+        <h2 className="text-[13.5px] font-semibold">{label}</h2>
+        <span className="font-mono text-[10.5px] text-ink-faint">{workflows.length}</span>
+      </button>
+      {open && (
+        <div className="mt-1 space-y-1.5">
+          {shown.map((wf) => (
+            <WorkflowRow
+              key={`${label}-${wf.id}`}
+              wf={wf}
+              runs={runsByWorkflow.get(wf.id) ?? []}
+              grouping={grouping}
+              expanded={expanded === wf.id}
+              busy={busyId === wf.id}
+              onExpand={() => onExpand(wf.id)}
+              onRun={() => onRun(wf)}
+              onEdit={() => onEdit(wf)}
+              onDuplicate={() => onDuplicate(wf)}
+              onDelete={() => onDelete(wf)}
+              onToggle={() => onToggle(wf)}
+            />
+          ))}
+          {hidden > 0 && (
+            <button className="btn btn-ghost w-full py-1! text-[12px] text-ink-soft" onClick={() => setShowAll(true)}>
+              Show {hidden} more
+            </button>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function WorkflowRow({
+  wf, runs, grouping, expanded, busy, onExpand, onRun, onEdit, onDuplicate, onDelete, onToggle,
+}: {
+  wf: Workflow;
+  runs: WorkflowRun[];
+  grouping: WorkflowGrouping;
+  expanded: boolean;
+  busy: boolean;
+  onExpand: () => void;
+  onRun: () => void;
+  onEdit: () => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
+  onToggle: () => void;
+}) {
+  const live = runs.find((r) => r.status === 'running');
+  const last = runs[0];
+  const tone = live ? STATUS_TONE.running : wf.lastStatus ? STATUS_TONE[wf.lastStatus] : undefined;
+
+  return (
+    <div className="card overflow-hidden">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3.5 py-2.5">
+        <button className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={onExpand} aria-expanded={expanded}>
+          <span className="w-3 shrink-0 text-[10px] text-ink-faint">{expanded ? '▾' : '▸'}</span>
+          <StatusDot color={tone?.color ?? STATUS.neutral} pulse={!!live} title={tone?.label ?? 'never run'} />
+          <span className={`truncate text-[13px] font-medium ${wf.enabled ? '' : 'text-ink-faint'}`}>{wf.name}</span>
+          {!wf.enabled && <Badge tone="neutral">off</Badge>}
+          <span className="shrink-0 font-mono text-[10.5px] text-ink-faint">
+            {wf.steps.length} step{wf.steps.length === 1 ? '' : 's'}
+          </span>
+        </button>
+
+        {/* Grouping by listener already says why it's here, so the row shows the
+            other axis instead of repeating the group heading. */}
+        <span className="hidden min-w-0 shrink items-center gap-1 sm:flex">
+          {grouping === 'listener' ? (
+            <Badge tone="info">{wf.category || UNCATEGORIZED}</Badge>
+          ) : (
+            listenerKeys(wf).slice(0, 2).map((k) => <Badge key={k} tone="info">{listenerLabel(k)}</Badge>)
+          )}
+        </span>
+
+        <span className="shrink-0 text-[11px] text-ink-faint">
+          {live
+            ? 'running now'
+            : last
+              ? `${STATUS_TONE[last.status].label} ${relative(last.startedAt)} · ${formatDuration(runDurationMs(last))}`
+              : wf.nextRunAt
+                ? `next ${relative(wf.nextRunAt)}`
+                : 'never run'}
+        </span>
+
+        <span className="flex shrink-0 items-center gap-1">
+          {live ? (
+            <button className="btn btn-outline py-1! text-[12px]" onClick={() => void window.kotrain.cancelWorkflowRun(live.id)}>
+              Stop
+            </button>
+          ) : (
+            <button className="btn btn-outline py-1! text-[12px]" disabled={busy || wf.steps.length === 0} onClick={onRun}>
+              {busy ? 'Running…' : 'Run'}
+            </button>
+          )}
+          <button className="btn btn-ghost py-1! text-[12px]" onClick={onEdit}>Edit</button>
+          <button className="btn btn-ghost px-1.5! py-1! text-[12px] text-ink-faint" title={wf.enabled ? 'Disable' : 'Enable'} onClick={onToggle}>
+            {wf.enabled ? '◉' : '○'}
+          </button>
+          <button className="btn btn-ghost px-1.5! py-1! text-[12px] text-ink-faint" title="Duplicate" onClick={onDuplicate}>⧉</button>
+          <button className="btn btn-ghost px-1.5! py-1! text-[12px] text-danger" title="Delete" onClick={onDelete}>✕</button>
+        </span>
+      </div>
+
+      {expanded && <WorkflowDetail wf={wf} runs={runs} live={live} />}
+    </div>
+  );
+}
+
+function WorkflowDetail({ wf, runs, live }: { wf: Workflow; runs: WorkflowRun[]; live?: WorkflowRun }) {
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const shownRun = live ?? runs.find((r) => r.id === selectedRunId) ?? runs[0];
+  const openChat = useStore((s) => s.openChatPane);
+  const setView = useStore((s) => s.setView);
+
+  return (
+    <div className="border-t border-line bg-(--surface-2) px-3.5 py-3">
+      {wf.description && <p className="text-[12.5px] text-ink-soft">{wf.description}</p>}
+
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        {wf.triggers.map((t) => (
+          <Badge key={t.id} tone={t.enabled === false ? 'neutral' : 'info'} title={t.enabled === false ? 'Not armed' : undefined}>
+            {triggerLabel(t, wf)}
+          </Badge>
+        ))}
+        {wf.triggers.some((t) => t.kind === 'cli') && (
+          <span className="font-mono text-[10.5px] text-ink-faint">kotrain workflow run {cliCommand(wf)}</span>
+        )}
+      </div>
+
+      <div className="mt-3">
+        <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
+          {shownRun ? `Steps · ${STATUS_TONE[shownRun.status].label} run` : 'Steps'}
+        </p>
+        <WorkflowCanvas steps={wf.steps} run={shownRun} />
+      </div>
+
+      {shownRun && (
+        <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_220px]">
+          <div>
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-ink-faint">This run</p>
+            {shownRun.message && (
+              <p className="mb-1.5 text-[11.5px]" style={{ color: shownRun.status === 'failure' ? STATUS.danger : 'var(--ink-soft)' }}>
+                {shownRun.message}
+              </p>
+            )}
+            <div className="space-y-1">
+              {shownRun.steps.map((entry, i) => {
+                const step = wf.steps.find((s) => s.id === entry.stepId);
+                const t = STATUS_TONE[entry.status === 'skipped' ? 'cancelled' : entry.status === 'pending' ? 'queued' : entry.status];
+                return (
+                  <div key={`${entry.stepId}-${i}`} className="flex items-start gap-2 text-[11.5px]">
+                    <StatusDot color={t.color} pulse={entry.status === 'running'} className="mt-1.5" />
+                    <span className="min-w-0 flex-1">
+                      <span className="font-medium">{step?.name ?? entry.stepId}</span>
+                      {entry.attempt > 1 && <span className="ml-1 font-mono text-[10px] text-ink-faint">attempt {entry.attempt}</span>}
+                      {step && <span className="ml-1.5 text-ink-faint">{stepSummary(step)}</span>}
+                      {entry.error && <span className="block text-[11px]" style={{ color: STATUS.danger }}>{entry.error}</span>}
+                      {entry.output && !entry.error && (
+                        <span className="mt-0.5 block max-h-16 overflow-y-auto whitespace-pre-wrap font-mono text-[10.5px] text-ink-faint">
+                          {entry.output.slice(-400)}
+                        </span>
+                      )}
+                    </span>
+                    {entry.sessionId && (
+                      <button
+                        className="btn btn-ghost shrink-0 px-1.5! py-0.5! text-[11px] text-ink-soft"
+                        title="Open this step's transcript"
+                        onClick={() => { openChat(entry.sessionId!); setView('chat'); }}
+                      >
+                        Transcript
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+              {shownRun.steps.length === 0 && <p className="text-[11.5px] text-ink-faint">No steps recorded yet.</p>}
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-ink-faint">History</p>
+            <div className="space-y-0.5">
+              {runs.slice(0, 10).map((r) => (
+                <button
+                  key={r.id}
+                  className={`flex w-full items-center gap-2 rounded-lg px-2 py-1 text-left text-[11.5px] transition hover:bg-(--surface) ${r.id === shownRun.id ? 'bg-(--surface)' : ''}`}
+                  onClick={() => setSelectedRunId(r.id)}
+                >
+                  <StatusDot color={STATUS_TONE[r.status].color} pulse={r.status === 'running'} />
+                  <span className="min-w-0 flex-1 truncate">{r.triggerLabel || r.triggerKind}</span>
+                  <span className="shrink-0 font-mono text-[10px] text-ink-faint">{relative(r.startedAt)}</span>
+                </button>
+              ))}
+              {runs.length === 0 && <p className="text-[11.5px] text-ink-faint">No runs yet.</p>}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TemplatePicker({ onPick, onClose }: { onPick: (id: string) => void; onClose: () => void }) {
+  return (
+    <Modal title="Start a workflow from a template" onClose={onClose} align="top" className="w-full max-w-xl px-4">
+      <div className="card p-5">
+        <h2 className="text-[15px] font-semibold">Start from…</h2>
+        <p className="mt-0.5 text-[12px] text-ink-faint">Every template is fully editable once created.</p>
+        <div className="mt-3 space-y-2">
+          {WORKFLOW_TEMPLATES.map((t) => (
+            <button
+              key={t.id}
+              className="card w-full px-3.5 py-3 text-left transition hover:bg-(--surface-2)"
+              onClick={() => onPick(t.id)}
+            >
+              <div className="flex items-baseline gap-2">
+                <span className="text-[13px] font-semibold">{t.name}</span>
+                <Badge tone="info">{t.category}</Badge>
+              </div>
+              <p className="mt-1 text-[11.5px] leading-snug text-ink-faint">{t.description}</p>
+            </button>
+          ))}
+        </div>
+        <div className="mt-4 flex justify-end">
+          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+/** "3m ago" / "in 2h", short enough for a dense row. */
+function relative(at: number): string {
+  const delta = at - Date.now();
+  const abs = Math.abs(delta);
+  const mins = Math.round(abs / 60_000);
+  const text = mins < 1 ? 'just now' : mins < 60 ? `${mins}m` : abs < 86_400_000 ? `${Math.round(mins / 60)}h` : `${Math.round(mins / 1440)}d`;
+  if (text === 'just now') return text;
+  return delta > 0 ? `in ${text}` : `${text} ago`;
+}

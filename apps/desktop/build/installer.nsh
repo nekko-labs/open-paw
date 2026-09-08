@@ -6,7 +6,7 @@
 ; "No", so updates never wipe a user's data.
 
 !macro customUnInstall
-  MessageBox MB_YESNO|MB_ICONQUESTION "Also delete your Kotrain chats, settings, and local data?$\n$\nChoose No to keep them for a future reinstall." /SD IDNO IDYES OpPawDeleteData
+  MessageBox MB_YESNO|MB_ICONQUESTION "Also delete your Agent Nekko chats, settings, and local data?$\n$\nChoose No to keep them for a future reinstall." /SD IDNO IDYES OpPawDeleteData
     Goto OpPawKeepData
   OpPawDeleteData:
     RMDir /r "$APPDATA\Kotrain"

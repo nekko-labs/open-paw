@@ -1,8 +1,10 @@
-import { readdirSync, readFileSync } from 'fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'fs';
 import { createRequire } from 'module';
+import { tmpdir } from 'os';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { preservePackagedProfile } from './main/appIdentity.js';
 
 // Guards the launch crash that shipped in v0.4.0. The @kotrain/* workspace packages are
 // ESM-only (their "exports" map offers just an "import" condition) while main and
@@ -16,6 +18,102 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 const workspaceDeps = Object.keys(pkg.dependencies ?? {}).filter((d) => d.startsWith('@kotrain/'));
+
+describe('staged product identity', () => {
+  let appData: string;
+
+  beforeEach(() => {
+    appData = mkdtempSync(join(tmpdir(), 'agent-nekko-profile-'));
+  });
+
+  afterEach(() => {
+    rmSync(appData, { recursive: true, force: true });
+  });
+
+  function mockApp(isPackaged = true) {
+    return {
+      isPackaged,
+      getPath: vi.fn(() => appData),
+      setPath: vi.fn((_name: string, path: string) => {
+        if (!existsSync(path) || !statSync(path).isDirectory()) throw new Error('Path must be an existing directory');
+      }),
+    };
+  }
+
+  it('creates only the profile directory before setting paths on a fresh install', () => {
+    const app = mockApp();
+    const profile = join(appData, 'Kotrain');
+    expect(existsSync(profile)).toBe(false);
+    expect(() => preservePackagedProfile(app)).not.toThrow();
+    expect(app.getPath).toHaveBeenCalledExactlyOnceWith('appData');
+    expect(app.setPath.mock.calls).toEqual([
+      ['userData', profile],
+      ['sessionData', profile],
+    ]);
+    expect(statSync(profile).isDirectory()).toBe(true);
+    expect(readdirSync(profile)).toEqual([]);
+    expect(existsSync(join(profile, 'kotrain'))).toBe(false);
+    const main = readFileSync(join(root, 'src/main/index.ts'), 'utf8');
+    const pin = main.indexOf('preservePackagedProfile(app);');
+    expect(pin).toBeGreaterThan(0);
+    expect(pin).toBeLessThan(main.indexOf('const isPrimary = claimSingleInstance();'));
+    expect(pin).toBeLessThan(main.indexOf('app.whenReady()'));
+    expect(main).toContain("join(app.getPath('userData'), 'kotrain')");
+  });
+
+  it('preserves existing browser and host data across repeated initialization', () => {
+    const app = mockApp();
+    const profile = join(appData, 'Kotrain');
+    const browserData = join(profile, 'Local Storage');
+    const hostData = join(profile, 'kotrain');
+    mkdirSync(browserData, { recursive: true });
+    mkdirSync(hostData, { recursive: true });
+    const sentinel = Buffer.from([0, 1, 127, 128, 255]);
+    writeFileSync(join(browserData, 'sentinel'), sentinel);
+    const settings = '{"theme":"dark","mascotEnabled":true}\n';
+    writeFileSync(join(hostData, 'settings.json'), settings);
+
+    preservePackagedProfile(app);
+    preservePackagedProfile(app);
+
+    expect(readFileSync(join(browserData, 'sentinel'))).toEqual(sentinel);
+    expect(readFileSync(join(hostData, 'settings.json'), 'utf8')).toBe(settings);
+    expect(readdirSync(profile).sort()).toEqual(['Local Storage', 'kotrain']);
+    expect(app.setPath.mock.calls).toEqual([
+      ['userData', profile],
+      ['sessionData', profile],
+      ['userData', profile],
+      ['sessionData', profile],
+    ]);
+  });
+
+  it('leaves development profiles unchanged without creating any directories', () => {
+    const app = mockApp(false);
+    preservePackagedProfile(app);
+    expect(app.getPath).not.toHaveBeenCalled();
+    expect(app.setPath).not.toHaveBeenCalled();
+    expect(readdirSync(appData)).toEqual([]);
+    expect(existsSync(join(appData, 'Kotrain'))).toBe(false);
+  });
+
+  it('changes display names without changing update artifacts or bundle identities', () => {
+    const builder = readFileSync(join(root, 'electron-builder.yml'), 'utf8');
+    expect(builder).toContain('productName: Agent Nekko');
+    expect(builder).toContain('appId: dev.nekkolabs.kotrain');
+    expect(builder).toContain('executableName: Kotrain');
+    expect(builder.match(/artifactName: Kotrain-\$\{version\}-\$\{arch\}\.\$\{ext\}/g)).toHaveLength(3);
+    expect(builder).toContain('repo: agent-nekko');
+    expect(pkg.name).toBe('@kotrain/desktop');
+    const mobile = readFileSync(join(root, '../mobile/capacitor.config.ts'), 'utf8');
+    expect(mobile).toContain("appName: 'Agent Nekko'");
+    expect(mobile).toContain("appId: 'dev.nekkolabs.kotrain'");
+    const manifest = JSON.parse(readFileSync(join(root, 'src/renderer/public/manifest.webmanifest'), 'utf8'));
+    expect(manifest.name).toBe('Agent Nekko');
+    expect(manifest.short_name).toBe('Agent Nekko');
+    expect(manifest.start_url).toBe('./');
+    expect(manifest.scope).toBe('./');
+  });
+});
 
 describe('bundled main/preload externals', () => {
   it('has workspace packages to check', () => {

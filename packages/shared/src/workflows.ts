@@ -1,0 +1,849 @@
+/**
+ * Workflows: automation modelled after GitHub Actions, but where a step can be
+ * an agent prompt, a skill, another workflow, or a shell command.
+ *
+ * Two things separate this from a CI pipeline. First, steps are *routed*, not
+ * just sequenced: a step names where control goes on success and on failure, so
+ * a verify step that finds problems can send the run back to build and try
+ * again (bounded, see MAX_STEP_LOOPS). Second, a workflow starts from whatever
+ * fires it: by hand, on a schedule, from the CLI, from Slack, or off a git
+ * provider event (a PR opened, closed, commented on).
+ *
+ * An install is expected to accumulate hundreds of these, so every workflow
+ * carries a category and its triggers are addressable, and the list groups by
+ * both (see groupWorkflows).
+ */
+
+/** What a step actually does when it runs. */
+export type WorkflowStepKind = 'prompt' | 'skill' | 'workflow' | 'shell';
+
+export const WORKFLOW_STEP_KINDS: Array<{ kind: WorkflowStepKind; label: string; hint: string }> = [
+  { kind: 'prompt', label: 'Prompt', hint: 'Give the agent an instruction and let it work.' },
+  { kind: 'skill', label: 'Skill', hint: 'Run an installed skill by name.' },
+  { kind: 'workflow', label: 'Workflow', hint: 'Trigger another workflow and wait for it.' },
+  { kind: 'shell', label: 'Shell', hint: 'Run a command in the workspace.' },
+];
+
+/** Where control goes when a step finishes. */
+export type WorkflowTransition =
+  /** Fall through to the next step in order (the default). */
+  | { goto: 'next' }
+  /** Finish the run here, successfully. */
+  | { goto: 'end' }
+  /** Finish the run here, as a failure. */
+  | { goto: 'fail' }
+  /** Jump to a named step; that's how build → verify → build loops are built. */
+  | { goto: 'step'; stepId: string };
+
+/**
+ * How many times one step may be entered in a single run. A verify → build
+ * cycle is the point of the feature, so it can't be banned, but it has to be
+ * bounded or a workflow that never converges runs forever.
+ */
+export const MAX_STEP_LOOPS = 10;
+
+/** How deep a workflow step may nest another workflow before it's refused. */
+export const MAX_WORKFLOW_DEPTH = 3;
+
+/**
+ * Tokens a prompt or skill step ends with to report its own outcome, so routing
+ * works for agent steps the way an exit code works for shell steps. The step's
+ * instructions ask for one; without either, the step counts as passed.
+ */
+export const STEP_PASS_TOKEN = '⟦PASS⟧';
+export const STEP_FAIL_TOKEN = '⟦FAIL⟧';
+
+/** Appended to an agent step's prompt so it reports an outcome the run can route on. */
+export function stepOutcomeInstruction(canRetry: boolean): string {
+  return [
+    `When you are done, end your reply with ${STEP_PASS_TOKEN} if this step succeeded, or ${STEP_FAIL_TOKEN} if it did not.`,
+    canRetry
+      ? `A ${STEP_FAIL_TOKEN} sends the run back for another attempt, so say what went wrong before the token.`
+      : `A ${STEP_FAIL_TOKEN} ends the run, so say what blocked you before the token.`,
+  ].join(' ');
+}
+
+/** Read a step's self-reported outcome out of its final answer. */
+export function readStepOutcome(text: string): 'pass' | 'fail' {
+  // Last token wins: an agent that discusses the tokens before deciding still
+  // ends on the real verdict.
+  const pass = text.lastIndexOf(STEP_PASS_TOKEN);
+  const fail = text.lastIndexOf(STEP_FAIL_TOKEN);
+  if (fail > pass) return 'fail';
+  return 'pass';
+}
+
+export interface WorkflowStep {
+  /** Stable within the workflow; transitions reference it. */
+  id: string;
+  name: string;
+  kind: WorkflowStepKind;
+  /**
+   * What to run, read according to `kind`: the instruction (prompt), the skill
+   * id (skill), the target workflow id (workflow), or the command line (shell).
+   */
+  run: string;
+  /** Extra context appended to a prompt or skill step. */
+  with?: string;
+  /** shell only: working directory, absolute or relative to the workspace root. */
+  cwd?: string;
+  /** Attempts after the first before the step counts as failed. */
+  retries?: number;
+  /** Abandon the step after this long (seconds). */
+  timeoutSec?: number;
+  /** Treat a failure as a pass and carry on (GitHub's continue-on-error). */
+  continueOnError?: boolean;
+  /** Route on success. Omitted = next step in order. */
+  onSuccess?: WorkflowTransition;
+  /** Route on failure, after retries are exhausted. Omitted = fail the run. */
+  onFailure?: WorkflowTransition;
+  /** Model override for this step (prompt/skill steps only). */
+  providerId?: string;
+  modelId?: string;
+}
+
+/** What can start a workflow. */
+export type WorkflowTriggerKind = 'manual' | 'schedule' | 'cli' | 'slack' | 'git';
+
+export const WORKFLOW_TRIGGER_KINDS: Array<{ kind: WorkflowTriggerKind; label: string; hint: string }> = [
+  { kind: 'manual', label: 'Manual', hint: 'Only when you press Run.' },
+  { kind: 'schedule', label: 'Schedule', hint: 'On a cron expression or a fixed interval.' },
+  { kind: 'cli', label: 'CLI', hint: 'From the terminal: kotrain workflow run <command>.' },
+  { kind: 'slack', label: 'Slack', hint: 'When a message matches in a channel.' },
+  { kind: 'git', label: 'Git provider', hint: 'On a pull request, push, or comment event.' },
+];
+
+export type GitProvider = 'github' | 'gitlab' | 'bitbucket' | 'other';
+
+export const GIT_PROVIDERS: Array<{ id: GitProvider; label: string }> = [
+  { id: 'github', label: 'GitHub' },
+  { id: 'gitlab', label: 'GitLab' },
+  { id: 'bitbucket', label: 'Bitbucket' },
+  { id: 'other', label: 'Other' },
+];
+
+/**
+ * Git events, named the same way across providers so a workflow doesn't have to
+ * care whether it's a GitHub pull request or a GitLab merge request. The
+ * listener that receives the webhook maps the provider's vocabulary onto these.
+ */
+export type GitEvent =
+  | 'pr_opened'
+  | 'pr_updated'
+  | 'pr_closed'
+  | 'pr_merged'
+  | 'pr_comment'
+  | 'pr_review'
+  | 'push'
+  | 'tag'
+  | 'issue_opened'
+  | 'issue_comment';
+
+export const GIT_EVENTS: Array<{ id: GitEvent; label: string }> = [
+  { id: 'pr_opened', label: 'PR opened' },
+  { id: 'pr_updated', label: 'PR updated' },
+  { id: 'pr_closed', label: 'PR closed' },
+  { id: 'pr_merged', label: 'PR merged' },
+  { id: 'pr_comment', label: 'PR comment' },
+  { id: 'pr_review', label: 'PR review' },
+  { id: 'push', label: 'Push' },
+  { id: 'tag', label: 'Tag' },
+  { id: 'issue_opened', label: 'Issue opened' },
+  { id: 'issue_comment', label: 'Issue comment' },
+];
+
+export interface WorkflowTrigger {
+  id: string;
+  kind: WorkflowTriggerKind;
+  /** Off by default nowhere: a trigger with no explicit flag is armed. */
+  enabled?: boolean;
+
+  /** schedule: a 5-field cron expression (takes precedence over intervalMs). */
+  cron?: string;
+  /** schedule: fire every N ms, for people who don't want to write cron. */
+  intervalMs?: number;
+
+  /** cli: the name it answers to. Defaults to the workflow's slug. */
+  command?: string;
+
+  /** slack: the channel to listen in, and an optional word that must appear. */
+  channel?: string;
+  keyword?: string;
+
+  /** git: which provider, which events, and which repo/branches to accept. */
+  provider?: GitProvider;
+  events?: GitEvent[];
+  /** `owner/name`; empty means any repo the listener receives. */
+  repo?: string;
+  /** Branch names or `prefix*` globs; empty means any branch. */
+  branches?: string[];
+}
+
+export type WorkflowRunStatus = 'queued' | 'running' | 'success' | 'failure' | 'cancelled';
+
+export type WorkflowStepStatus = 'pending' | 'running' | 'success' | 'failure' | 'skipped';
+
+/** One attempt at one step. Retries and loop-backs each append a new entry. */
+export interface WorkflowStepRun {
+  stepId: string;
+  status: WorkflowStepStatus;
+  /** 1-based attempt number within this visit to the step. */
+  attempt: number;
+  startedAt: number;
+  endedAt?: number;
+  /** prompt/skill steps drive a chat session; this opens its transcript. */
+  sessionId?: string;
+  /** Trimmed result or command output, for the run log. */
+  output?: string;
+  error?: string;
+}
+
+export interface WorkflowRun {
+  id: string;
+  workflowId: string;
+  status: WorkflowRunStatus;
+  /** What started it, and a human label ("PR #12 opened", "cron 0 9 * * 1"). */
+  triggerKind: WorkflowTriggerKind;
+  triggerLabel?: string;
+  startedAt: number;
+  endedAt?: number;
+  /** Every attempt, in execution order. */
+  steps: WorkflowStepRun[];
+  /** Why the run ended, when it wasn't a clean pass. */
+  message?: string;
+}
+
+export interface Workflow {
+  id: string;
+  name: string;
+  description?: string;
+  /** Free text, used to group the list. See DEFAULT_WORKFLOW_CATEGORIES. */
+  category: string;
+  /** A disabled workflow keeps its triggers but never fires. */
+  enabled: boolean;
+  steps: WorkflowStep[];
+  triggers: WorkflowTrigger[];
+  /** Workspace the steps run against. */
+  workspaceId?: string;
+  /** Default model for prompt/skill steps that don't override it. */
+  providerId?: string;
+  modelId?: string;
+  createdAt: number;
+  updatedAt: number;
+
+  /** Rolled up from runs so the list can show state without loading them. */
+  lastRunAt?: number;
+  lastStatus?: WorkflowRunStatus;
+  runCount?: number;
+  /** When the schedule fires next (epoch ms), if it has one. */
+  nextRunAt?: number;
+}
+
+/**
+ * Definitions plus run history in one payload. The list view needs both to draw
+ * a row, and the host pushes them together so the two can't disagree on screen.
+ */
+export interface WorkflowsSnapshot {
+  workflows: Workflow[];
+  runs: WorkflowRun[];
+}
+
+/** Fields accepted when creating a workflow; the rest is filled in by the host. */
+export interface NewWorkflow {
+  name: string;
+  description?: string;
+  category?: string;
+  enabled?: boolean;
+  steps?: WorkflowStep[];
+  triggers?: WorkflowTrigger[];
+  workspaceId?: string;
+  providerId?: string;
+  modelId?: string;
+}
+
+/** Categories offered in the editor. Any string is valid; these are the nudge. */
+export const DEFAULT_WORKFLOW_CATEGORIES = [
+  'Build & test',
+  'Code review',
+  'Release',
+  'Maintenance',
+  'Docs',
+  'Research',
+  'Reporting',
+  'Uncategorized',
+] as const;
+
+export const UNCATEGORIZED = 'Uncategorized';
+
+/**
+ * URL/CLI-safe name derived from a workflow's title. Split-and-join rather than
+ * replace-then-trim: trimming separators with `/^-+|-+$/` backtracks
+ * quadratically on a name that is mostly punctuation, and a workflow name is
+ * user input.
+ */
+export function slugify(name: string): string {
+  const slug = name.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean).join('-').slice(0, 48);
+  // The 48-char cut can land on a separator; join never produces two in a row,
+  // so one check is enough (and no regex, which is the point).
+  return (slug.endsWith('-') ? slug.slice(0, -1) : slug) || 'workflow';
+}
+
+/** The CLI name a trigger answers to (explicit, else the workflow's slug). */
+export function cliCommand(wf: Workflow, trigger?: WorkflowTrigger): string {
+  return (trigger?.command?.trim() || slugify(wf.name));
+}
+
+/** Whether a trigger is armed (absent flag = on). */
+export function triggerEnabled(t: WorkflowTrigger): boolean {
+  return t.enabled !== false;
+}
+
+/** One-line description of when a trigger fires, for lists and cards. */
+export function triggerLabel(t: WorkflowTrigger, wf?: Workflow): string {
+  switch (t.kind) {
+    case 'manual':
+      return 'Manual';
+    case 'schedule':
+      if (t.cron) return `Cron ${t.cron}`;
+      return t.intervalMs ? `Every ${formatEvery(t.intervalMs)}` : 'Schedule (unset)';
+    case 'cli':
+      return `CLI: ${wf ? cliCommand(wf, t) : t.command || '(workflow slug)'}`;
+    case 'slack':
+      return `Slack ${t.channel ? `#${t.channel.replace(/^#/, '')}` : '(any channel)'}${t.keyword ? ` · "${t.keyword}"` : ''}`;
+    case 'git': {
+      const provider = GIT_PROVIDERS.find((p) => p.id === (t.provider ?? 'github'))?.label ?? 'Git';
+      const events = (t.events ?? []).map((e) => GIT_EVENTS.find((g) => g.id === e)?.label ?? e);
+      const what = events.length ? events.join(', ') : 'any event';
+      return `${provider}: ${what}${t.repo ? ` · ${t.repo}` : ''}`;
+    }
+  }
+}
+
+/** Compact interval label ("15 min", "2 hr", "1 day"). */
+export function formatEvery(ms: number): string {
+  const min = Math.max(1, Math.round(ms / 60_000));
+  if (min < 60) return `${min} min`;
+  const hr = min / 60;
+  if (hr < 24) return `${Number.isInteger(hr) ? hr : hr.toFixed(1)} hr`;
+  const d = hr / 24;
+  return `${Number.isInteger(d) ? d : d.toFixed(1)} day${d === 1 ? '' : 's'}`;
+}
+
+/**
+ * The listener groups a workflow belongs to: one key per distinct armed
+ * trigger. A workflow with a cron and a PR-opened hook shows under both, which
+ * is the point, the question being answered is "what reacts to a PR?".
+ */
+export function listenerKeys(wf: Workflow): string[] {
+  const keys = new Set<string>();
+  for (const t of wf.triggers.filter(triggerEnabled)) {
+    if (t.kind === 'git') {
+      const provider = t.provider ?? 'github';
+      for (const e of t.events ?? []) keys.add(`git:${provider}:${e}`);
+      if (!t.events?.length) keys.add(`git:${provider}:any`);
+    } else {
+      keys.add(t.kind);
+    }
+  }
+  if (keys.size === 0) keys.add('manual');
+  return [...keys];
+}
+
+/** Human label for a listener key produced by listenerKeys. */
+export function listenerLabel(key: string): string {
+  if (!key.startsWith('git:')) {
+    return WORKFLOW_TRIGGER_KINDS.find((k) => k.kind === key)?.label ?? key;
+  }
+  const [, provider, event] = key.split(':');
+  const providerLabel = GIT_PROVIDERS.find((p) => p.id === provider)?.label ?? provider;
+  const eventLabel = event === 'any' ? 'Any event' : GIT_EVENTS.find((g) => g.id === event)?.label ?? event;
+  return `${providerLabel} · ${eventLabel}`;
+}
+
+export type WorkflowGrouping = 'category' | 'listener';
+
+export interface WorkflowGroup {
+  key: string;
+  label: string;
+  workflows: Workflow[];
+}
+
+/**
+ * Bucket workflows for display. Grouping by category answers "what do I have?";
+ * grouping by listener answers "what happens when X?". Groups are sorted by
+ * size (the busy ones first) and each group keeps workflows alphabetical, so a
+ * few hundred entries stay navigable.
+ */
+export function groupWorkflows(list: Workflow[], grouping: WorkflowGrouping): WorkflowGroup[] {
+  const buckets = new Map<string, Workflow[]>();
+  for (const wf of list) {
+    const keys = grouping === 'category' ? [wf.category || UNCATEGORIZED] : listenerKeys(wf);
+    for (const key of keys) {
+      const bucket = buckets.get(key);
+      if (bucket) bucket.push(wf);
+      else buckets.set(key, [wf]);
+    }
+  }
+  return [...buckets.entries()]
+    .map(([key, workflows]) => ({
+      key,
+      label: grouping === 'category' ? key : listenerLabel(key),
+      workflows: workflows.slice().sort((a, b) => a.name.localeCompare(b.name)),
+    }))
+    .sort((a, b) => b.workflows.length - a.workflows.length || a.label.localeCompare(b.label));
+}
+
+export interface WorkflowFilter {
+  /** Matched against name, description, category, and step names/bodies. */
+  query?: string;
+  category?: string;
+  triggerKind?: WorkflowTriggerKind;
+  /** 'enabled' / 'disabled' / undefined for both. */
+  state?: 'enabled' | 'disabled';
+  status?: WorkflowRunStatus;
+}
+
+/** Apply the list filters. Every clause is AND-ed; empty filter = everything. */
+export function filterWorkflows(list: Workflow[], f: WorkflowFilter): Workflow[] {
+  const q = f.query?.trim().toLowerCase();
+  return list.filter((wf) => {
+    if (f.category && (wf.category || UNCATEGORIZED) !== f.category) return false;
+    if (f.state === 'enabled' && !wf.enabled) return false;
+    if (f.state === 'disabled' && wf.enabled) return false;
+    if (f.status && wf.lastStatus !== f.status) return false;
+    if (f.triggerKind && !wf.triggers.some((t) => t.kind === f.triggerKind && triggerEnabled(t))) return false;
+    if (!q) return true;
+    const haystack = [
+      wf.name,
+      wf.description ?? '',
+      wf.category ?? '',
+      ...wf.steps.map((s) => `${s.name} ${s.run}`),
+      ...wf.triggers.map((t) => triggerLabel(t, wf)),
+    ]
+      .join('\n')
+      .toLowerCase();
+    return haystack.includes(q);
+  });
+}
+
+/** An edge on the step canvas. */
+export interface WorkflowEdge {
+  from: string;
+  /** Target step id, or a terminal outcome. */
+  to: string | 'end' | 'fail';
+  kind: 'success' | 'failure';
+  /** True when the edge points at an earlier step (a retry loop). */
+  back: boolean;
+}
+
+/**
+ * Resolve every step's routing into edges for the canvas, including the implicit
+ * "fall through to the next step" and "the last step ends the run". Failure
+ * edges are only drawn where they say something the default doesn't.
+ */
+export function workflowEdges(steps: WorkflowStep[]): WorkflowEdge[] {
+  const index = new Map(steps.map((s, i) => [s.id, i]));
+  const edges: WorkflowEdge[] = [];
+  const resolve = (from: number, t: WorkflowTransition | undefined, fallback: string | 'end' | 'fail'): string | 'end' | 'fail' => {
+    if (!t) return fallback;
+    if (t.goto === 'next') return steps[from + 1]?.id ?? 'end';
+    if (t.goto === 'step') return index.has(t.stepId) ? t.stepId : 'end';
+    return t.goto;
+  };
+  steps.forEach((step, i) => {
+    const success = resolve(i, step.onSuccess, steps[i + 1]?.id ?? 'end');
+    edges.push({ from: step.id, to: success, kind: 'success', back: isBack(step.id, success, index) });
+    // A failure edge is worth drawing when it isn't just "the run stops".
+    const failure = resolve(i, step.onFailure, step.continueOnError ? steps[i + 1]?.id ?? 'end' : 'fail');
+    if (failure !== 'fail' || step.onFailure) {
+      edges.push({ from: step.id, to: failure, kind: 'failure', back: isBack(step.id, failure, index) });
+    }
+  });
+  return edges;
+}
+
+function isBack(from: string, to: string, index: Map<string, number>): boolean {
+  const a = index.get(from);
+  const b = typeof to === 'string' ? index.get(to) : undefined;
+  return a != null && b != null && b <= a;
+}
+
+/** A node on the step canvas: a step, or a terminal outcome. */
+export interface WorkflowNode {
+  id: string;
+  label: string;
+  /** The step's kind, or 'terminal' for the Done / Failed boxes. */
+  kind: WorkflowStepKind | 'terminal';
+  detail?: string;
+  step?: WorkflowStep;
+}
+
+/**
+ * The step graph, ready to lay out: every step as a node, plus a Done or Failed
+ * terminal where the routing actually reaches one. Terminals are nodes rather
+ * than dangling arrows so the canvas reads like a pipeline with an end.
+ */
+export function workflowGraph(steps: WorkflowStep[]): { nodes: WorkflowNode[]; edges: WorkflowEdge[] } {
+  const edges = workflowEdges(steps);
+  const nodes: WorkflowNode[] = steps.map((s) => ({
+    id: s.id,
+    label: s.name || '(unnamed)',
+    kind: s.kind,
+    detail: stepSummary(s),
+    step: s,
+  }));
+  if (edges.some((e) => e.to === 'end')) nodes.push({ id: 'end', label: 'Done', kind: 'terminal' });
+  if (edges.some((e) => e.to === 'fail')) nodes.push({ id: 'fail', label: 'Failed', kind: 'terminal' });
+  return { nodes, edges };
+}
+
+/** One line describing what a step runs, for a node card or a list row. */
+export function stepSummary(step: WorkflowStep): string {
+  const body = step.run.trim().split('\n')[0] ?? '';
+  const short = body.length > 60 ? `${body.slice(0, 60)}…` : body;
+  switch (step.kind) {
+    case 'shell':
+      return short || 'no command';
+    case 'workflow':
+      return 'runs another workflow';
+    case 'skill':
+      return short ? `/${short.replace(/^\//, '')}` : 'no skill chosen';
+    default:
+      return short || 'no instruction';
+  }
+}
+
+/** Steps no edge reaches (other than the first), so the editor can flag them. */
+export function unreachableSteps(steps: WorkflowStep[]): string[] {
+  if (steps.length === 0) return [];
+  const edges = workflowEdges(steps);
+  const seen = new Set<string>([steps[0].id]);
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const e of edges) {
+      if (seen.has(e.from) && typeof e.to === 'string' && e.to !== 'end' && e.to !== 'fail' && !seen.has(e.to)) {
+        seen.add(e.to);
+        grew = true;
+      }
+    }
+  }
+  return steps.filter((s) => !seen.has(s.id)).map((s) => s.id);
+}
+
+/** Aggregate progress of a run, for the header and the list rows. */
+export function runProgress(run: WorkflowRun | undefined, wf: Workflow): { done: number; total: number; ratio: number; current?: WorkflowStep } {
+  const total = wf.steps.length;
+  if (!run || total === 0) return { done: 0, total, ratio: 0 };
+  const settled = new Set(run.steps.filter((s) => s.status === 'success' || s.status === 'skipped').map((s) => s.stepId));
+  const running = run.steps.find((s) => s.status === 'running');
+  return {
+    done: settled.size,
+    total,
+    ratio: total ? Math.min(1, settled.size / total) : 0,
+    current: running ? wf.steps.find((s) => s.id === running.stepId) : undefined,
+  };
+}
+
+/** Wall-clock duration of a run (or so far, if it's still going). */
+export function runDurationMs(run: WorkflowRun): number {
+  return Math.max(0, (run.endedAt ?? Date.now()) - run.startedAt);
+}
+
+export function formatDuration(ms: number): string {
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ${s % 60}s`;
+  const h = Math.floor(m / 60);
+  return `${h}h ${m % 60}m`;
+}
+
+/* ------------------------------------------------------------------ *
+ * Cron
+ *
+ * Five fields (minute hour day-of-month month day-of-week), supporting `*`,
+ * lists, ranges, and steps. That covers what a schedule needs, and keeping it
+ * in shared means the editor can validate an expression and preview the next
+ * run without a round trip to the host.
+ * ------------------------------------------------------------------ */
+
+const CRON_BOUNDS: Array<[number, number]> = [
+  [0, 59], // minute
+  [0, 23], // hour
+  [1, 31], // day of month
+  [1, 12], // month
+  [0, 6], // day of week (0 = Sunday)
+];
+
+/** Expand one cron field into the set of values it matches. Null = malformed. */
+function cronField(spec: string, [min, max]: [number, number]): Set<number> | null {
+  const out = new Set<number>();
+  for (const part of spec.split(',')) {
+    const [range, stepText] = part.split('/');
+    const step = stepText === undefined ? 1 : Number(stepText);
+    if (!Number.isInteger(step) || step < 1) return null;
+    let lo: number;
+    let hi: number;
+    if (range === '*') {
+      lo = min;
+      hi = max;
+    } else if (range.includes('-')) {
+      const [a, b] = range.split('-').map(Number);
+      if (!Number.isInteger(a) || !Number.isInteger(b)) return null;
+      lo = a;
+      hi = b;
+    } else {
+      const v = Number(range);
+      if (!Number.isInteger(v)) return null;
+      lo = v;
+      hi = stepText === undefined ? v : max;
+    }
+    if (lo < min || hi > max || lo > hi) return null;
+    for (let v = lo; v <= hi; v += step) out.add(v);
+  }
+  return out.size ? out : null;
+}
+
+/** Parse a 5-field cron expression. Null when it isn't valid. */
+export function parseCron(expr: string): Array<Set<number>> | null {
+  const fields = expr.trim().split(/\s+/);
+  if (fields.length !== 5) return null;
+  const sets: Array<Set<number>> = [];
+  for (let i = 0; i < 5; i++) {
+    const set = cronField(fields[i], CRON_BOUNDS[i]);
+    if (!set) return null;
+    sets.push(set);
+  }
+  return sets;
+}
+
+export function isValidCron(expr: string): boolean {
+  return parseCron(expr) !== null;
+}
+
+/** Whether a cron expression matches a moment (to the minute, local time). */
+export function cronMatches(expr: string, at: Date): boolean {
+  const sets = parseCron(expr);
+  if (!sets) return false;
+  const [minute, hour, dom, month, dow] = sets;
+  // Cron's day fields are an OR when both are restricted, matching Vixie cron.
+  const domRestricted = expr.trim().split(/\s+/)[2] !== '*';
+  const dowRestricted = expr.trim().split(/\s+/)[4] !== '*';
+  const dayMatch =
+    domRestricted && dowRestricted
+      ? dom.has(at.getDate()) || dow.has(at.getDay())
+      : dom.has(at.getDate()) && dow.has(at.getDay());
+  return minute.has(at.getMinutes()) && hour.has(at.getHours()) && month.has(at.getMonth() + 1) && dayMatch;
+}
+
+/**
+ * The next minute at or after `from` that a cron expression fires, or undefined
+ * if it can't fire within a year (e.g. Feb 30). Scans minute by minute, which is
+ * plenty fast for a schedule computed once per run.
+ */
+export function nextCronRun(expr: string, from = new Date()): number | undefined {
+  if (!isValidCron(expr)) return undefined;
+  const at = new Date(from.getTime() + 60_000);
+  at.setSeconds(0, 0);
+  const limit = 366 * 24 * 60;
+  for (let i = 0; i < limit; i++) {
+    if (cronMatches(expr, at)) return at.getTime();
+    at.setTime(at.getTime() + 60_000);
+  }
+  return undefined;
+}
+
+/** When a workflow's schedule triggers should next fire, earliest first. */
+export function nextScheduledRun(wf: Workflow, from = Date.now()): number | undefined {
+  const candidates: number[] = [];
+  for (const t of wf.triggers.filter(triggerEnabled)) {
+    if (t.kind !== 'schedule') continue;
+    if (t.cron) {
+      const next = nextCronRun(t.cron, new Date(from));
+      if (next) candidates.push(next);
+    } else if (t.intervalMs && t.intervalMs > 0) {
+      candidates.push((wf.lastRunAt ?? from) + Math.max(60_000, t.intervalMs));
+    }
+  }
+  return candidates.length ? Math.min(...candidates) : undefined;
+}
+
+/** A branch name matched against a trigger's branch filters (`main`, `release/*`). */
+export function branchMatches(branch: string, patterns?: string[]): boolean {
+  if (!patterns?.length) return true;
+  return patterns.some((p) => {
+    const pattern = p.trim();
+    if (!pattern) return false;
+    if (!pattern.includes('*')) return pattern === branch;
+    const rx = new RegExp(`^${pattern.split('*').map(escapeRegex).join('.*')}$`);
+    return rx.test(branch);
+  });
+}
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** An inbound event offered to the workflow listeners. */
+export interface WorkflowEvent {
+  kind: WorkflowTriggerKind;
+  /** git: which provider sent it. */
+  provider?: GitProvider;
+  /** git: the normalized event. */
+  event?: GitEvent;
+  repo?: string;
+  branch?: string;
+  /** cli: the command that was invoked. */
+  command?: string;
+  /** slack: where it came from, and the message text. */
+  channel?: string;
+  text?: string;
+  /** Free-form payload handed to the run as context. */
+  payload?: Record<string, unknown>;
+}
+
+/** Whether one trigger accepts an inbound event. */
+export function triggerAccepts(wf: Workflow, t: WorkflowTrigger, e: WorkflowEvent): boolean {
+  if (!triggerEnabled(t) || t.kind !== e.kind) return false;
+  switch (e.kind) {
+    case 'cli':
+      return !e.command || cliCommand(wf, t) === e.command;
+    case 'slack': {
+      const want = t.channel?.replace(/^#/, '').trim();
+      const got = e.channel?.replace(/^#/, '').trim();
+      if (want && want !== got) return false;
+      if (t.keyword && !(e.text ?? '').toLowerCase().includes(t.keyword.toLowerCase())) return false;
+      return true;
+    }
+    case 'git': {
+      if ((t.provider ?? 'github') !== (e.provider ?? 'github')) return false;
+      if (t.events?.length && e.event && !t.events.includes(e.event)) return false;
+      if (t.repo?.trim() && e.repo && t.repo.trim() !== e.repo) return false;
+      if (e.branch && !branchMatches(e.branch, t.branches)) return false;
+      return true;
+    }
+    default:
+      return true;
+  }
+}
+
+/** Every enabled workflow an event should start. */
+export function matchWorkflows(list: Workflow[], e: WorkflowEvent): Workflow[] {
+  return list.filter((wf) => wf.enabled && wf.triggers.some((t) => triggerAccepts(wf, t, e)));
+}
+
+/** Context lines describing the event, prepended to the run's first prompt. */
+export function eventContext(e: WorkflowEvent): string {
+  const rows: string[] = [];
+  if (e.provider) rows.push(`provider: ${e.provider}`);
+  if (e.event) rows.push(`event: ${e.event}`);
+  if (e.repo) rows.push(`repo: ${e.repo}`);
+  if (e.branch) rows.push(`branch: ${e.branch}`);
+  if (e.channel) rows.push(`channel: ${e.channel}`);
+  if (e.text) rows.push(`message: ${e.text}`);
+  for (const [k, v] of Object.entries(e.payload ?? {})) rows.push(`${k}: ${String(v)}`);
+  return rows.length ? `This run was triggered by an event:\n${rows.join('\n')}` : '';
+}
+
+/* ------------------------------------------------------------------ *
+ * Starter templates
+ * ------------------------------------------------------------------ */
+
+export interface WorkflowTemplate {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  build: () => { steps: WorkflowStep[]; triggers: WorkflowTrigger[] };
+}
+
+let seq = 0;
+/** Ids for steps and triggers created in the UI (stable within a workflow). */
+export function newStepId(prefix = 'step'): string {
+  seq = (seq + 1) % 1e6;
+  return `${prefix}_${Date.now().toString(36)}_${seq}`;
+}
+
+/**
+ * Templates for the "new workflow" screen. The build-and-verify one exists to
+ * make the routing feature obvious: its verify step sends the run back to build
+ * when it finds problems.
+ */
+export const WORKFLOW_TEMPLATES: WorkflowTemplate[] = [
+  {
+    id: 'build-verify-loop',
+    name: 'Build, then verify (loops back)',
+    description: 'Implement, then verify. If verification finds problems it goes back to build and tries again.',
+    category: 'Build & test',
+    build: () => {
+      const build = newStepId();
+      const verify = newStepId();
+      const report = newStepId();
+      return {
+        steps: [
+          {
+            id: build,
+            name: 'Build',
+            kind: 'prompt',
+            run: 'Implement the change described in the task. Keep it focused and make sure it compiles.',
+            retries: 1,
+          },
+          {
+            id: verify,
+            name: 'Verify',
+            kind: 'shell',
+            run: 'npm run typecheck && npm test',
+            // Anything wrong goes back to build, bounded by MAX_STEP_LOOPS.
+            onFailure: { goto: 'step', stepId: build },
+          },
+          { id: report, name: 'Summarize', kind: 'prompt', run: 'Summarize what changed and why it now passes.' },
+        ],
+        triggers: [{ id: newStepId('trg'), kind: 'manual' }],
+      };
+    },
+  },
+  {
+    id: 'pr-review',
+    name: 'Review every new PR',
+    description: 'When a pull request opens, review the diff and post the findings.',
+    category: 'Code review',
+    build: () => ({
+      steps: [
+        {
+          id: newStepId(),
+          name: 'Review the diff',
+          kind: 'prompt',
+          run: 'Review the pull request that triggered this run. Report correctness bugs first, then simplifications.',
+        },
+      ],
+      triggers: [
+        { id: newStepId('trg'), kind: 'git', provider: 'github', events: ['pr_opened', 'pr_updated'] },
+      ],
+    }),
+  },
+  {
+    id: 'nightly-maintenance',
+    name: 'Nightly maintenance sweep',
+    description: 'Every night, check dependencies and failing tests, and write up anything that needs attention.',
+    category: 'Maintenance',
+    build: () => ({
+      steps: [
+        { id: newStepId(), name: 'Check for outdated deps', kind: 'shell', run: 'npm outdated', continueOnError: true },
+        { id: newStepId(), name: 'Run the suite', kind: 'shell', run: 'npm test', continueOnError: true },
+        { id: newStepId(), name: 'Write it up', kind: 'prompt', run: 'Summarize what the checks above found and what is worth doing about it.' },
+      ],
+      triggers: [{ id: newStepId('trg'), kind: 'schedule', cron: '0 3 * * *' }],
+    }),
+  },
+  {
+    id: 'blank',
+    name: 'Empty workflow',
+    description: 'One prompt step, run by hand. Build it up from there.',
+    category: UNCATEGORIZED,
+    build: () => ({
+      steps: [{ id: newStepId(), name: 'Step 1', kind: 'prompt', run: '' }],
+      triggers: [{ id: newStepId('trg'), kind: 'manual' }],
+    }),
+  },
+];

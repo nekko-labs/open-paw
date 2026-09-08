@@ -53,8 +53,22 @@ export const VAIZER_CATALOG_URL = `https://raw.githubusercontent.com/${VAIZER_RE
 
 /** Raw URL of a Vaizer skill's SKILL.md (agentskills.io plugin layout). */
 export function vaizerSkillMdUrl(slug: string): string {
+  // Every Vaizer skill lives in one `vaizer` plugin, so that Claude Code
+  // invokes them as `/vaizer:<skill>` rather than `/<skill>:<skill>`. Before
+  // 2026-08-28 each skill was its own plugin at `plugins/<slug>/skills/<slug>`.
+  return `https://raw.githubusercontent.com/${VAIZER_REPO}/main/plugins/vaizer/skills/${slug}/SKILL.md`;
+}
+
+/**
+ * The pre-2026-08-28 layout, when each skill was its own plugin. Released
+ * Kotrain versions still ask for this path, and a checkout of the marketplace
+ * from before the restructure still serves it, so the fetch tries it as a
+ * fallback rather than silently degrading to the catalog summary.
+ */
+export function vaizerLegacySkillMdUrl(slug: string): string {
   return `https://raw.githubusercontent.com/${VAIZER_REPO}/main/plugins/${slug}/skills/${slug}/SKILL.md`;
 }
+
 
 /**
  * Bundled snapshot of the Vaizer catalog so the shelf works fully offline.
@@ -78,7 +92,7 @@ export const VAIZER_SNAPSHOT: VaizerCatalog = {
       version: '1.0.0',
       license: 'MIT',
       installCommand: '/plugin install domain-finder@vaizer',
-      sourceUrl: `${VAIZER_REPO_URL}/tree/main/plugins/domain-finder`,
+      sourceUrl: `${VAIZER_REPO_URL}/tree/main/plugins/vaizer/skills/domain-finder`,
     },
     {
       id: 'nyaa',
@@ -93,7 +107,7 @@ export const VAIZER_SNAPSHOT: VaizerCatalog = {
       version: '1.0.0',
       license: 'MIT',
       installCommand: '/plugin install nyaa@vaizer',
-      sourceUrl: `${VAIZER_REPO_URL}/tree/main/plugins/nyaa`,
+      sourceUrl: `${VAIZER_REPO_URL}/tree/main/plugins/vaizer/skills/nyaa`,
     },
     {
       id: 'resume-checker',
@@ -108,7 +122,7 @@ export const VAIZER_SNAPSHOT: VaizerCatalog = {
       version: '1.0.0',
       license: 'MIT',
       installCommand: '/plugin install resume-checker@vaizer',
-      sourceUrl: `${VAIZER_REPO_URL}/tree/main/plugins/resume-checker`,
+      sourceUrl: `${VAIZER_REPO_URL}/tree/main/plugins/vaizer/skills/resume-checker`,
     },
   ],
 };

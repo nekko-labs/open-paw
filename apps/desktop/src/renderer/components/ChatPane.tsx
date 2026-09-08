@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { AgentEvent, AutoQuality, ChatMessage, Session, ToolCall, ContextBundle, IndexedFile, ModelInfo, SkillDef, PrInfo } from '@kotrain/shared';
-import { estimateCostUSD, pickAutoModel, AUTO_MODEL_ID, AUTO_QUALITIES, AUTO_QUALITY_META, matchSkills, estimateTokens, modelSupportsThinking, getSessionWorkspaceIds, extractPrUrls, collectSessionPrUrls, detectSessionWorkspace } from '@kotrain/shared';
+import { estimateCostUSD, pickAutoModel, AUTO_MODEL_ID, AUTO_QUALITIES, AUTO_QUALITY_META, matchSkills, estimateTokens, modelSupportsThinking, getSessionWorkspaceIds, extractPrUrls, collectSessionPrUrls, detectSessionWorkspace, decodeRate, formatRate, hasResumableProgress } from '@kotrain/shared';
 import { useStore } from '../store.js';
 import { clearDraft, loadDraft, saveDraft } from '../composerDrafts.js';
 import { Markdown } from './Markdown.js';
@@ -11,12 +11,33 @@ import { ChatControls } from './ChatControls.js';
 import { PromptAnalyzer } from './PromptAnalyzer.js';
 import { ScheduleTaskModal } from './ScheduleTaskModal.js';
 import { PrCard, PrBadge } from './PrCard.js';
-import { MiniAphelion, AphelionAvatar } from './Mascot.js';
+import { MiniNekko, NekkoAvatar } from './Mascot.js';
 import { Modal } from './primitives/index.js';
 import { PanelIcon, ShieldIcon, DownloadIcon, PlusIcon, CloseIcon, BoltIcon, ThoughtIcon, ListIcon, ToolStepIcon, RobotIcon, StarIcon } from '../icons.js';
 
 const LOCAL_KINDS = ['ollama', 'lmstudio', 'vllm', 'openai-compat'];
 const NO_PRS: PrInfo[] = []; // stable empty ref so the store selector doesn't churn
+
+/**
+ * How often streamed deltas are committed to React state. Tokens arrive one
+ * event at a time; setting state per token re-renders the whole transcript per
+ * token, which stutters on a long reply and locks the window on a very fast or
+ * runaway one. Batching to ~20fps is imperceptible while streaming and turns
+ * thousands of renders into a few dozen.
+ */
+const STREAM_FLUSH_MS = 50;
+
+/**
+ * Cap on a live buffer's length. The engine cuts a looping model off (see
+ * runaway.ts), so this is the second line of defence: it keeps the renderer
+ * from ever holding an unbounded string. The tail is kept because that's the
+ * part still being written.
+ */
+const LIVE_STREAM_MAX = 40_000;
+
+function clampLive(s: string): string {
+  return s.length <= LIVE_STREAM_MAX ? s : `…\n${s.slice(-LIVE_STREAM_MAX)}`;
+}
 
 function readImage(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -248,12 +269,22 @@ export function ChatPane({ sessionId, onRunningChange }: { sessionId: string; on
   const attachMenuRef = useRef<HTMLDivElement>(null);
   const attachButtonRef = useRef<HTMLButtonElement>(null);
   const turnStart = useRef(0);
+  // Milliseconds the model actually spent generating this turn's tokens, summed
+  // over the reply's steps. Separate from `turnStart`, which is wall clock and
+  // also covers prompt processing, tool runs, and approval waits, so dividing
+  // tokens by it under-reports throughput (badly, on a tool-heavy turn).
+  const turnDecodeMsRef = useRef(0);
   const reasoningStart = useRef(0);
   const turnOutRef = useRef(0);
   // Ref mirrors of the live buffers: the agent-event listener closure is
   // long-lived, so reading the state variables there would see stale values.
   const liveToolsRef = useRef<ToolCall[]>([]);
   const liveTextRef = useRef('');
+  // Streamed deltas land here and are committed together on a timer (see
+  // STREAM_FLUSH_MS), so the transcript renders per frame rather than per token.
+  const pendingText = useRef('');
+  const pendingReasoning = useRef('');
+  const flushTimer = useRef<number | null>(null);
   // Whether the reader is at (or near) the bottom of the transcript. Streaming
   // only auto-follows while this is true, so scrolling up to read is possible.
   const pinnedRef = useRef(true);
@@ -317,6 +348,34 @@ export function ChatPane({ sessionId, onRunningChange }: { sessionId: string; on
     }).catch(() => setCost(0));
   }, [sessionId, session?.modelId, session?.messages.length]);
 
+  // Commit whatever has streamed in since the last flush.
+  const flushStream = () => {
+    if (flushTimer.current != null) {
+      clearTimeout(flushTimer.current);
+      flushTimer.current = null;
+    }
+    const text = pendingText.current;
+    const reasoning = pendingReasoning.current;
+    pendingText.current = '';
+    pendingReasoning.current = '';
+    if (text) setLiveText((t) => clampLive(t + text));
+    if (reasoning) setLiveReasoning((t) => clampLive(t + reasoning));
+  };
+
+  const scheduleFlush = () => {
+    if (flushTimer.current == null) {
+      flushTimer.current = window.setTimeout(flushStream, STREAM_FLUSH_MS);
+    }
+  };
+
+  // Never leave a pending flush behind on unmount or a session switch.
+  useEffect(() => () => {
+    if (flushTimer.current != null) clearTimeout(flushTimer.current);
+    flushTimer.current = null;
+    pendingText.current = '';
+    pendingReasoning.current = '';
+  }, [sessionId]);
+
   // Stream agent events for this session only.
   useEffect(() => {
     const off = window.kotrain.onAgentEvent((e: AgentEvent) => {
@@ -334,20 +393,23 @@ export function ChatPane({ sessionId, onRunningChange }: { sessionId: string; on
             reasoningStart.current = 0;
           }
           liveTextRef.current += e.delta;
-          setLiveText((t) => t + e.delta);
+          pendingText.current += e.delta;
+          scheduleFlush();
           break;
         case 'reasoning':
           if (!reasoningStart.current) reasoningStart.current = Date.now();
-          setLiveReasoning((t) => t + e.delta);
+          pendingReasoning.current += e.delta;
+          scheduleFlush();
           setThinking(true);
           break;
         case 'usage': {
-          // Accumulate output tokens across the reply's steps for the live
-          // subtext; base tps on the running total over elapsed time.
+          // Accumulate output tokens and decode time across the reply's steps, so
+          // the rate is tokens over the time spent generating them: the same
+          // figure the runtime reports, rather than tokens over the whole wait.
           turnOutRef.current += e.outputTokens;
+          turnDecodeMsRef.current += e.outputMs ?? 0;
           setTurnOut(turnOutRef.current);
-          const secs = (Date.now() - turnStart.current) / 1000;
-          if (secs > 0 && turnOutRef.current > 0) setTps(Math.round(turnOutRef.current / secs));
+          setTps(decodeRate(turnOutRef.current, turnDecodeMsRef.current));
           break;
         }
         case 'tool_call':
@@ -384,14 +446,21 @@ export function ChatPane({ sessionId, onRunningChange }: { sessionId: string; on
 
   const endTurn = () => {
     setStreaming(false);
+    // Drop anything still buffered: the persisted message replaces it below, and
+    // a flush landing after the clear would resurrect the reply as a duplicate.
+    if (flushTimer.current != null) clearTimeout(flushTimer.current);
+    flushTimer.current = null;
+    pendingText.current = '';
+    pendingReasoning.current = '';
 
     // Snapshot the reply's telemetry for the idle subtext (refs only, so this is
     // safe inside the long-lived agent-event listener closure).
     const secs = turnStart.current ? Math.round((Date.now() - turnStart.current) / 1000) : 0;
     if (turnOutRef.current > 0) {
-      setLastTurn({ out: turnOutRef.current, tps: secs > 0 ? Math.round(turnOutRef.current / secs) : 0, secs });
+      setLastTurn({ out: turnOutRef.current, tps: decodeRate(turnOutRef.current, turnDecodeMsRef.current), secs });
     }
     turnOutRef.current = 0;
+    turnDecodeMsRef.current = 0;
 
     // Build a short completion summary from the tools used in this reply (refs, not
     // state — see the ref mirrors above).
@@ -528,6 +597,10 @@ export function ChatPane({ sessionId, onRunningChange }: { sessionId: string; on
 
   const beginTurn = () => {
     setStreaming(true);
+    if (flushTimer.current != null) clearTimeout(flushTimer.current);
+    flushTimer.current = null;
+    pendingText.current = '';
+    pendingReasoning.current = '';
     setLiveText('');
     setLiveReasoning('');
     setLiveTools([]);
@@ -538,6 +611,7 @@ export function ChatPane({ sessionId, onRunningChange }: { sessionId: string; on
     reasoningStart.current = 0;
     turnStart.current = Date.now();
     turnOutRef.current = 0;
+    turnDecodeMsRef.current = 0;
     liveToolsRef.current = [];
     liveTextRef.current = '';
     setTurnOut(0);
@@ -723,8 +797,29 @@ export function ChatPane({ sessionId, onRunningChange }: { sessionId: string; on
     await window.kotrain.sendChat({ sessionId, providerId: brain.providerId, modelId: brain.modelId, text: newText });
   };
 
-  // Re-run the last user message after a failed turn.
-  const retryLast = () => {
+  // Carry on from a reply that stopped part-way. The transcript is left exactly
+  // as it is: every step already taken, and every tool result it produced, stays
+  // and is not run again. This is the non-destructive counterpart to startOver.
+  const resumeRun = async () => {
+    // Resolve the model against the prompt this run is still working on, so Auto
+    // mode picks the same tier it picked when the run started.
+    const lastUser = [...(session?.messages ?? [])].reverse().find((m) => m.role === 'user');
+    const brain = requireBrain(lastUser?.content ?? '');
+    if (!brain) return;
+    setErrorNotice(null);
+    beginTurn();
+    await window.kotrain.sendChat({
+      sessionId,
+      providerId: brain.providerId,
+      modelId: brain.modelId,
+      text: '',
+      resume: true,
+    });
+  };
+
+  // Re-run the last user message from scratch, discarding what the failed turn
+  // produced. Destructive, so it's the secondary action next to Resume.
+  const startOver = () => {
     const lastUser = [...(session?.messages ?? [])].reverse().find((m) => m.role === 'user');
     if (!lastUser) return;
     setErrorNotice(null);
@@ -735,7 +830,7 @@ export function ChatPane({ sessionId, onRunningChange }: { sessionId: string; on
     if (!session) return;
     const lines = session.messages
       .filter((m) => m.role === 'user' || m.role === 'assistant')
-      .map((m) => `## ${m.role === 'user' ? 'You' : 'Kotrain'}\n\n${m.content}`);
+      .map((m) => `## ${m.role === 'user' ? 'You' : 'Agent Nekko'}\n\n${m.content}`);
     const md = `# ${session.title}\n\n${lines.join('\n\n')}\n`;
     const blob = new Blob([md], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
@@ -974,10 +1069,10 @@ export function ChatPane({ sessionId, onRunningChange }: { sessionId: string; on
             <div className="mx-auto w-full max-w-3xl space-y-5">
               {!session?.messages.length && !liveText && !liveReasoning && (
                 <div className="fade-in mt-16 flex flex-col items-center gap-3 text-center">
-                  <div className="grid h-12 w-12 place-items-center rounded-2xl" style={{ background: 'var(--accent-soft)' }}><AphelionAvatar size={30} /></div>
+                  <div className="grid h-12 w-12 place-items-center rounded-2xl" style={{ background: 'var(--accent-soft)' }}><NekkoAvatar size={30} /></div>
                   <div>
                     <h2 className="text-[15px] font-semibold">
-                      {!hasProvider ? 'Connect a model to get started' : needsModel ? 'Pick a model to get started' : 'What should Kotrain work on?'}
+                      {!hasProvider ? 'Connect a model to get started' : needsModel ? 'Pick a model to get started' : 'What should Agent Nekko work on?'}
                     </h2>
                     <p className="mx-auto mt-1 max-w-sm text-[13px] text-ink-faint">
                       {!hasProvider
@@ -1034,25 +1129,55 @@ export function ChatPane({ sessionId, onRunningChange }: { sessionId: string; on
               })()}
               {liveActivity.length > 0 && <ActivityGroup items={liveActivity} streaming />}
               {liveText && <MessageBubble message={{ id: 'live', role: 'assistant', content: liveText, createdAt: 0 }} onImageClick={setLightbox} chronological />}
-              {errorNotice && !streaming && (
+              {errorNotice && !streaming && (() => {
+                // A stop the user asked for is not a failure, so it doesn't wear
+                // the failure colour. Either way the run is resumable whenever it
+                // left something behind: the steps it finished are on disk, so
+                // Resume carries on rather than starting the work again.
+                const stopped = errorNotice === 'Stopped';
+                const canResume = hasResumableProgress(session?.messages ?? []);
+                const tone = stopped ? 'var(--warning)' : 'var(--danger)';
+                return (
                 <div
                   className="fade-in flex items-center gap-2.5 rounded-xl border px-3 py-2 text-[12px]"
                   style={{
-                    borderColor: 'color-mix(in srgb, var(--danger) 35%, transparent)',
-                    background: 'color-mix(in srgb, var(--danger) 7%, transparent)',
+                    borderColor: `color-mix(in srgb, ${tone} 35%, transparent)`,
+                    background: `color-mix(in srgb, ${tone} 7%, transparent)`,
                   }}
                   role="alert"
                 >
-                  <span className="shrink-0 font-medium" style={{ color: 'var(--danger)' }}>Reply failed</span>
-                  <span className="min-w-0 flex-1 text-ink-soft">{errorNotice}</span>
+                  <span className="shrink-0 font-medium" style={{ color: tone }}>
+                    {stopped ? 'Reply stopped' : 'Reply failed'}
+                  </span>
+                  <span className="min-w-0 flex-1 text-ink-soft">
+                    {stopped
+                      ? canResume ? 'The work so far is saved.' : 'Nothing had started yet.'
+                      : errorNotice}
+                  </span>
+                  {canResume && (
+                    <button
+                      className="btn btn-primary shrink-0 px-2.5 py-0.5 text-[11px]"
+                      title="Carry on from here, keeping every step already done"
+                      onClick={() => void resumeRun()}
+                    >
+                      Resume
+                    </button>
+                  )}
                   {session?.messages.some((m) => m.role === 'user') && (
-                    <button className="btn btn-outline shrink-0 px-2.5 py-0.5 text-[11px]" onClick={retryLast}>Retry</button>
+                    <button
+                      className="btn btn-outline shrink-0 px-2.5 py-0.5 text-[11px]"
+                      title="Discard this reply and answer the prompt again from scratch"
+                      onClick={startOver}
+                    >
+                      Start over
+                    </button>
                   )}
                   <button className="shrink-0 rounded-sm p-0.5 text-ink-faint hover:text-ink" title="Dismiss" onClick={() => setErrorNotice(null)}>
                     <CloseIcon className="h-3 w-3" />
                   </button>
                 </div>
-              )}
+                );
+              })()}
               <ContextWarning
                 sessionId={sessionId}
                 used={ctx ? (ctx.items.filter((i) => i.included).reduce((s, i) => s + i.tokens, 0)) : 0}
@@ -1339,7 +1464,7 @@ export function ChatPane({ sessionId, onRunningChange }: { sessionId: string; on
                   ref={composerRef}
                   className="max-h-60 min-h-[52px] w-full resize-none bg-transparent px-3.5 pt-3 text-sm text-ink outline-hidden placeholder:text-ink-faint"
                   rows={2}
-                  placeholder={hasProvider ? 'Message Kotrain…  (/ for prompts, @ to attach files)' : 'Add a model provider in Models first'}
+                  placeholder={hasProvider ? 'Message Agent Nekko…  (/ for prompts, @ to attach files)' : 'Add a model provider in Models first'}
                   value={draft}
                   role="combobox"
                   aria-expanded={slashMenuOpen || atMenuOpen}
@@ -1499,7 +1624,7 @@ export function ChatPane({ sessionId, onRunningChange }: { sessionId: string; on
                       title="Send"
                       aria-label="Send"
                     >
-                      <AphelionAvatar size={24} />
+                      <NekkoAvatar size={24} />
                     </button>
                   )}
                 </div>
@@ -1739,7 +1864,7 @@ function ModelPicker({
                 aria-selected={modelId === AUTO_MODEL_ID}
                 className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[12px] hover:bg-surface-2 ${modelId === AUTO_MODEL_ID ? 'text-accent' : ''}`}
                 onClick={() => { onModel(providerId ?? '', AUTO_MODEL_ID); setOpen(false); }}
-                title="Kotrain picks the best model for each message"
+                title="Agent Nekko picks the best model for each message"
               >
                 ✨ Auto <span className="text-[11px] text-ink-faint">(pick best)</span>
               </button>
@@ -1938,6 +2063,9 @@ function ActivityGroup({ items, streaming = false }: { items: Activity[]; stream
 function ReplyStatus({
   streaming, waiting, elapsed, tps, out, last, done,
 }: {
+  // `elapsed` is how long the reply has been running; `tps` is the model's decode
+  // rate over the time it spent generating, so the two deliberately don't divide
+  // into each other (a turn spends much of its wall clock running tools).
   streaming: boolean; waiting: boolean; elapsed: number; tps: number; out: number;
   last: { out: number; tps: number; secs: number } | null;
   done?: string | null;
@@ -1945,9 +2073,9 @@ function ReplyStatus({
   if (streaming) {
     return (
       <div className="fade-in flex flex-wrap items-center gap-x-2.5 gap-y-1 pt-1 text-[12px] text-ink-faint">
-        <span className="flex items-center gap-2 text-ink-soft"><MiniAphelion size={16} /> {waiting ? 'Aphelion is working' : 'Streaming'}<span className="dots" /></span>
+        <span className="flex items-center gap-2 text-ink-soft"><MiniNekko size={16} /> {waiting ? 'Nekko is working' : 'Streaming'}<span className="dots" /></span>
         {elapsed > 0 && <span>· {elapsed}s</span>}
-        {tps > 0 && <span>· {tps} tok/s</span>}
+        {tps > 0 && <span title="Output tokens per second while the model was generating">· {formatRate(tps)} tok/s</span>}
         {out > 0 && <span>· {fmtTok(out)} tokens</span>}
       </div>
     );
@@ -1964,7 +2092,7 @@ function ReplyStatus({
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pt-1 text-[11px] text-ink-faint/80">
         <span>Last reply</span>
         <span>· {fmtTok(last.out)} tokens</span>
-        {last.tps > 0 && <span>· {last.tps} tok/s</span>}
+        {last.tps > 0 && <span title="Output tokens per second while the model was generating">· {formatRate(last.tps)} tok/s</span>}
         {last.secs > 0 && <span>· {last.secs}s</span>}
       </div>
     );

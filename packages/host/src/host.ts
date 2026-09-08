@@ -28,6 +28,11 @@ import type {
   NewTask,
   TrainingRun,
   NewTrainingRun,
+  Workflow,
+  NewWorkflow,
+  WorkflowEvent,
+  WorkflowRun,
+  WorkflowsSnapshot,
   InstalledSkillRecord,
   InstallTargetInfo,
   InstallTarget,
@@ -100,6 +105,21 @@ import {
   setTrainingNotifier,
   startTrainingScheduler,
 } from './training.js';
+import {
+  listWorkflowRuns,
+  workflowsSnapshot,
+  createWorkflow,
+  updateWorkflow,
+  deleteWorkflow,
+  duplicateWorkflow,
+  runWorkflow,
+  cancelWorkflowRun,
+  dispatchWorkflowEvent,
+  setWorkflowSender,
+  setWorkflowsNotifier,
+  startWorkflowScheduler,
+  reconcileWorkflowRuns,
+} from './workflows.js';
 import { sendChat, abortChat, resolveApproval, previewContext, setContextPrefs } from './chat.js';
 import { buildSpec, buildSpecDoc, readSpecDocs, setSpecMethodology, toggleSpecTask, specPathForSession } from './spec.js';
 import { createRemoteService } from './remote.js';
@@ -155,7 +175,7 @@ export interface Host {
   lmsAvailable(providerId: string): Promise<LmsProbe>;
   /** Stop the local model server backing a provider (kills its listening process). */
   stopServer(providerId: string): Promise<{ ok: boolean; message: string }>;
-  /** GPU/VRAM stats (null when no NVIDIA GPU / nvidia-smi is available). */
+  /** GPU stats from the platform's probe (null when it can't read one). */
   getGpuStats(): Promise<GpuStats | null>;
   /** CPU load + RAM use for the resource monitors. */
   getSystemStats(): Promise<SystemStats | null>;
@@ -278,6 +298,16 @@ export interface Host {
   stopTrainingRun(id: string): TrainingRun[];
   addTrainingHint(id: string, text: string): TrainingRun[];
 
+  listWorkflows(): WorkflowsSnapshot;
+  createWorkflow(input: NewWorkflow): Workflow;
+  updateWorkflow(id: string, patch: Partial<Workflow>): Workflow | undefined;
+  deleteWorkflow(id: string): WorkflowsSnapshot;
+  duplicateWorkflow(id: string): Workflow | undefined;
+  runWorkflow(id: string): Promise<WorkflowRun | undefined>;
+  cancelWorkflowRun(runId: string): void;
+  listWorkflowRuns(workflowId?: string): WorkflowRun[];
+  dispatchWorkflowEvent(event: WorkflowEvent): Promise<WorkflowRun[]>;
+
   listConnectors(): ConnectorConfig[];
   connectConnector(kind: ConnectorKind, token: string, settings?: Record<string, string>): ConnectorConfig[];
   disconnectConnector(kind: ConnectorKind): ConnectorConfig[];
@@ -329,6 +359,13 @@ export function createHost(opts: { dataDir: string }): Host {
   setTrainingSender((e) => events.emit('agentEvent', e));
   setTrainingNotifier((runs) => events.emit('trainingUpdated', runs));
   startTrainingScheduler();
+  // Workflows: a run's agent steps stream on the shared bus, definition and run
+  // changes get their own event. Any run the last shutdown interrupted is
+  // written off before the scheduler starts, so it can't look stuck forever.
+  setWorkflowSender((e) => events.emit('agentEvent', e));
+  setWorkflowsNotifier((snapshot) => events.emit('workflowsUpdated', snapshot));
+  reconcileWorkflowRuns();
+  startWorkflowScheduler();
 
   const findProvider = (id: string) => getSettings().providers.find((p) => p.id === id);
 
@@ -535,6 +572,19 @@ export function createHost(opts: { dataDir: string }): Host {
     pauseTrainingRun,
     stopTrainingRun,
     addTrainingHint,
+
+    listWorkflows: workflowsSnapshot,
+    createWorkflow,
+    updateWorkflow,
+    deleteWorkflow: (id: string) => {
+      deleteWorkflow(id);
+      return workflowsSnapshot();
+    },
+    duplicateWorkflow,
+    runWorkflow: (id: string) => runWorkflow(id),
+    cancelWorkflowRun,
+    listWorkflowRuns,
+    dispatchWorkflowEvent,
 
     listConnectors: () => getSettings().connectors,
     connectConnector: (kind, token, settings) => {

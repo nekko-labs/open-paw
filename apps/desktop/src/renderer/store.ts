@@ -4,7 +4,25 @@ import { getMarketSkill, marketToSkillDef } from '@kotrain/shared';
 import type { MascotMood } from './components/Mascot.js';
 import { syncTitleBarOverlay } from './chrome.js';
 
-export type View = 'command' | 'chat' | 'models' | 'connectors' | 'memory' | 'settings' | 'design' | 'skills' | 'training' | 'goals';
+export type View = 'command' | 'chat' | 'models' | 'connectors' | 'memory' | 'settings' | 'design' | 'skills' | 'training' | 'workflows';
+
+/**
+ * Nav destinations that live behind a Settings → Experimental toggle. The flag
+ * names deliberately match the view ids so `settings.experimental[v]` reads
+ * directly.
+ */
+export const EXPERIMENTAL_VIEWS = ['training', 'design', 'memory'] as const;
+export type ExperimentalView = (typeof EXPERIMENTAL_VIEWS)[number];
+
+/**
+ * Whether a nav destination is reachable. Experimental views need their flag
+ * on; everything else is always available. Settings that haven't loaded yet
+ * count as all-flags-off.
+ */
+export function viewEnabled(view: View, settings: AppSettings | null | undefined): boolean {
+  if (!(EXPERIMENTAL_VIEWS as readonly string[]).includes(view)) return true;
+  return settings?.experimental?.[view as ExperimentalView] === true;
+}
 
 /** A message routed into a chat's composer from another surface (editor comment, design note). */
 export interface ComposerInbox {
@@ -224,7 +242,9 @@ export const useStore = create<UiState>((set, get) => ({
     get().openChatPane(s.id);
   },
   setMascotMood: (m) => set({ mascotMood: m }),
-  setView: (v) => set({ view: v }),
+  // A destination that's been hidden can't be navigated to: land on the
+  // Command Center instead of a dead end.
+  setView: (v) => set((s) => ({ view: viewEnabled(v, s.settings) ? v : 'command' })),
 
   refreshSettings: async () => {
     const settings = await window.kotrain.getSettings();

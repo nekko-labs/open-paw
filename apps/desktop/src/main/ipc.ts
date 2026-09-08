@@ -67,4 +67,10 @@ export function registerIpc(host: Host): void {
   host.events.on('indexProgress', (s) => broadcast(IpcEvents.indexProgress, s));
   host.events.on('terminalEvent', (e) => broadcast(IpcEvents.terminalEvent, e));
   host.events.on('changesUpdated', (e) => broadcast(IpcEvents.changesUpdated, e));
+  // The list-changed events, which were emitted by the host but never forwarded,
+  // so onTasksUpdated / onTrainingUpdated never fired in the desktop app and
+  // those surfaces only refreshed when remounted.
+  host.events.on('tasksUpdated', (t) => broadcast(IpcEvents.tasksUpdated, t));
+  host.events.on('trainingUpdated', (r) => broadcast(IpcEvents.trainingUpdated, r));
+  host.events.on('workflowsUpdated', (s) => broadcast(IpcEvents.workflowsUpdated, s));
 }

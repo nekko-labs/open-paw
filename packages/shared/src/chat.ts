@@ -31,6 +31,12 @@ export interface ChatMessage {
   toolCalls?: ToolCall[];
   /** Tool results (for role === 'tool'). */
   toolResult?: ToolResult;
+  /**
+   * This reply was cut off before it finished (the stream timed out, the network
+   * dropped, or the user hit stop). What the model had produced is kept rather
+   * than discarded, and the chat offers to resume from here.
+   */
+  interrupted?: boolean;
   createdAt: number;
 }
 
@@ -132,9 +138,61 @@ export type AgentEvent =
   | { type: 'tool_call'; sessionId: string; call: ToolCall }
   | { type: 'tool_approval_required'; sessionId: string; call: ToolCall; reason: string; severity: 'low' | 'medium' | 'high' }
   | { type: 'tool_result'; sessionId: string; result: ToolResult }
-  | { type: 'usage'; sessionId: string; inputTokens: number; outputTokens: number }
+  | {
+      type: 'usage';
+      sessionId: string;
+      inputTokens: number;
+      outputTokens: number;
+      /**
+       * Milliseconds the model spent generating `outputTokens` (decode only, no
+       * prompt processing and no time between responses). The chat's tok/s
+       * readout divides by the sum of these rather than by the turn's wall clock,
+       * which also covers tool runs and approval waits. Absent when the provider
+       * gave us nothing to measure.
+       */
+      outputMs?: number;
+    }
   | { type: 'done'; sessionId: string; messageId: string }
   | { type: 'error'; sessionId: string; message: string };
+
+/**
+ * Output tokens per second, measured over the time the model spent generating
+ * them (the summed `outputMs` of a turn's usage events), not over how long the
+ * user waited. A turn that generates 500 tokens in 10 seconds and then runs a
+ * 40-second test suite ran at 50 tok/s, not 10.
+ *
+ * Returns 0 when there is nothing to divide, which the UI reads as "no rate to
+ * show" rather than printing a zero.
+ */
+export function decodeRate(outputTokens: number, decodeMs: number): number {
+  if (outputTokens <= 0 || decodeMs <= 0) return 0;
+  return outputTokens / (decodeMs / 1000);
+}
+
+/**
+ * Render a tokens/second rate. Local models routinely run in the single digits,
+ * where rounding to a whole number hides the difference between 8.6 and 9.4, so
+ * slow rates keep one decimal and fast ones stay tidy.
+ */
+export function formatRate(tokensPerSecond: number): string {
+  return tokensPerSecond >= 10 ? String(Math.round(tokensPerSecond)) : tokensPerSecond.toFixed(1);
+}
+
+/**
+ * Whether a run that stopped part-way has anything worth resuming: a completed
+ * step, a tool result, or the head of a reply that was cut off. A run that broke
+ * before the model said anything has nothing to carry on from, so the chat offers
+ * to simply run it again instead of offering to continue from nothing.
+ */
+export function hasResumableProgress(history: ChatMessage[]): boolean {
+  for (let i = history.length - 1; i >= 0; i--) {
+    const m = history[i];
+    if (m.role === 'user') return false; // reached this turn's prompt, nothing after it
+    if (m.role === 'tool') return true;
+    if (m.role === 'assistant' && (m.content.trim() || m.toolCalls?.length || m.reasoning?.trim())) return true;
+  }
+  return false;
+}
 
 export interface SendOptions {
   sessionId: string;
@@ -150,6 +208,14 @@ export interface SendOptions {
   /** Re-answer the last user turn: drop trailing assistant/tool messages and
    *  don't append a new user message. */
   regenerate?: boolean;
+  /**
+   * Carry on from a run that stopped part-way instead of starting it again.
+   * Nothing is appended to the transcript and nothing is dropped from it: the
+   * agent picks up after the last thing that completed, so the steps already
+   * taken (and the tool results they produced) are not repeated. `text` is
+   * ignored. See `regenerate` for the destructive alternative.
+   */
+  resume?: boolean;
   /**
    * Only send the last N user-turn groups to the model (the full transcript is
    * still persisted). Used by long-running run-driven turns (Goals/Training) so

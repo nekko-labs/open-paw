@@ -1,0 +1,306 @@
+import { describe, expect, it } from 'vitest';
+import {
+  MAX_STEP_LOOPS,
+  WORKFLOW_TEMPLATES,
+  branchMatches,
+  cliCommand,
+  cronMatches,
+  filterWorkflows,
+  groupWorkflows,
+  isValidCron,
+  listenerKeys,
+  matchWorkflows,
+  nextCronRun,
+  nextScheduledRun,
+  slugify,
+  triggerAccepts,
+  triggerLabel,
+  unreachableSteps,
+  workflowEdges,
+} from '@kotrain/shared';
+import type { Workflow, WorkflowStep, WorkflowTrigger } from '@kotrain/shared';
+
+function step(id: string, over: Partial<WorkflowStep> = {}): WorkflowStep {
+  return { id, name: id, kind: 'prompt', run: `do ${id}`, ...over };
+}
+
+function wf(over: Partial<Workflow> = {}): Workflow {
+  return {
+    id: over.id ?? 'w1',
+    name: over.name ?? 'Build and verify',
+    category: over.category ?? 'Build & test',
+    enabled: over.enabled ?? true,
+    steps: over.steps ?? [step('a'), step('b')],
+    triggers: over.triggers ?? [{ id: 't1', kind: 'manual' }],
+    createdAt: 0,
+    updatedAt: 0,
+    ...over,
+  };
+}
+
+describe('slugify + cliCommand', () => {
+  it('makes a command-line-safe name', () => {
+    expect(slugify('Build, then verify (loops back)')).toBe('build-then-verify-loops-back');
+    expect(slugify('!!!')).toBe('workflow');
+    expect(slugify('  padded  ')).toBe('padded');
+    expect(slugify('--dashes--everywhere--')).toBe('dashes-everywhere');
+  });
+
+  it('never leaves a trailing separator, whatever the 48-char cut lands on', () => {
+    // "aaaa-bbbb-…" cut mid-run vs cut exactly on a separator.
+    for (let i = 1; i < 60; i++) {
+      const slug = slugify(Array.from({ length: i }, (_, n) => `word${n}`).join(' '));
+      expect(slug.endsWith('-'), `length ${i}`).toBe(false);
+      expect(slug.length).toBeLessThanOrEqual(48);
+    }
+  });
+
+  it('slugs a pathological name in linear time', () => {
+    // The ReDoS shape: a name that is almost entirely separators. The old
+    // replace-then-trim (/^-+|-+$/) backtracked quadratically on this.
+    const start = Date.now();
+    expect(slugify(`${'-'.repeat(50_000)}x`)).toBe('x');
+    expect(Date.now() - start).toBeLessThan(1_000);
+  });
+
+  it('falls back to the workflow slug when a CLI trigger names nothing', () => {
+    const w = wf({ name: 'Nightly Sweep' });
+    expect(cliCommand(w, { id: 't', kind: 'cli' })).toBe('nightly-sweep');
+    expect(cliCommand(w, { id: 't', kind: 'cli', command: 'sweep' })).toBe('sweep');
+  });
+});
+
+describe('workflowEdges', () => {
+  it('falls through to the next step, then ends', () => {
+    const edges = workflowEdges([step('a'), step('b')]);
+    expect(edges.filter((e) => e.kind === 'success')).toEqual([
+      { from: 'a', to: 'b', kind: 'success', back: false },
+      { from: 'b', to: 'end', kind: 'success', back: false },
+    ]);
+  });
+
+  it('marks a jump to an earlier step as a loop back', () => {
+    // The headline case: verify fails, so the run returns to build.
+    const steps = [step('build'), step('verify', { onFailure: { goto: 'step', stepId: 'build' } })];
+    const back = workflowEdges(steps).find((e) => e.kind === 'failure')!;
+    expect(back).toEqual({ from: 'verify', to: 'build', kind: 'failure', back: true });
+  });
+
+  it('does not draw a failure edge that just stops the run', () => {
+    expect(workflowEdges([step('a')]).filter((e) => e.kind === 'failure')).toEqual([]);
+  });
+
+  it('draws continue-on-error as a failure edge to the next step', () => {
+    const edges = workflowEdges([step('a', { continueOnError: true }), step('b')]);
+    expect(edges).toContainEqual({ from: 'a', to: 'b', kind: 'failure', back: false });
+  });
+
+  it('treats a jump to a deleted step as ending the run', () => {
+    const edges = workflowEdges([step('a', { onSuccess: { goto: 'step', stepId: 'gone' } })]);
+    expect(edges[0].to).toBe('end');
+  });
+});
+
+describe('unreachableSteps', () => {
+  it('finds a step nothing routes to', () => {
+    // a ends the run, so b can never run.
+    const steps = [step('a', { onSuccess: { goto: 'end' } }), step('b')];
+    expect(unreachableSteps(steps)).toEqual(['b']);
+  });
+
+  it('counts a step reachable only through a loop back', () => {
+    const steps = [step('a'), step('b', { onFailure: { goto: 'step', stepId: 'a' } })];
+    expect(unreachableSteps(steps)).toEqual([]);
+  });
+});
+
+describe('grouping and filtering', () => {
+  const list = [
+    wf({ id: '1', name: 'Alpha', category: 'Release', triggers: [{ id: 't', kind: 'schedule', cron: '0 3 * * *' }] }),
+    wf({ id: '2', name: 'Beta', category: 'Release', triggers: [{ id: 't', kind: 'manual' }] }),
+    wf({
+      id: '3',
+      name: 'Gamma',
+      category: 'Code review',
+      enabled: false,
+      triggers: [{ id: 't', kind: 'git', provider: 'gitlab', events: ['pr_opened', 'pr_comment'] }],
+    }),
+  ];
+
+  it('groups by category, biggest group first, names alphabetical', () => {
+    const groups = groupWorkflows(list, 'category');
+    expect(groups.map((g) => g.label)).toEqual(['Release', 'Code review']);
+    expect(groups[0].workflows.map((w) => w.name)).toEqual(['Alpha', 'Beta']);
+  });
+
+  it('lists a workflow under every event it listens for', () => {
+    const groups = groupWorkflows(list, 'listener');
+    expect(groups.map((g) => g.label).sort()).toEqual([
+      'GitLab · PR comment',
+      'GitLab · PR opened',
+      'Manual',
+      'Schedule',
+    ]);
+  });
+
+  it('searches name, category, and step bodies', () => {
+    expect(filterWorkflows(list, { query: 'gamma' }).map((w) => w.id)).toEqual(['3']);
+    expect(filterWorkflows(list, { query: 'do a' })).toHaveLength(3); // every step body
+    expect(filterWorkflows(list, { query: 'nothing here' })).toEqual([]);
+  });
+
+  it('filters by category, state, and trigger kind together', () => {
+    expect(filterWorkflows(list, { category: 'Release' }).map((w) => w.id)).toEqual(['1', '2']);
+    expect(filterWorkflows(list, { state: 'disabled' }).map((w) => w.id)).toEqual(['3']);
+    expect(filterWorkflows(list, { triggerKind: 'git' }).map((w) => w.id)).toEqual(['3']);
+    expect(filterWorkflows(list, { category: 'Release', triggerKind: 'git' })).toEqual([]);
+  });
+
+  it('treats a workflow with no armed trigger as manual', () => {
+    expect(listenerKeys(wf({ triggers: [{ id: 't', kind: 'schedule', enabled: false }] }))).toEqual(['manual']);
+  });
+});
+
+describe('trigger labels', () => {
+  it('says when each kind fires', () => {
+    const w = wf({ name: 'Nightly' });
+    expect(triggerLabel({ id: 't', kind: 'schedule', cron: '0 9 * * 1' }, w)).toBe('Cron 0 9 * * 1');
+    expect(triggerLabel({ id: 't', kind: 'schedule', intervalMs: 900_000 }, w)).toBe('Every 15 min');
+    expect(triggerLabel({ id: 't', kind: 'cli' }, w)).toBe('CLI: nightly');
+    expect(triggerLabel({ id: 't', kind: 'slack', channel: '#builds', keyword: 'deploy' }, w)).toBe('Slack #builds · "deploy"');
+    expect(triggerLabel({ id: 't', kind: 'git', provider: 'bitbucket', events: ['pr_merged'], repo: 'me/app' }, w)).toBe(
+      'Bitbucket: PR merged · me/app',
+    );
+  });
+});
+
+describe('event matching', () => {
+  const prTrigger: WorkflowTrigger = {
+    id: 't',
+    kind: 'git',
+    provider: 'github',
+    events: ['pr_opened'],
+    repo: 'nekko-labs/agent-nekko',
+    branches: ['main', 'release/*'],
+  };
+  const reviewer = wf({ id: 'r', triggers: [prTrigger] });
+
+  it('accepts the event it was configured for', () => {
+    expect(triggerAccepts(reviewer, prTrigger, {
+      kind: 'git', provider: 'github', event: 'pr_opened', repo: 'nekko-labs/agent-nekko', branch: 'main',
+    })).toBe(true);
+  });
+
+  it('rejects the wrong provider, event, repo, or branch', () => {
+    const base = { kind: 'git' as const, provider: 'github' as const, event: 'pr_opened' as const, repo: 'nekko-labs/agent-nekko', branch: 'main' };
+    expect(triggerAccepts(reviewer, prTrigger, { ...base, provider: 'gitlab' })).toBe(false);
+    expect(triggerAccepts(reviewer, prTrigger, { ...base, event: 'pr_closed' })).toBe(false);
+    expect(triggerAccepts(reviewer, prTrigger, { ...base, repo: 'someone/else' })).toBe(false);
+    expect(triggerAccepts(reviewer, prTrigger, { ...base, branch: 'feature/x' })).toBe(false);
+    expect(triggerAccepts(reviewer, prTrigger, { ...base, branch: 'release/5' })).toBe(true);
+  });
+
+  it('never starts a disabled workflow', () => {
+    const off = wf({ id: 'off', enabled: false, triggers: [prTrigger] });
+    const event = { kind: 'git' as const, provider: 'github' as const, event: 'pr_opened' as const, repo: 'nekko-labs/agent-nekko', branch: 'main' };
+    expect(matchWorkflows([off, reviewer], event).map((w) => w.id)).toEqual(['r']);
+  });
+
+  it('matches a CLI invocation by command name', () => {
+    const cli = wf({ id: 'c', name: 'Deploy Staging', triggers: [{ id: 't', kind: 'cli' }] });
+    expect(matchWorkflows([cli], { kind: 'cli', command: 'deploy-staging' }).map((w) => w.id)).toEqual(['c']);
+    expect(matchWorkflows([cli], { kind: 'cli', command: 'something-else' })).toEqual([]);
+  });
+
+  it('matches a Slack message by channel and keyword', () => {
+    const slack = wf({ id: 's', triggers: [{ id: 't', kind: 'slack', channel: 'builds', keyword: 'ship it' }] });
+    expect(matchWorkflows([slack], { kind: 'slack', channel: '#builds', text: 'ok SHIP IT' })).toHaveLength(1);
+    expect(matchWorkflows([slack], { kind: 'slack', channel: '#builds', text: 'not yet' })).toEqual([]);
+    expect(matchWorkflows([slack], { kind: 'slack', channel: '#random', text: 'ship it' })).toEqual([]);
+  });
+});
+
+describe('branchMatches', () => {
+  it('matches exactly, or by glob, and accepts anything when unset', () => {
+    expect(branchMatches('main', undefined)).toBe(true);
+    expect(branchMatches('main', ['main'])).toBe(true);
+    expect(branchMatches('main', ['develop'])).toBe(false);
+    expect(branchMatches('release/1.2', ['release/*'])).toBe(true);
+    expect(branchMatches('releases/1.2', ['release/*'])).toBe(false);
+    expect(branchMatches('feat.x', ['feat.*'])).toBe(true);
+    expect(branchMatches('featux', ['feat.*'])).toBe(false); // the dot is literal
+  });
+});
+
+describe('cron', () => {
+  it('accepts the forms a schedule needs and rejects nonsense', () => {
+    for (const ok of ['* * * * *', '0 3 * * *', '*/15 * * * *', '0 9-17 * * 1-5', '0 0 1,15 * *']) {
+      expect(isValidCron(ok), ok).toBe(true);
+    }
+    for (const bad of ['', '* * * *', '60 * * * *', '0 24 * * *', '0 0 0 * *', 'x * * * *', '*/0 * * * *', '5-1 * * * *']) {
+      expect(isValidCron(bad), bad).toBe(false);
+    }
+  });
+
+  it('matches a daily time', () => {
+    expect(cronMatches('0 3 * * *', new Date(2026, 7, 13, 3, 0))).toBe(true);
+    expect(cronMatches('0 3 * * *', new Date(2026, 7, 13, 3, 1))).toBe(false);
+    expect(cronMatches('0 3 * * *', new Date(2026, 7, 13, 4, 0))).toBe(false);
+  });
+
+  it('matches a step field', () => {
+    expect(cronMatches('*/15 * * * *', new Date(2026, 7, 13, 9, 30))).toBe(true);
+    expect(cronMatches('*/15 * * * *', new Date(2026, 7, 13, 9, 31))).toBe(false);
+  });
+
+  it('ORs day-of-month with day-of-week when both are restricted (Vixie cron)', () => {
+    // The 1st, or any Monday. 2026-08-13 is a Thursday, so neither.
+    expect(cronMatches('0 0 1 * 1', new Date(2026, 7, 1, 0, 0))).toBe(true);
+    expect(cronMatches('0 0 1 * 1', new Date(2026, 7, 10, 0, 0))).toBe(true); // a Monday
+    expect(cronMatches('0 0 1 * 1', new Date(2026, 7, 13, 0, 0))).toBe(false);
+  });
+
+  it('finds the next run strictly after the moment given', () => {
+    const from = new Date(2026, 7, 13, 3, 0, 30);
+    expect(new Date(nextCronRun('0 3 * * *', from)!)).toEqual(new Date(2026, 7, 14, 3, 0));
+    expect(new Date(nextCronRun('*/15 * * * *', new Date(2026, 7, 13, 9, 5))!)).toEqual(new Date(2026, 7, 13, 9, 15));
+  });
+
+  it('gives up on a date that never comes', () => {
+    expect(nextCronRun('0 0 30 2 *')).toBeUndefined(); // February 30th
+  });
+
+  it('picks the earliest of several schedules', () => {
+    const now = new Date(2026, 7, 13, 9, 0).getTime();
+    const w = wf({
+      triggers: [
+        { id: 'a', kind: 'schedule', cron: '0 3 * * *' },
+        { id: 'b', kind: 'schedule', cron: '30 9 * * *' },
+        { id: 'c', kind: 'schedule', cron: '0 10 * * *', enabled: false },
+      ],
+    });
+    expect(new Date(nextScheduledRun(w, now)!)).toEqual(new Date(2026, 7, 13, 9, 30));
+  });
+
+  it('has no next run without a schedule trigger', () => {
+    expect(nextScheduledRun(wf())).toBeUndefined();
+  });
+});
+
+describe('templates', () => {
+  it('all build a runnable workflow', () => {
+    for (const t of WORKFLOW_TEMPLATES) {
+      const { steps, triggers } = t.build();
+      expect(steps.length, t.id).toBeGreaterThan(0);
+      expect(triggers.length, t.id).toBeGreaterThan(0);
+      expect(new Set(steps.map((s) => s.id)).size, t.id).toBe(steps.length); // ids unique
+      expect(unreachableSteps(steps), t.id).toEqual([]);
+    }
+  });
+
+  it('the build/verify template really loops back', () => {
+    const { steps } = WORKFLOW_TEMPLATES.find((t) => t.id === 'build-verify-loop')!.build();
+    expect(workflowEdges(steps).some((e) => e.back)).toBe(true);
+    expect(MAX_STEP_LOOPS).toBeGreaterThan(1);
+  });
+});

@@ -12,6 +12,9 @@ import type {
   RemoteStatus,
   TrainingRun,
   NewTrainingRun,
+  WorkflowEvent,
+  WorkflowRun,
+  WorkflowsSnapshot,
   ModelInfo,
   ProviderConfig,
   IndexStatus,
@@ -22,6 +25,7 @@ import type {
   InstallTarget,
   MarketplaceSkill,
   UsageSummary,
+  VaizerCatalog,
 } from '@kotrain/shared';
 
 /** The data dir for the in-process (local) client. KOTRAIN_DATA_DIR wins, then
@@ -68,6 +72,8 @@ export interface Client {
     target: InstallTarget,
     payload?: MarketplaceSkill,
   ): Promise<{ ok: boolean; message?: string; installed: InstalledSkillRecord[] }>;
+  vaizerCatalog(refresh?: boolean): Promise<VaizerCatalog>;
+  vaizerSkillMd(slug: string): Promise<string | null>;
   listTools(): Promise<Array<{ name: string; description: string }>>;
   usageSummary(): Promise<UsageSummary>;
   remoteStatus(): Promise<RemoteStatus>;
@@ -81,6 +87,9 @@ export interface Client {
   startTrainingRun(id: string): Promise<TrainingRun[]>;
   stopTrainingRun(id: string): Promise<TrainingRun[]>;
   addTrainingHint(id: string, text: string): Promise<TrainingRun[]>;
+  listWorkflows(): Promise<WorkflowsSnapshot>;
+  runWorkflow(id: string): Promise<WorkflowRun | undefined>;
+  dispatchWorkflowEvent(event: WorkflowEvent): Promise<WorkflowRun[]>;
 }
 
 /** In-process client backed by createHost on the data dir. */
@@ -106,6 +115,8 @@ function localClient(): Client {
     deleteTask: async (id) => host.deleteTask(id),
     listInstalledSkills: async () => host.listInstalledSkills(),
     installSkill: async (id, target, payload) => host.installSkill(id, target, payload),
+    vaizerCatalog: async (refresh) => host.vaizerCatalog(refresh),
+    vaizerSkillMd: async (slug) => host.vaizerSkillMd(slug),
     listTools: async () => host.listTools(),
     usageSummary: async () => host.usageSummary(),
     remoteStatus: async () => host.remoteStatus(),
@@ -122,6 +133,9 @@ function localClient(): Client {
     startTrainingRun: async (id) => host.startTrainingRun(id),
     stopTrainingRun: async (id) => host.stopTrainingRun(id),
     addTrainingHint: async (id, text) => host.addTrainingHint(id, text),
+    listWorkflows: async () => host.listWorkflows(),
+    runWorkflow: (id) => host.runWorkflow(id),
+    dispatchWorkflowEvent: (event) => host.dispatchWorkflowEvent(event),
   };
 }
 
@@ -153,7 +167,7 @@ function httpClient(url: string, token?: string): Client {
     };
     openP = new Promise<void>((resolve, reject) => {
       ws!.onopen = () => resolve();
-      ws!.onerror = () => reject(new Error(`Cannot reach Kotrain server at ${base}`));
+      ws!.onerror = () => reject(new Error(`Cannot reach Agent Nekko server at ${base}`));
     });
     return openP;
   };
@@ -178,6 +192,8 @@ function httpClient(url: string, token?: string): Client {
     deleteTask: (id) => call('task:delete', id),
     listInstalledSkills: () => call('skills:installed'),
     installSkill: (id, target, payload) => call('skill:install', id, target, payload),
+    vaizerCatalog: (refresh) => call('vaizer:catalog', refresh),
+    vaizerSkillMd: (slug) => call('vaizer:skillMd', slug),
     listTools: () => call('tools:list'),
     usageSummary: () => call('usage:summary'),
     remoteStatus: () => call('remote:status'),
@@ -195,6 +211,9 @@ function httpClient(url: string, token?: string): Client {
     startTrainingRun: (id) => call('training:start', id),
     stopTrainingRun: (id) => call('training:stop', id),
     addTrainingHint: (id, text) => call('training:hint', id, text),
+    listWorkflows: () => call('workflows:list'),
+    runWorkflow: (id) => call('workflow:run', id),
+    dispatchWorkflowEvent: (event) => call('workflow:event', event),
   };
 }
 

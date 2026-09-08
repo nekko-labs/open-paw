@@ -3,38 +3,38 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Kotrain: train your models, run your agents, own your machine</title>
+    <title>Agent Nekko: AI help on your computer</title>
     <meta
       name="description"
-      content="Kotrain is an open-source, local-first AI coding & cowork app. First-class local model support (Ollama, LM Studio, vLLM) plus every cloud provider. kotrain.com"
+      content="Get AI help writing, coding, and handling repeat tasks. Use AI on your computer or connect online services. Voice and computer control are planned, not available yet."
     />
-    <link rel="canonical" href="https://kotrain.com/" />
+    <link rel="canonical" href="https://agentnekko.com/" />
     <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1" />
-    <meta name="theme-color" content="#01050b" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="theme-color" content="#101714" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=agent-nekko-3" />
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="Kotrain" />
-    <meta property="og:url" content="https://kotrain.com/" />
+    <meta property="og:site_name" content="Agent Nekko" />
+    <meta property="og:url" content="https://agentnekko.com/" />
     <meta property="og:locale" content="en_US" />
-    <meta property="og:title" content="Kotrain: train your models, run your agents, own your machine" />
+    <meta property="og:title" content="Agent Nekko: AI help on your computer" />
     <meta
       property="og:description"
-      content="Open-source, local-first AI chat, cowork, and coding in one calm window. First-class local model support (Ollama, LM Studio, vLLM) plus every cloud provider."
+      content="AI help on your computer, for coding and everyday work. Use your own AI or online services, automate repeat tasks, and explore planned voice control."
     />
-    <meta property="og:image" content="https://kotrain.com/og.png" />
+    <meta property="og:image" content="https://agentnekko.com/og.png?v=agent-nekko-3" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:image:type" content="image/png" />
-    <meta property="og:image:alt" content="Kotrain: train your models, run your agents, own your machine" />
+    <meta property="og:image:alt" content="Agent Nekko: AI help on your computer" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Kotrain: train your models, run your agents, own your machine" />
+    <meta name="twitter:title" content="Agent Nekko: AI help on your computer" />
     <meta
       name="twitter:description"
-      content="Open-source, local-first AI chat, cowork, and coding in one calm window. First-class local model support (Ollama, LM Studio, vLLM) plus every cloud provider."
+      content="AI help on your computer, for coding and everyday work. Use your own AI or online services, automate repeat tasks, and explore planned voice control."
     />
-    <meta name="twitter:image" content="https://kotrain.com/og.png" />
-    <link rel="stylesheet" href="styles.css?v=2" />
+    <meta name="twitter:image" content="https://agentnekko.com/og.png?v=agent-nekko-3" />
+    <link rel="stylesheet" href="styles.css?v=5" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!-- Non-blocking webfont load: the system stack renders immediately; Inter
@@ -58,42 +58,44 @@
           },
           {
             "@type": "WebSite",
-            "@id": "https://kotrain.com/#website",
-            "url": "https://kotrain.com/",
-            "name": "Kotrain",
-            "description": "Open-source, local-first AI chat, cowork, and coding in one calm window, with first-class local model support.",
+            "@id": "https://agentnekko.com/#website",
+            "url": "https://agentnekko.com/",
+            "name": "Agent Nekko",
+            "description": "AI help for coding and everyday work. Use AI on your computer or connect online services, choose the AI for each task, and automate repetitive work.",
             "inLanguage": "en",
             "publisher": { "@id": "https://nekkolabs.com/#organization" }
           },
           {
             "@type": "SoftwareApplication",
-            "@id": "https://kotrain.com/#app",
-            "name": "Kotrain",
-            "url": "https://kotrain.com/",
+            "@id": "https://agentnekko.com/#app",
+            "name": "Agent Nekko",
+            "url": "https://agentnekko.com/",
             "applicationCategory": "DeveloperApplication",
-            "applicationSubCategory": "AI coding and cowork assistant",
+            "applicationSubCategory": "AI assistant for coding and everyday work",
             "operatingSystem": "macOS, Windows, Linux",
-            "description": "Kotrain unifies AI chat, cowork, and coding in one window. Point it at Ollama, LM Studio, or vLLM in one click, or use any cloud provider. Ships a context-provenance inspector, guardrails, a sandbox, multi-folder code indexing, memory management, and connectors.",
+            "description": "Agent Nekko helps you write, code, and handle repeat tasks using AI on your computer or online services. A model is the AI you choose; local means it runs on your computer. Choose models per chat or workflow, review file changes, and connect separately installed model runners such as Ollama, LM Studio, or vLLM. Supported tasks using your own AI can run offline after setup. Online services need internet access and may charge for use. Advanced users can connect through the command-line interface (CLI) or the MCP standard for AI tools.",
             "license": "https://opensource.org/licenses/MIT",
             "isAccessibleForFree": true,
-            "downloadUrl": "https://github.com/nekko-labs/kotrain/releases/latest",
-            "codeRepository": "https://github.com/nekko-labs/kotrain",
+            "downloadUrl": "https://github.com/nekko-labs/agent-nekko/releases/latest",
+            "codeRepository": "https://github.com/nekko-labs/agent-nekko",
             "featureList": [
-              "First-class local models: one-click Ollama, LM Studio, and vLLM, plus every major cloud provider",
-              "Unified chat, cowork, and code in a single window",
-              "Context inspector showing the provenance and token cost of everything the model was shown",
-              "Multi-folder code index for grounded retrieval, with file viewer, diffs, and inline editing",
-              "Guidelines (AGENTS.md/CLAUDE.md) and per-project markdown memory, individually switchable",
-              "Living spec, plan, and task files built from the conversation",
-              "Offline prompt analyzer with an A to F score and click-to-fill suggestions",
-              "Sub-agents and swarms: scoped subtasks run in fresh child sessions",
-              "Skills with visualized workflows, plus a skills marketplace",
-              "MCP in both directions (client and server) and connectors for Linear, Slack, Discord, Gmail, and Drive",
-              "Long-running goal loops with a bounded context window, turn and time budgets, and stall detection",
-              "Guardrails by default: risky commands need approval, under an editable allow/ask/deny policy",
-              "Sandboxed tool execution out of the box, with optional Docker isolation",
-              "Changes panel with line diffs and keep or revert at line, file, or all",
-              "Editions: desktop, self-hosted web, Docker, and end-to-end-encrypted phone remote control"
+              "Use AI on your computer or connect online AI services",
+              "Choose an AI model for each chat or workflow; running it on your hardware avoids per-token API charges, but hardware, electricity, and paid services still have costs",
+              "Schedule repeat tasks, run recurring checks, and review workflow results",
+              "Connect separately installed Ollama, LM Studio, and vLLM model runners and use their supported model controls",
+              "Inspect the files, instructions, and notes sent with each request, with token counts",
+              "Search across project folders, view files, and edit them in the app",
+              "Use AGENTS.md or CLAUDE.md instructions and saved project notes, individually switchable",
+              "Save project descriptions, plans, and task lists from a conversation",
+              "Check draft instructions on your computer before sending them",
+              "Delegate smaller tasks to separate AI sessions with limits",
+              "Reuse saved procedures called skills and install more from a marketplace",
+              "Connect AI tools through MCP and use connectors for Linear, Slack, Discord, Gmail, and Drive",
+              "Run longer tasks with time and step limits, plus checks for stalled progress",
+              "Configure which terminal commands are allowed, need approval, or are blocked",
+              "Limit file tools to selected folders, with optional Docker isolation for terminal commands",
+              "Review file changes line by line and keep or undo them",
+              "Desktop, self-hosted browser, and Docker editions, plus encrypted phone remote access"
             ],
             "offers": {
               "@type": "Offer",
@@ -108,17 +110,17 @@
   </head>
   <body>
     <!-- drifting starfield, the whole page floats over it -->
-    <canvas id="stars" aria-hidden="true"></canvas>
+    <canvas id="stars" aria-hidden="true" hidden></canvas>
     <div class="nebula" aria-hidden="true"></div>
 
     <header class="nav">
-      <a class="brand" href="#top"><img class="brand-mark" src="/favicon.svg" alt="" width="22" height="22" /> KOTRAIN</a>
-      <nav class="nav-links">
-        <a href="#local">Local models</a>
-        <a href="#features">The harness</a>
-        <a href="#editions">Editions</a>
+      <a class="brand" href="#top" aria-label="Agent Nekko home"><img class="brand-mark" src="/favicon.svg?v=agent-nekko-3" alt="" width="26" height="26" /> AGENT NEKKO</a>
+      <nav class="nav-links" aria-label="Main navigation">
+        <a href="#pillars">What it does</a>
+        <a href="#local">AI on your computer</a>
+        <a href="#roadmap">What's next</a>
         <a href="#download">Download</a>
-        <a href="https://github.com/nekko-labs/kotrain" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/nekko-labs/agent-nekko" target="_blank" rel="noopener">GitHub</a>
       </nav>
       <a class="btn btn-primary btn-sm" href="#download">Download</a>
     </header>
@@ -126,23 +128,23 @@
     <main id="top">
       <!-- ===== hero: immersive, giant type over the starfield ===== -->
       <section class="hero">
-        <p class="eyebrow reveal">NEKKO LABS · OPEN SOURCE · MIT</p>
-        <h1 class="display reveal">KOTRAIN</h1>
+        <p class="eyebrow reveal">YOUR AI ASSISTANT · FREE &amp; OPEN SOURCE</p>
+        <h1 class="display reveal">Agent Nekko</h1>
         <p class="tagline reveal">
-          Train your models. Run your agents.<br />
-          <span class="grad">Own your machine.</span>
+          AI help on your computer.<br />
+          <span class="grad">For coding and everyday work.</span>
         </p>
         <p class="lede reveal">
-          An open-source, local-first AI coding &amp; cowork app. Point it at Ollama, LM&nbsp;Studio,
-          or vLLM in one click, or bring your own cloud keys, and let a model that can actually
-          <em>see and touch</em> your codebases do the work.
+          Get help writing, coding, and handling repeat tasks. Use AI running on your
+          computer or connect an online AI service. You choose what Nekko can access
+          and review its work.
         </p>
         <div class="cta-row reveal">
           <!-- the same smart download button as the download section: one click
                takes the build for this machine, the caret opens every other one -->
           <div class="dl-pick" data-dl-pick>
-            <a class="dl-main" data-dl-main href="https://github.com/nekko-labs/kotrain/releases/latest">
-              <span class="dl-main-t" data-dl-title>Download Kotrain</span>
+            <a class="dl-main" data-dl-main href="https://github.com/nekko-labs/agent-nekko/releases/latest">
+              <span class="dl-main-t" data-dl-title>Download Agent Nekko</span>
               <small class="dl-main-v" data-dl-ver></small>
             </a>
             <button
@@ -159,66 +161,61 @@
             </button>
             <div class="dl-menu glass" id="heroDlMenu" data-dl-menu role="menu" aria-labelledby="heroDlCaret" hidden></div>
           </div>
-          <a class="btn btn-ghost" href="https://github.com/nekko-labs/kotrain" target="_blank" rel="noopener">
+          <a class="btn btn-ghost" href="https://github.com/nekko-labs/agent-nekko" target="_blank" rel="noopener">
             View GitHub repo <span class="arr" aria-hidden="true">↗</span>
           </a>
         </div>
-        <p class="micro reveal">No telemetry · no account · your code never leaves your machine unless you say so</p>
+        <p class="micro reveal">No account needed to use AI on your computer · Works offline after setup · MIT licensed</p>
 
         <!-- astronaut Aphelion drifts at the bottom of the hero -->
-        <div class="mascot" title="Aphelion is in orbit">
-          <svg viewBox="-6 -8 76 104" width="118" fill="none">
-            <g class="m-float">
+        <div class="mascot" title="Nekko is keeping you company">
+          <svg viewBox="42 1 52 90" width="118" fill="none" role="img" aria-label="Nekko, a slender outline cat in sunglasses, leaning against a short edge with crossed ankles">
+            <g>
               <!-- ear pods, ginger-tipped -->
-              <path d="M 20.6 13.4 Q 19 5.4 23.9 3.7 Q 27.8 5.6 27.4 10.2" fill="#f5efdf" stroke="#454e73" stroke-width="1.5" stroke-linejoin="round"/>
-              <path d="M 43.4 13.4 Q 45 5.4 40.1 3.7 Q 36.2 5.6 36.6 10.2" fill="#f5efdf" stroke="#454e73" stroke-width="1.5" stroke-linejoin="round"/>
-              <path d="M 22.4 9.6 Q 22.4 6.4 23.9 5.8 Q 25.5 6.8 25.3 9.2" fill="#f0a35e" opacity="0.9"/>
-              <path d="M 41.6 9.6 Q 41.6 6.4 40.1 5.8 Q 38.5 6.8 38.7 9.2" fill="#f0a35e" opacity="0.9"/>
               <!-- helmet -->
-              <path d="M 32 8.6 C 41.4 8.2 48.8 15.4 48.6 24.8 C 48.4 34.4 41.2 41.6 32.2 41.7 C 22.8 41.8 15.4 34.6 15.5 25.2 C 15.6 15.8 22.6 9 32 8.6 Z" fill="rgba(125,205,235,0.14)" stroke="#454e73" stroke-width="1.6" stroke-linejoin="round"/>
-              <circle cx="32" cy="26.2" r="11.6" fill="#f5efdf"/>
-              <circle cx="26.6" cy="25.6" r="1.9" fill="#2d3348"/>
-              <circle cx="37.4" cy="25.6" r="1.9" fill="#2d3348"/>
-              <path d="M 29.7 29.9 q 1.15 1.35 2.3 0 q 1.15 1.35 2.3 0" stroke="#2d3348" stroke-width="1.15" stroke-linecap="round"/>
-              <circle cx="23.7" cy="29.8" r="1.4" fill="#f2a6a0" opacity="0.55"/>
-              <circle cx="40.3" cy="29.8" r="1.4" fill="#f2a6a0" opacity="0.55"/>
-              <path d="M 18.7 27.4 q 2.2 0.6 3.9 0.4 M 19 30.6 q 2.1 -0.2 3.7 -0.7" stroke="#2d3348" stroke-width="0.95" stroke-linecap="round" opacity="0.38"/>
-              <path d="M 45.3 27.4 q -2.2 0.6 -3.9 0.4 M 45 30.6 q -2.1 -0.2 -3.7 -0.7" stroke="#2d3348" stroke-width="0.95" stroke-linecap="round" opacity="0.38"/>
-              <path d="M 20.4 16.2 Q 23.6 10.9 29.4 9.9" stroke="#d8eefb" stroke-width="1.7" stroke-linecap="round" opacity="0.85"/>
               <!-- collar + suit -->
-              <ellipse cx="32" cy="42.8" rx="8.8" ry="2.7" fill="#e6dcc4" stroke="#454e73" stroke-width="1.3"/>
-              <path d="M 24.2 43.8 C 22.3 47.2 21.3 52.2 21.5 57.8 C 21.7 63.2 22.9 67.6 24.6 70 L 39.6 70 C 41.3 67.4 42.4 63 42.5 57.6 C 42.6 52.2 41.7 47.2 39.8 43.8 Z" fill="#f5efdf" stroke="#454e73" stroke-width="1.6" stroke-linejoin="round"/>
-              <rect x="27.2" y="48.6" width="9.6" height="7.6" rx="2" fill="#fbf7ec" stroke="#454e73" stroke-width="1.15"/>
-              <path d="M32 49.9 L32.75 51.6 L34.45 52.35 L32.75 53.1 L32 54.8 L31.25 53.1 L29.55 52.35 L31.25 51.6 Z" fill="#8b7bff"/>
-              <path d="M 22.2 61.9 C 26 63 38 63 41.8 61.9" stroke="#8b7bff" stroke-width="2" stroke-linecap="round" opacity="0.85"/>
               <!-- ginger tail -->
-              <path d="M 41.8 66.4 C 48 68.2 52 65.4 52.7 60 C 53.2 56.6 51.2 54.2 48.7 54.5" stroke="#454e73" stroke-width="5.2" stroke-linecap="round"/>
-              <path d="M 41.8 66.4 C 48 68.2 52 65.4 52.7 60 C 53.2 56.6 51.2 54.2 48.7 54.5" stroke="#f0a35e" stroke-width="3.2" stroke-linecap="round"/>
-              <!-- arms + paws -->
-              <path d="M 24 48.6 C 20 50.2 16.6 53.2 15 56.8 M 40 48.6 C 44 50.2 47.4 53.2 49 56.8" stroke="#454e73" stroke-width="6.6" stroke-linecap="round"/>
-              <path d="M 24 48.6 C 20 50.2 16.6 53.2 15 56.8 M 40 48.6 C 44 50.2 47.4 53.2 49 56.8" stroke="#f5efdf" stroke-width="4.4" stroke-linecap="round"/>
-              <circle cx="14.4" cy="57.6" r="3.5" fill="#f5efdf" stroke="#454e73" stroke-width="1.4"/>
-              <circle cx="49.6" cy="57.6" r="3.5" fill="#f5efdf" stroke="#454e73" stroke-width="1.4"/>
-              <!-- legs + boots -->
-              <path d="M 27.4 70 C 27.2 73.4 27.2 75.4 27.4 77.6 M 36.6 70 C 36.8 73.4 36.8 75.4 36.6 77.6" stroke="#454e73" stroke-width="5.6" stroke-linecap="round"/>
-              <path d="M 27.4 70 C 27.2 73.4 27.2 75.4 27.4 77.6 M 36.6 70 C 36.8 73.4 36.8 75.4 36.6 77.6" stroke="#f5efdf" stroke-width="3.6" stroke-linecap="round"/>
-              <ellipse cx="27.4" cy="79.4" rx="3.4" ry="2.5" fill="#e6dcc4" stroke="#454e73" stroke-width="1.3"/>
-              <ellipse cx="36.6" cy="79.4" rx="3.4" ry="2.5" fill="#e6dcc4" stroke="#454e73" stroke-width="1.3"/>
-            </g>
-            <!-- a spark lapping Aphelion on a tilted ring -->
-            <g transform="rotate(-14 32 48)">
-              <g transform="translate(32 48) scale(1 0.34)">
-                <circle cx="0" cy="0" r="30" stroke="#d8eefb" stroke-width="1.6" stroke-dasharray="3 5" opacity="0.4"/>
-                <g class="m-orbit"><circle cx="30" cy="0" r="3.1" fill="#ffd66e"/></g>
+              <path data-part="edge" data-edge-length="62" d="M 91 26 L 91 88" stroke="var(--ink)" stroke-width="1.3" stroke-linecap="round" fill="none" opacity="0.32"/>
+              <g data-part="slender-body" data-body-style="line-only" data-torso-width="11" data-stance="leaning">
+                <path d="M 61 67 C 48 70 42 61 48 52 C 51 48 56 48 60 51" stroke="#f0a35e" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+                <path data-part="torso" d="M 72 48 Q 69 57 60 67" fill="none" stroke="var(--ink)" stroke-width="2.2" stroke-linecap="round"/>
+                <!-- arms + paws -->
+                <path data-part="edge-contact" d="M 74 49 Q 84 48 91 43" stroke="var(--ink)" stroke-width="2" stroke-linecap="round" fill="none"/>
+                <path d="M 70 53 Q 80 58 83 67 M 85 70 q -3 1 -5 -1" stroke="var(--ink)" stroke-width="1.9" stroke-linecap="round" fill="none"/>
+                <path d="M 68 53 Q 61 61 63 70 M 65 72 q -3 1 -5 -1" stroke="var(--ink)" stroke-width="1.9" stroke-linecap="round" fill="none"/>
+                <!-- legs + boots -->
+                <g data-part="crossed-ankles" stroke="var(--ink)" stroke-width="2" stroke-linecap="round" fill="none">
+                  <path d="M 60 67 Q 61 76 67 82 L 57 86 M 60 88 q -4 0 -7 -2"/>
+                  <path d="M 63 67 Q 61 76 56 82 L 67 86 M 70 87 q -4 2 -7 0"/>
+                </g>
+                <g transform="translate(40 -1) scale(.9)">
+                  <g data-part="agent-head">
+                    <path data-mascot-accessory="collar" d="M 25 44.8 L 31.6 47.2 L 27.9 51.6 L 23.3 47.4 Z M 38.2 44.8 L 31.6 47.2 L 35.3 51.6 L 39.9 47.4 Z" fill="var(--paper)" stroke="var(--ink)" stroke-width="1.4" stroke-linejoin="round"/>
+                    <path data-mascot-accessory="tie" d="M 30.1 48.3 L 33.1 48.3 L 33.6 50.1 L 31.6 51.5 L 29.6 50.1 Z M 31.6 51.5 L 33.4 53.4 L 31.6 54.8 L 29.8 53.4 Z" fill="var(--ink)"/>
+                    <path d="M 17 23 C 17.2 18.1 18.2 14.1 19.2 10.7 L 18.9 6.6 Q 19.2 4.7 20.9 6.1 L 31.8 14.2 L 42.2 6.1 Q 43.9 4.7 44.2 6.6 L 43.9 10.7 C 45 14.1 46 18.1 46.2 23 L 46.2 35.1 C 46.2 42.2 40.8 46.7 31.6 46.7 C 22.4 46.7 17 42.2 17 35.1 Z" fill="var(--paper)" stroke="var(--ink)" stroke-width="2.2" stroke-linejoin="round"/>
+                    <path d="M 21.5 15 L 21.5 9.8 L 27 13.9 M 36.2 13.9 L 41.7 9.8 L 41.7 15" stroke="#f0a35e" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+                    <g data-mascot-accessory="sunglasses" data-position="worn" fill="var(--ink)" stroke="var(--ink)" stroke-width="1.05" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M 22.3 26.1 L 29.2 26.6 L 28.7 30 Q 26.1 31.6 23 29.8 Z M 33.9 26.6 L 40.8 26.1 L 40.1 29.8 Q 37 31.6 34.4 30 Z"/>
+                      <path d="M 29.1 27.2 Q 31.6 26.1 34 27.2 M 22.4 26.4 L 19.9 25.4 M 40.7 26.4 L 43.1 25.4" fill="none"/>
+                    </g>
+                    <path d="M 29.3 33.7 q 1.15 1.35 2.3 0 q 1.15 1.35 2.3 0" stroke="var(--ink)" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+                    <path d="M 19.3 31.1 q 2.2 0.6 3.8 0.4 M 19.5 34.2 q 2.1 -0.2 3.6 -0.7 M 43.9 31.1 q -2.2 0.6 -3.8 0.4 M 43.7 34.2 q -2.1 -0.2 -3.6 -0.7" stroke="var(--ink)" stroke-width="1.2" stroke-linecap="round" fill="none" opacity="0.55"/>
+                    <path data-mascot-accessory="earpiece" d="M 46.2 27.2 Q 48.7 26.8 48.7 29.1 L 48.7 31.9 Q 48.7 33.8 46.2 33.5" fill="var(--paper)" stroke="var(--ink)" stroke-width="1.3" stroke-linecap="round"/>
+                    <path data-mascot-accessory="wire" d="M 48.1 33.4 L 48.1 35.5 q 2 1.1 0 2.2 q -2 1.1 0 2.2 q 2 1.1 0 2.2 L 47.3 44.5" fill="none" stroke="var(--ink)" stroke-width="1" stroke-linecap="round"/>
+                  </g>
+                </g>
               </g>
             </g>
+            <!-- a spark lapping Aphelion on a tilted ring -->
           </svg>
+          <span>MEET NEKKO</span>
         </div>
         <div class="scroll-hint" aria-hidden="true">SCROLL<br />▾</div>
       </section>
 
       <!-- ===== app window mock floats up out of the stars ===== -->
-      <section class="showcase reveal">
+      <section class="showcase reveal" aria-label="Illustration of the workspace, not a live session">
+        <p class="eyebrow">AN EXAMPLE OF NEKKO HELPING WITH CODE</p>
         <div class="window-mock glass">
           <div class="wm-bar"><span></span><span></span><span></span></div>
           <div class="wm-body">
@@ -229,7 +226,7 @@
             <div class="wm-chat">
               <div class="bubble user">Add a dark-mode toggle to the settings page</div>
               <div class="bubble ai">On it, editing <code>SettingsView.tsx</code> and wiring the theme store…</div>
-              <div class="tool">🛡 edit_file · SettingsView.tsx</div>
+              <div class="tool">edit_file · SettingsView.tsx · review changes</div>
             </div>
             <div class="wm-ctx">
               <div class="ctx-h">Context · 1,284 tok</div>
@@ -242,19 +239,60 @@
       </section>
 
       <!-- ===== chapters ===== -->
+      <section id="pillars" class="chapter pillars">
+        <p class="eyebrow reveal">FIVE WAYS TO USE NEKKO · VOICE CONTROL IS PLANNED</p>
+        <h2 class="reveal">What you can do with Nekko</h2>
+        <p class="chapter-lede reveal">A model is the AI you choose. Local means it runs on your computer, rather than an online service. Start with the tools below, and see what we are planning next.</p>
+        <div class="grid two reveal">
+          <div class="card glass">
+            <span class="mf-num">01 · YOUR AI OPTIONS</span>
+            <h3>Use AI on your computer or online</h3>
+            <p>Chat and work in the Nekko app with an AI model installed on your computer, or connect an online service such as Anthropic or OpenAI. You can also use Nekko from supported coding tools.</p>
+            <a class="card-link" href="https://github.com/nekko-labs/agent-nekko/blob/main/apps/cli/README.md">Connect your coding tools <span aria-hidden="true">↗</span></a>
+          </div>
+          <div class="card glass">
+            <span class="mf-num">02 · THE RIGHT TOOL</span>
+            <h3>Choose the right AI for the job</h3>
+            <p>Use a powerful online model for a difficult plan, then a model on your computer or a cheaper service for smaller tasks. Running AI on your hardware avoids per-token API charges. Your hardware, electricity, and any paid services still cost money.</p>
+            <p class="card-note">Choose the model for each chat or workflow today. The unreleased rebrand source also lets you choose a provider and model for delegated tasks. Automatically choosing the best model is still a future direction.</p>
+          </div>
+          <div class="card glass">
+            <span class="mf-num">03 · REPEAT TASKS</span>
+            <h3>Automate repetitive work</h3>
+            <p>Save a series of steps as a workflow, schedule it, and check the results in one place. Set up recurring checks, called watchers, for work you want Nekko to keep an eye on.</p>
+            <p class="card-note">Your computer and the app running the workflow need to stay on for scheduled tasks and checks.</p>
+          </div>
+          <div class="card glass">
+            <span class="mf-num">04 · MODEL SETUP</span>
+            <h3>Manage your AI models in one place</h3>
+            <p>Connect Ollama, LM Studio, or vLLM, the software that runs AI models on your computer. Use the model controls each supports, keep an existing setup, and add online AI services when you need them.</p>
+            <a class="card-link" href="#local">See what you can manage <span aria-hidden="true">↓</span></a>
+          </div>
+          <div class="card glass pillar-planned" id="pc-control">
+            <span class="mf-num">05 · VOICE CONTROL <span class="chip">Planned</span></span>
+            <h3>Control your computer by voice</h3>
+            <p>We are planning AI that understands your instructions and speaks back, all on your computer. Voice input would use speech recognition on your computer too. You would approve which apps and actions it can use, confirm sensitive steps, and have a visible stop control.</p>
+            <p class="pc-setup">Guided setup would choose suitable AI and speech models by checking your processor (CPU), memory (RAM), graphics or unified memory, free storage, operating system, supported AI software, and each model's minimum requirements. Preview the plan, then approve one install click. You would still need to approve required operating-system permission prompts.</p>
+            <p class="card-note">Planned, not available today. Initial downloads would need internet or a prepared offline bundle. After setup, supported actions are intended to work offline, with no cloud fallback. Current builds can work with files and terminal commands and show hardware information, but do not yet offer voice, desktop control, or this setup recommender.</p>
+            <a class="card-link" href="#roadmap">See what we are planning <span aria-hidden="true">↓</span></a>
+          </div>
+        </div>
+      </section>
+
       <section id="local" class="chapter">
-        <p class="eyebrow reveal">01 · THE HEADLINE FEATURE</p>
-        <h2 class="reveal">Local models, finally first-class</h2>
-        <p class="chapter-lede reveal">Most tools bolt local models on as an afterthought. Kotrain is built around them.</p>
+        <p class="eyebrow reveal">AI ON YOUR COMPUTER</p>
+        <h2 class="reveal">Run AI on your own computer</h2>
+        <p class="chapter-lede reveal">Install a model runner such as Ollama, LM Studio, or vLLM separately, then connect it to Nekko. A runner is the software that loads and runs your chosen AI. Nekko adds tools for your files and supported model controls; it does not bundle or automatically install the runner today.</p>
         <div class="split reveal">
           <ul class="check">
-            <li>Auto-discover a running Ollama, LM Studio, or vLLM on localhost</li>
-            <li>Pull, load, and unload Ollama models from the app</li>
-            <li>See what's resident in memory, and stop a server without leaving the app</li>
-            <li>Manage servers remotely and watch token usage over time</li>
-            <li>Bring cloud keys too, Anthropic, OpenAI, OpenRouter, any OpenAI-compatible endpoint</li>
+            <li>Find Ollama, LM Studio, and vLLM running on your computer</li>
+            <li>Download, load, and unload Ollama models from Nekko</li>
+            <li>Load and unload LM Studio models when its <code>lms</code> command-line tool is installed on your computer</li>
+            <li>See which models are loaded and check usage. Stop supported model servers; vLLM models stay loaded until their server stops.</li>
+            <li>Also connect online services such as Anthropic, OpenAI, OpenRouter, or another OpenAI-compatible provider</li>
           </ul>
-          <div class="server-cards">
+          <div class="server-cards" aria-label="Example local server connections">
+            <p class="micro">Example setup, not a scan of your machine</p>
             <div class="sc glass"><b>Ollama</b><span class="ok">●&nbsp;connected</span><code>localhost:11434</code></div>
             <div class="sc glass"><b>LM Studio</b><span class="ok">●&nbsp;connected</span><code>localhost:1234</code></div>
             <div class="sc glass"><b>vLLM</b><span class="dim">○&nbsp;not running</span><code>localhost:8000</code></div>
@@ -264,41 +302,41 @@
 
       <!-- ===== the harness: a spec-sheet manifest, deliberately not cards ===== -->
       <section id="features" class="chapter">
-        <p class="eyebrow reveal">02 · THE HARNESS</p>
-        <h2 class="reveal">The harness is the other half of the model</h2>
+        <p class="eyebrow reveal">UNDERSTAND AND REVIEW THE WORK</p>
+        <h2 class="reveal">See what your AI is doing</h2>
         <p class="chapter-lede reveal">
-          Frontier labs ship raw capability. Almost everything else you feel as "this model is good
-          in my codebase" is harness: what it gets shown, what it can reach, and what happens when
-          it's wrong. Kotrain hands you all three, in one window that runs chat, cowork, and code.
+          An AI agent can do more than reply: it can use tools to work on a task.
+          Nekko shows what information it uses, lets you set limits on its tools,
+          and helps you review changes before you keep them.
         </p>
 
         <div class="manifest reveal">
           <section class="mf-group">
             <div class="mf-head">
               <span class="mf-num">01</span>
-              <h3>What it sees</h3>
-              <p>A short context window stops being the bottleneck once you decide exactly what goes in it.</p>
+              <h3>Choose the information it uses</h3>
+              <p>Context means the information sent with your request. Check what is included and leave out what is not needed.</p>
             </div>
             <ol class="mf-rows">
               <li>
                 <b>Context Inspector</b>
-                <span>Every file, guideline, memory entry, and index snippet entering the next prompt, with per-source token counts, a window-headroom bar, and a toggle or pin on each. Your unsent draft is counted as you type it.</span>
+                <span>See the files, instructions, and saved notes included in your next request. Toggle or pin them and see how much space they take up, measured in tokens, the small pieces of text AI models process.</span>
               </li>
               <li>
-                <b>Grounded retrieval</b>
-                <span>A multi-folder index (file tree, code outline, search) so a large repo arrives as the relevant slice instead of a wall of text, across every folder you wire into the chat.</span>
+                <b>Find relevant files</b>
+                <span>Search across the project folders you choose, so Nekko can find useful code and notes without sending every file to the AI.</span>
               </li>
               <li>
                 <b>Guidelines and memory</b>
-                <span><code>AGENTS.md</code> / <code>CLAUDE.md</code> plus a markdown memory store, global and per project, with every entry individually switchable.</span>
+                <span>Give Nekko project instructions through <code>AGENTS.md</code> or <code>CLAUDE.md</code>, and keep saved notes for your preferences. Turn individual instructions and notes on or off.</span>
               </li>
               <li>
-                <b>A living spec</b>
-                <span>Build <code>SPEC.md</code> (and a plan and task list) out of the conversation, then feed it back as context, so intent survives a window that can't hold the whole chat.</span>
+                <b>Save the plan</b>
+                <span>Turn the conversation into a project description in <code>SPEC.md</code>, plus a plan and task list that can guide later work.</span>
               </li>
               <li>
-                <b>Prompt analyzer</b>
-                <span>An offline, zero-latency read of your draft: parts detected, weak spots underlined, an A to F score, click-to-fill chips for whatever's missing, and a recommended model tier.</span>
+                <b>Improve your request</b>
+                <span>Get suggestions for making your instructions clearer before you send them. This draft check runs on your computer without an online AI service.</span>
               </li>
             </ol>
           </section>
@@ -306,29 +344,29 @@
           <section class="mf-group">
             <div class="mf-head">
               <span class="mf-num">02</span>
-              <h3>What it can reach</h3>
-              <p>Capability the weights don't have to carry themselves.</p>
+              <h3>Give it useful tools</h3>
+              <p>Connect the tools and repeatable steps your work needs, rather than copying everything into a chat.</p>
             </div>
             <ol class="mf-rows">
               <li>
-                <b>Sub-agents and swarms</b>
-                <span>The agent delegates a scoped subtask to a fresh child session with its own clean context. Solo, balanced, or full swarm, with depth limits, and the whole tree visible live. The cheapest way past a small window is not filling it.</span>
+                <b>Split up a task</b>
+                <span>Delegate smaller pieces of work to separate AI sessions, called sub-agents. Each gets its own instructions, with limits on further delegation and a view of the work in progress.</span>
               </li>
               <li>
-                <b>Skills</b>
-                <span>Procedures, not prompt snippets: research, plan, review, security-review, test, commit, PR, each rendered as a real workflow graph, plus a marketplace and one-click install.</span>
+                <b>Reusable instructions</b>
+                <span>Skills are saved procedures for work such as research, planning, code review, and testing. See their steps as a workflow, or install more from the skills marketplace.</span>
               </li>
               <li>
-                <b>MCP, both directions</b>
-                <span>Connect stdio or streamable-HTTP MCP servers and their tools merge into the agent loop, toggleable per chat. Kotrain is also an MCP <em>server</em>, so other agents can drive it.</span>
+                <b>Connect coding tools</b>
+                <span>MCP is a standard for connecting AI tools. Nekko can use other MCP servers or act as one. Connect Claude Code, Cursor, Codex, or OpenClaw where their CLI or MCP configuration supports it. These are configurable connections, not bundled integrations.</span>
               </li>
               <li>
-                <b>Connectors</b>
-                <span>Linear, Slack, Discord, Gmail, and Drive, folded into context as snippets instead of pasted by hand.</span>
+                <b>Connect your services</b>
+                <span>Bring relevant information from Linear, Slack, Discord, Gmail, and Drive into your request instead of pasting it by hand. These online connections need a network.</span>
               </li>
               <li>
-                <b>Goal loops that terminate</b>
-                <span>Hand over a finish-this goal: it plans first, re-injects the plan every iteration, runs on a bounded window, and stops on a turn or time budget. A stall detector asks you for a hint instead of spiraling.</span>
+                <b>Longer tasks with limits</b>
+                <span>Give Nekko a goal to plan and work through. Set limits on time or steps, and get a request for guidance if it stops making progress.</span>
               </li>
             </ol>
           </section>
@@ -336,75 +374,85 @@
           <section class="mf-group">
             <div class="mf-head">
               <span class="mf-num">03</span>
-              <h3>When it's wrong</h3>
-              <p>Smaller models slip more often. The fix is making a slip cheap, not pretending it won't happen.</p>
+              <h3>Review and correct changes</h3>
+              <p>AI can make mistakes. Approval settings, file limits, and change review help you stay involved.</p>
             </div>
             <ol class="mf-rows">
               <li>
-                <b>Guardrails</b>
-                <span>A risky-command classifier (destructive filesystem writes, force push, <code>curl | sh</code>, privilege escalation) behind an allow / ask / deny policy you can edit. Ask, Guardrails, or YOLO, per chat.</span>
+                <b>Command approvals</b>
+                <span>Choose which terminal commands are allowed, need approval, or are blocked. The app checks for risky operations such as deleting files or changing system permissions.</span>
               </li>
               <li>
-                <b>Sandbox</b>
-                <span>File access jailed to the folders you wired in, with optional Docker isolation for shell commands.</span>
+                <b>Limit file access</b>
+                <span>Keep file tools within the folders you selected. For advanced setups, Docker can provide additional isolation for terminal commands.</span>
               </li>
               <li>
-                <b>Diff review</b>
-                <span>Every agent edit lands in a Changes panel as a line diff. Keep or revert at line, file, or all, without leaving the window.</span>
+                <b>Review file changes</b>
+                <span>See edits line by line in the Changes panel. Keep or undo individual lines, whole files, or all changes from the app.</span>
               </li>
               <li>
-                <b>Recovery, built in</b>
-                <span>An empty reply mid-loop is retried with a nudge and then surfaced rather than silently swallowed, and "Reset here" rewinds the chat to any earlier message and runs again from there.</span>
+                <b>Try again from an earlier step</b>
+                <span>If an AI returns an empty reply, Nekko retries and then reports the problem. Use "Reset here" to return to an earlier message and try a different approach.</span>
               </li>
             </ol>
           </section>
         </div>
 
         <p class="micro center reveal mf-foot">
-          And while all of that runs, Aphelion drifts in zero-g, laps its own orbit, and bats at a passing comet.
+          Meet Nekko: a small outline cat keeping you company while your agent gets to work.
         </p>
       </section>
 
       <section id="why" class="chapter">
-        <p class="eyebrow reveal">03 · WHY KOTRAIN</p>
-        <h2 class="reveal">Not a chat box. Not a blind terminal.</h2>
+        <p class="eyebrow reveal">YOUR FILES AND CONNECTIONS</p>
+        <h2 class="reveal">Choose what stays on your computer</h2>
         <div class="grid two reveal">
           <div class="card glass">
-            <div class="fi">💬→🛠</div>
-            <h3>LM Studio runs models. Kotrain runs with your work.</h3>
-            <p>Local model UIs are a chat box around a model, no awareness of your files. Kotrain reads, edits, searches, and runs inside your real codebases: multi-folder index, inline editing, per-project memory, guardrails. Same one-click local setup, but the model actually does the work.</p>
+            <span class="mf-num">ON YOUR COMPUTER</span>
+            <h3>Work without an internet connection</h3>
+            <p>Once your AI model and its runner are installed, supported tasks can work offline. Read, edit, and search your chosen folders without sending requests to an online AI service.</p>
           </div>
           <div class="card glass">
-            <div class="fi">⌨️→👁</div>
-            <h3>The power of an agentic CLI, with eyes.</h3>
-            <p>Terminal agents are powerful but blind, you can't see what changed without <code>git diff</code>, and editing means leaving the tool. Kotrain gives an IDE-like surface: browse the tree, view files and diffs, edit inline, with every action visible through the Context Inspector and approvals.</p>
+            <span class="mf-num">ONLINE SERVICES</span>
+            <h3>Connect online AI when you need it</h3>
+            <p>Online AI models, downloads, and connected services need internet access and may send data to the providers you configure. You choose those connections and are responsible for their costs.</p>
           </div>
         </div>
       </section>
 
       <section id="editions" class="chapter">
-        <p class="eyebrow reveal">04 · SAME APP, ANYWHERE</p>
-        <h2 class="reveal">Run it your way</h2>
-        <p class="chapter-lede reveal">One engine and one UI across every runtime, pick what fits.</p>
+        <p class="eyebrow reveal">GETTING STARTED</p>
+        <h2 class="reveal">Choose how to use Nekko</h2>
+        <p class="chapter-lede reveal">Download the desktop app to get started. If you prefer a technical setup, run Nekko in your browser, in Docker, or from a terminal.</p>
         <div class="grid four reveal">
-          <div class="card glass"><div class="fi">🖥</div><h3>Desktop</h3><p>Native app for macOS, Windows, Linux.</p><span class="ok">● Available</span></div>
-          <div class="card glass"><div class="fi">🌐</div><h3>Self-hosted web</h3><p><code>npx kotrain</code>, the same UI in your browser, fully offline.</p><span class="ok">● Available</span></div>
-          <div class="card glass"><div class="fi">🐳</div><h3>Docker</h3><p><code>docker compose up</code>, workspaces as volumes, local models via host network.</p><span class="ok">● Available</span></div>
-          <div class="card glass"><div class="fi">☁️</div><h3>Kotrain Cloud <span class="chip">Paid</span></h3><p>Hosted, with an always-on <b>Zero-Data-Retention</b> mode, cloud history + files, and your phone driving your <em>local</em> model via a secure E2E relay.</p><span class="dim">○ Planned</span></div>
+          <div class="card glass"><span class="mf-num">01</span><h3>Desktop app</h3><p>Download for macOS, Windows, or Linux.</p><a class="card-link" href="#download">Get the app</a></div>
+          <div class="card glass"><span class="mf-num">02</span><h3>In your browser</h3><p>Run it yourself from a source checkout: <code>npm install</code>, then <code>npm run web</code>. Tasks using AI on your computer can work offline after setup.</p><a class="card-link" href="https://github.com/nekko-labs/agent-nekko#readme">Setup guide</a></div>
+          <div class="card glass"><span class="mf-num">03</span><h3>In Docker</h3><p>For container-based setups, run <code>docker compose up</code> from a source checkout and connect your project folders and model servers.</p><a class="card-link" href="https://github.com/nekko-labs/agent-nekko/blob/main/docker-compose.yml">Compose setup</a></div>
+          <div class="card glass"><span class="mf-num">04</span><h3>From other tools</h3><p>The CLI is Nekko's command-line interface. Use the current <code>kotrain</code> command, or <code>kotrain mcp</code> to connect tools that support the MCP standard.</p><a class="card-link" href="https://github.com/nekko-labs/agent-nekko/blob/main/apps/cli/README.md">Client setup</a></div>
         </div>
-        <p class="micro center reveal">Kotrain Cloud keeps inference and tools on your machine, the relay is an end-to-end-encrypted pipe to your own paired agent, so using your local model stays private by design.</p>
+        <p class="micro center reveal">The rebrand source adds an <code>agent-nekko</code> executable, but it is not yet in published packages. Use current Kotrain commands and installers until release. The planned npm package is <code>agent-nekko</code>, not yet published.</p>
+      </section>
+
+      <section id="roadmap" class="chapter roadmap">
+        <p class="eyebrow reveal">FUTURE IDEAS · NOT AVAILABLE TODAY</p>
+        <h2 class="reveal">What we are planning next</h2>
+        <p class="chapter-lede reveal">Alongside planned voice and computer control, we are exploring ways to share work across a team. These ideas have no committed delivery date.</p>
+        <div class="grid two reveal">
+          <div class="card glass"><span class="chip">Exploring</span><h3>Share work across team computers</h3><p>Use spare team computers to divide up jobs, with shared workflows to organize the steps. This is a future direction, not an available team-computing service.</p></div>
+          <div class="card glass"><span class="chip">Exploring</span><h3>Run project checks on your machines</h3><p>Explore a local CI and task-runner alternative for repeat jobs such as code tests, with possible cloud runners for extra capacity. This is not a promise of GitHub Actions compatibility.</p></div>
+        </div>
       </section>
 
       <section id="download" class="chapter download">
-        <p class="eyebrow reveal">05 · TOUCHDOWN</p>
-        <h2 class="reveal">Download Kotrain</h2>
-        <p class="chapter-lede reveal">Free and open source. We picked the build for your machine, change it if we guessed wrong.</p>
+        <p class="eyebrow reveal">READY WHEN YOU ARE</p>
+        <h2 class="reveal">Download Agent Nekko</h2>
+        <p class="chapter-lede reveal">Free, open-source software. Pick the build for your machine. Releases currently carry the Kotrain name; model providers and hardware may have their own costs.</p>
 
         <!-- smart download: primary button = detected OS/arch, caret = every other build -->
         <div class="dl-cta reveal">
           <div class="dl-pick" data-dl-pick>
-            <a class="dl-main" data-dl-main href="https://github.com/nekko-labs/kotrain/releases/latest">
-              <span class="dl-main-t" data-dl-title>Download Kotrain</span>
+            <a class="dl-main" data-dl-main href="https://github.com/nekko-labs/agent-nekko/releases/latest">
+              <span class="dl-main-t" data-dl-title>Download Agent Nekko</span>
               <small class="dl-main-v" data-dl-ver></small>
             </a>
             <button
@@ -440,17 +488,17 @@
         </div>
 
         <p class="micro center reveal">Or build from source: <code>git clone</code> · <code>npm install</code> · <code>npm run dev</code></p>
-        <p class="micro center reveal">macOS says it's "damaged"? It's just unsigned, run <code>xattr -cr "/Applications/Kotrain.app"</code> once, then open. <a href="https://github.com/nekko-labs/kotrain#macos-kotrain-is-damaged-and-cant-be-opened-">Details</a></p>
+        <p class="micro center reveal">Current macOS builds are unsigned. Only if you trust the downloaded release, clear quarantine with <code>xattr -cr "/Applications/Kotrain.app"</code>. <a href="https://github.com/nekko-labs/agent-nekko#macos-kotrain-is-damaged-and-cant-be-opened-">Read the install guidance</a></p>
         <p class="micro center reveal">Windows builds are unsigned for now (SmartScreen: More info → Run anyway); free code signing by the <a href="https://signpath.org" target="_blank" rel="noopener">SignPath Foundation</a> is in progress.</p>
       </section>
     </main>
 
     <footer>
-      <span class="footer-brand"><img class="brand-mark" src="/favicon.svg" alt="" width="18" height="18" /> KOTRAIN</span>
-      <span class="micro">kotrain.com · MIT licensed · made for people who run their own models</span>
-      <a href="https://github.com/nekko-labs/kotrain" target="_blank" rel="noopener">github.com/nekko-labs/kotrain</a>
+      <span class="footer-brand"><img class="brand-mark" src="/favicon.svg?v=agent-nekko-3" alt="" width="22" height="22" /> AGENT NEKKO</span>
+      <span class="micro">agentnekko.com · Backup: nekkoagent.com · MIT · Nekko Labs</span>
+      <a href="https://github.com/nekko-labs/agent-nekko" target="_blank" rel="noopener">github.com/nekko-labs/agent-nekko</a>
     </footer>
 
-    <script src="site.js?v=2"></script>
+    <script src="site.js?v=3"></script>
   </body>
 </html>

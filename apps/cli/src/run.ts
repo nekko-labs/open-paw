@@ -2,7 +2,9 @@ import { readFileSync } from 'node:fs';
 import { stdin } from 'node:process';
 import { getClient, resolveModel, runChat, approvalPolicy, dataDir, type ChatOutputEvent } from './lib.js';
 import { runMcpServer } from './mcp.js';
+import { resolveInstall } from './skills.js';
 import { VERSION } from './version.js';
+import { cliCommand, triggerLabel } from '@kotrain/shared';
 import type { AgentEvent, NewTask } from '@kotrain/shared';
 
 export const EXIT_CODES = {
@@ -39,16 +41,20 @@ export function parseFlags(argv: string[]): { _: string[]; flags: Record<string,
   return { _, flags };
 }
 
-const HELP = `Kotrain CLI (kotrain ${VERSION}), drive your local agent from the terminal.
+const HELP = `Agent Nekko CLI (agent-nekko ${VERSION}), drive your local agent from the terminal.
 
 Usage:
-  kotrain status|sessions|watch [--json]
-  kotrain chat "<prompt>" [--approve guardrails|yolo|ask] [opts]
-  kotrain workspace list|add|remove|index|search [opts]
-  kotrain prompts|tasks|skills|tools|models [opts]
-  kotrain train start|status|hint|stop [opts]
-  kotrain mcp
-  kotrain --help | --version
+  agent-nekko status|sessions|watch [--json]
+  agent-nekko chat "<prompt>" [--approve guardrails|yolo|ask] [opts]
+  agent-nekko workspace list|add|remove|index|search [opts]
+  agent-nekko prompts|tasks|skills|tools|models [opts]
+  agent-nekko workflow list|run <name>|trigger <command>|runs [--json]
+  agent-nekko train start|status|hint|stop [opts]
+  agent-nekko mcp
+  agent-nekko --help | --version
+
+Legacy aliases: kotrain, nekkos (same commands and options).
+Install: npm install -g kotrain (npm package name unchanged).
 
 Target:
   --url <http://host:port>       Remote server (or KOTRAIN_URL)
@@ -97,7 +103,7 @@ async function promptInput(args: string[], flags: Record<string, string | boolea
   if (file) return readFileSync(file, 'utf8');
   if (args[1] === '-' || (!args[1] && !stdin.isTTY)) return readStdin();
   if (args[1]) return args[1];
-  throw new CliError('Usage: kotrain chat "<prompt>" (or provide --file / stdin)', EXIT_CODES.usage);
+  throw new CliError('Usage: agent-nekko chat "<prompt>" (or provide --file / stdin)', EXIT_CODES.usage);
 }
 
 function taskFrom(flags: Record<string, string | boolean>): NewTask {
@@ -183,7 +189,7 @@ export async function runCli(argv: string[]): Promise<void> {
           remote,
         }, true);
       }
-      console.log(`Kotrain, ${value(flags, 'url') || process.env.KOTRAIN_URL || dataDir()}`);
+      console.log(`Agent Nekko, ${value(flags, 'url') || process.env.KOTRAIN_URL || dataDir()}`);
       console.log(`Providers: ${s.providers.map((p) => `${p.label} (${p.id})`).join(', ') || 'none'}`);
       console.log(`Default model: ${s.defaultModelId ?? '-'}`);
       console.log(`Workspaces: ${s.workspaces.map((w) => w.name).join(', ') || 'none'}`);
@@ -302,7 +308,7 @@ export async function runCli(argv: string[]): Promise<void> {
           json,
         );
       }
-      throw new CliError('Usage: kotrain workspace list|add|remove|index|search', EXIT_CODES.usage);
+      throw new CliError('Usage: agent-nekko workspace list|add|remove|index|search', EXIT_CODES.usage);
     }
     if (cmd === 'prompts') return void print((await client.getSettings()).prompts ?? [], json);
     if (cmd === 'tasks') {
@@ -316,21 +322,76 @@ export async function runCli(argv: string[]): Promise<void> {
       if (sub === 'delete') {
         return void print(await client.deleteTask(value(flags, 'id') ?? _[2] ?? ''), json);
       }
-      throw new CliError('Usage: kotrain tasks list|add|run|delete', EXIT_CODES.usage);
+      throw new CliError('Usage: agent-nekko tasks list|add|run|delete', EXIT_CODES.usage);
+    }
+    if (cmd === 'workflow' || cmd === 'workflows') {
+      const sub = _[1] ?? 'list';
+      if (sub === 'list') {
+        const { workflows } = await client.listWorkflows();
+        return void print(
+          json
+            ? workflows
+            : workflows.map((w) => ({
+                name: w.name,
+                command: cliCommand(w),
+                category: w.category,
+                enabled: w.enabled,
+                steps: w.steps.length,
+                triggers: w.triggers.map((t) => triggerLabel(t, w)).join('; '),
+                last: w.lastStatus ?? '-',
+              })),
+          json,
+        );
+      }
+      if (sub === 'runs') {
+        const { runs } = await client.listWorkflows();
+        return void print(runs, json);
+      }
+      if (sub === 'run' || sub === 'trigger') {
+        // Named by CLI command (what a `cli` trigger answers to), by exact name,
+        // or by id, so a script doesn't have to know a uuid.
+        const target = value(flags, 'name') ?? _[2] ?? '';
+        if (!target) throw new CliError('Usage: agent-nekko workflow run <name>', EXIT_CODES.usage);
+        // `run` fires the named workflow directly; `trigger` offers the name as a
+        // CLI event, so every workflow with a matching cli trigger reacts.
+        if (sub === 'trigger') {
+          const started = await client.dispatchWorkflowEvent({ kind: 'cli', command: target });
+          if (started.length === 0) {
+            throw new CliError(`No enabled workflow listens for the CLI command "${target}".`, EXIT_CODES.usage);
+          }
+          return void print(json ? started : started.map((r) => ({ run: r.id, status: r.status, message: r.message })), json);
+        }
+        const { workflows } = await client.listWorkflows();
+        const wf = workflows.find(
+          (w) => w.id === target || w.name === target || cliCommand(w) === target.toLowerCase(),
+        );
+        if (!wf) throw new CliError(`No workflow matches "${target}".`, EXIT_CODES.usage);
+        const run = await client.runWorkflow(wf.id);
+        if (!run) throw new CliError(`"${wf.name}" did not start (already running, or it has no steps).`, EXIT_CODES.usage);
+        if (run.status !== 'success') {
+          throw new CliError(`"${wf.name}" ${run.status}${run.message ? `: ${run.message}` : ''}`, EXIT_CODES.providerFailure);
+        }
+        return void print(json ? run : { workflow: wf.name, status: run.status, steps: run.steps.length }, json);
+      }
+      throw new CliError('Usage: agent-nekko workflow list|run <name>|trigger <command>|runs', EXIT_CODES.usage);
     }
     if (cmd === 'skills') {
       if (_[1] === 'install') {
         const id = value(flags, 'id') ?? _[2];
         if (!id) {
           throw new CliError(
-            'Usage: kotrain skills install <id> [--target kotrain|claude|codex]',
+            'Usage: agent-nekko skills install <id> [--target kotrain|claude|codex]',
             EXIT_CODES.usage,
           );
         }
+        // Vaizer skills only install with a payload snapshot; resolve it here
+        // so the slug vaizer.app publishes (`nyaa`) works, not just built-ins.
+        const { skillId, payload } = await resolveInstall(client, id);
         return void print(
           await client.installSkill(
-            id,
+            skillId,
             (value(flags, 'target') ?? 'kotrain') as import('@kotrain/shared').InstallTarget,
+            payload,
           ),
           json,
         );
@@ -377,7 +438,7 @@ export async function runCli(argv: string[]): Promise<void> {
         await client.startTrainingRun(run.id);
         return void print({ runId: run.id, sessionId: run.sessionId, status: 'running' }, json);
       }
-      throw new CliError('Usage: kotrain train start|status|hint|stop', EXIT_CODES.usage);
+      throw new CliError('Usage: agent-nekko train start|status|hint|stop', EXIT_CODES.usage);
     }
     throw new CliError(`Unknown command: ${cmd}`, EXIT_CODES.usage);
   } catch (e) {

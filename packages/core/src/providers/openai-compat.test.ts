@@ -24,6 +24,74 @@ function sseResponse(lines: string[]): Response {
 
 afterEach(() => vi.restoreAllMocks());
 
+describe('OpenAICompatProvider decode timing', () => {
+  /** Stream chunks with a real pause between them, so the clock has something to measure. */
+  function pacedResponse(steps: Array<{ line: string; delayMs?: number }>): Response {
+    const body = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        const enc = new TextEncoder();
+        for (const s of steps) {
+          if (s.delayMs) await new Promise((r) => setTimeout(r, s.delayMs));
+          controller.enqueue(enc.encode(s.line));
+        }
+        controller.close();
+      },
+    });
+    return new Response(body, { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
+  }
+
+  it('times generation only, leaving out the wait before the first token', async () => {
+    // 60ms of prompt processing, then ~40ms of generating. Only the second half
+    // is throughput; counting the first would report half the real rate.
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      pacedResponse([
+        { line: 'data: {"choices":[{"delta":{"content":"a"}}]}\n\n', delayMs: 60 },
+        { line: 'data: {"choices":[{"delta":{"content":"b"}}]}\n\n', delayMs: 40 },
+        { line: 'data: {"choices":[{"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":5,"completion_tokens":2}}\n\n' },
+        { line: 'data: [DONE]\n\n' },
+      ]),
+    );
+
+    let outputMs: number | undefined;
+    for await (const c of new OpenAICompatProvider(cfg).chat({ model: 'm', messages: [] })) {
+      if (c.type === 'usage') outputMs = c.outputMs;
+    }
+    expect(outputMs).toBeGreaterThanOrEqual(30);
+    expect(outputMs).toBeLessThan(60); // the pre-first-token wait is not in there
+  });
+
+  it('reports decode time for a response that only calls a tool', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      pacedResponse([
+        { line: 'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c1","function":{"name":"bash","arguments":"{}"}}]}}]}\n\n' },
+        { line: 'data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":5,"completion_tokens":9}}\n\n', delayMs: 15 },
+        { line: 'data: [DONE]\n\n' },
+      ]),
+    );
+
+    let outputMs: number | undefined;
+    for await (const c of new OpenAICompatProvider(cfg).chat({ model: 'm', messages: [] })) {
+      if (c.type === 'usage') outputMs = c.outputMs;
+    }
+    expect(outputMs).toBeGreaterThanOrEqual(10);
+  });
+
+  it('omits the timing when the model generated nothing', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      pacedResponse([
+        { line: 'data: {"choices":[{"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":5,"completion_tokens":0}}\n\n' },
+        { line: 'data: [DONE]\n\n' },
+      ]),
+    );
+
+    let saw = false;
+    for await (const c of new OpenAICompatProvider(cfg).chat({ model: 'm', messages: [] })) {
+      if (c.type === 'usage') { saw = true; expect(c.outputMs).toBeUndefined(); }
+    }
+    expect(saw).toBe(true);
+  });
+});
+
 describe('OpenAICompatProvider.chat', () => {
   it('streams text deltas and a usage event', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(

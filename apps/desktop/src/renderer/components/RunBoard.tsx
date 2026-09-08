@@ -6,7 +6,8 @@ import { LogSurface, StatTile } from './primitives/index.js';
 import { STATUS } from '../tokens.js';
 
 /**
- * Shared building blocks for the Training and Goals dashboards: the stats
+ * Shared building blocks for the Training dashboard (and the goal runs listed
+ * alongside it, which used to have a tab of their own): the stats
  * header tiles, the experiment "idea maze" (every idea the agent tried, growing
  * over time), the guidance composer, the activity log, and the run model
  * picker used by both new-run forms. Mostly pure presentation; all dashboard
@@ -334,7 +335,7 @@ export function IdeaMaze({ run }: { run: TrainingRun }) {
  * Guidance composer: fold a course-correction into the run's next iteration. Not a
  * chat, one steer at a time, queued as a pending hint and consumed on the next
  * iteration. `title`/`helper`/`buttonLabel` let a surface frame it its own way
- * (Goals presents it full-width as "Steer the mission").
+ * (a goal run frames it as "Steer the mission").
  */
 export function HintComposer({
   run,

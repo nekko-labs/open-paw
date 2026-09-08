@@ -32,7 +32,7 @@ describe('vaizer catalog snapshot', () => {
   it('urls point at the vaizer repo raw content', () => {
     expect(VAIZER_CATALOG_URL).toContain('nekko-labs/vaizer');
     expect(vaizerSkillMdUrl('nyaa')).toBe(
-      'https://raw.githubusercontent.com/nekko-labs/vaizer/main/plugins/nyaa/skills/nyaa/SKILL.md',
+      'https://raw.githubusercontent.com/nekko-labs/vaizer/main/plugins/vaizer/skills/nyaa/SKILL.md',
     );
   });
 });

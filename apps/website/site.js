@@ -46,9 +46,11 @@
     }
     if (!reduced) requestAnimationFrame(frame);
   }
-  resize();
-  window.addEventListener('resize', resize);
-  frame();
+  if (!canvas.hidden) {
+    resize();
+    window.addEventListener('resize', resize);
+    frame();
+  }
 
   // ---- scroll-driven reveals (IO + a viewport check so the hero shows even
   // where IO/rAF are throttled, e.g. embedded webviews) ----
@@ -72,8 +74,8 @@
   window.addEventListener('load', showInView);
 
   // ---- smart download: default to the visitor's machine, menu for everything else ----
-  const RELEASES = 'https://github.com/nekko-labs/kotrain/releases/latest';
-  const API = 'https://api.github.com/repos/nekko-labs/kotrain/releases/latest';
+  const RELEASES = 'https://github.com/nekko-labs/agent-nekko/releases/latest';
+  const API = 'https://api.github.com/repos/nekko-labs/agent-nekko/releases/latest';
 
   // Each build we publish, with the pattern that finds it in a release's assets.
   // `pick` is what the primary button chooses for a detected os+arch.
@@ -164,7 +166,7 @@
       const b = chosen();
       mainVer.textContent = version;
       if (!b) {
-        mainTitle.textContent = 'Download Kotrain';
+        mainTitle.textContent = 'Download Agent Nekko';
         main.href = RELEASES;
         main.title = mobile ? 'Install on your computer, then pair this phone' : 'All builds on GitHub Releases';
         return;
@@ -218,7 +220,8 @@
       const gap = 24;
       const r = root.getBoundingClientRect();
       const below = window.innerHeight - r.bottom - gap;
-      const above = r.top - gap;
+      const navBottom = document.querySelector('.nav')?.getBoundingClientRect().bottom || 0;
+      const above = r.top - Math.max(gap, navBottom + 12);
       const needed = menu.offsetHeight;
       const up = needed > below && above > below;
       menu.classList.toggle('up', up);
@@ -287,7 +290,7 @@
       note.textContent = `${b.fmt} · ${b.hint}. Not your machine? Use the arrow for every other build.`;
     } else {
       note.textContent = mobile
-        ? 'Kotrain runs on your computer. Install it there, then pair this phone to it over the encrypted relay.'
+        ? 'Agent Nekko runs on your computer. Choose a desktop build from the menu. Current installers still use the Kotrain name.'
         : 'Pick a build from the menu, or see them all on GitHub Releases.';
     }
   }

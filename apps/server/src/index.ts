@@ -138,15 +138,18 @@ async function main() {
     const onIndex = (s: unknown) => socket.send(JSON.stringify({ channel: IpcEvents.indexProgress, payload: s }));
     const onTerminal = (e: unknown) => socket.send(JSON.stringify({ channel: IpcEvents.terminalEvent, payload: e }));
     const onChanges = (e: unknown) => socket.send(JSON.stringify({ channel: IpcEvents.changesUpdated, payload: e }));
+    const onWorkflows = (s: unknown) => socket.send(JSON.stringify({ channel: IpcEvents.workflowsUpdated, payload: s }));
     host.events.on('agentEvent', onAgent);
     host.events.on('indexProgress', onIndex);
     host.events.on('terminalEvent', onTerminal);
     host.events.on('changesUpdated', onChanges);
+    host.events.on('workflowsUpdated', onWorkflows);
     socket.on('close', () => {
       host.events.off('agentEvent', onAgent);
       host.events.off('indexProgress', onIndex);
       host.events.off('terminalEvent', onTerminal);
       host.events.off('changesUpdated', onChanges);
+      host.events.off('workflowsUpdated', onWorkflows);
     });
   });
 
@@ -155,7 +158,7 @@ async function main() {
 
   await app.listen({ port: PORT, host: HOST });
   const url = `http://${isLocal ? 'localhost' : HOST}:${PORT}`;
-  console.log(`\n🐾 Kotrain web edition running at ${url}`);
+  console.log(`\nAgent Nekko web edition running at ${url}`);
   console.log(`   data dir: ${DATA_DIR}`);
   if (requireAuth) console.log(`   auth: token required (use Authorization: Bearer <token>; browser URLs may use ?token=… for WebSocket access)`);
   else if (!isLocal) console.log(`   ⚠ unauthenticated mode explicitly enabled; ensure an external auth layer protects this service.`);

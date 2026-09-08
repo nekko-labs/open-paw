@@ -21,6 +21,12 @@ export interface ChatRequest {
    * `chat_template_kwargs.enable_thinking`) and ignore it where unsupported.
    */
   think?: boolean;
+  /**
+   * Hard cap on tokens this response may generate. Without one, a model that
+   * degenerates into a loop streams until it fills its own context window, so
+   * every provider sends its native equivalent (`max_tokens`, `num_predict`).
+   */
+  maxOutputTokens?: number;
   signal?: AbortSignal;
 }
 
@@ -29,7 +35,19 @@ export type ProviderChunk =
   | { type: 'text'; delta: string }
   | { type: 'reasoning'; delta: string }
   | { type: 'tool_call'; call: ToolCall }
-  | { type: 'usage'; inputTokens: number; outputTokens: number }
+  | {
+      type: 'usage';
+      inputTokens: number;
+      outputTokens: number;
+      /**
+       * Milliseconds the model spent generating `outputTokens`: the decode phase
+       * only. It excludes queueing, prompt processing (time to first token), and
+       * everything that happens between responses, so `outputTokens / outputMs`
+       * is the throughput figure a local runtime reports for the same run.
+       * Omitted when the provider gives us nothing to measure.
+       */
+      outputMs?: number;
+    }
   | { type: 'done' };
 
 export interface Provider {

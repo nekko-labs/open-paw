@@ -4,6 +4,11 @@ on:
   push:
     tags:
       - 'v*'
+  # Dispatched at a tag by version-release.yml (a tag pushed with GITHUB_TOKEN
+  # can't trigger the push event above), and usable by hand to re-run a release
+  # for an existing tag. Run it with `--ref v1.2.3` so `github.ref_name` is the
+  # tag, which is what every step below reads.
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -184,7 +189,16 @@ jobs:
           if [[ "$GITHUB_REF_NAME" == *-* ]]; then
             prerelease=true
           fi
-          release=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$GITHUB_REF_NAME")
+          # Look the release up by listing rather than via /releases/tags/{tag}.
+          # That endpoint only resolves *published* releases and 404s on a
+          # draft, which is exactly what electron-builder just created, so the
+          # job could never publish the thing it was written to publish.
+          release=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq "map(select(.tag_name == \"$GITHUB_REF_NAME\")) | first")
+          if [ -z "$release" ] || [ "$release" = "null" ]; then
+            echo "No release found for tag $GITHUB_REF_NAME." >&2
+            exit 1
+          fi
           release_id=$(jq -r '.id' <<<"$release")
           existing_body=$(jq -r '.body // ""' <<<"$release")
           generated_body=$(gh api --method POST \
@@ -253,7 +267,7 @@ jobs:
           publish_status=${PIPESTATUS[0]}
           set -e
           if [ "$publish_status" -ne 0 ]; then
-            echo 'npm publish failed. Configure the npm Trusted Publisher for nekko-labs/kotrain/release.yml, or provide NPM_TOKEN during bootstrap.' >&2
+            echo 'npm publish failed. Configure the npm Trusted Publisher for nekko-labs/agent-nekko/release.yml, or provide NPM_TOKEN during bootstrap.' >&2
             exit "$publish_status"
           fi
         env:

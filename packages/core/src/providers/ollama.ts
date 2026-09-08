@@ -1,5 +1,6 @@
 import type { ModelInfo, ProviderConfig, ToolCall } from '@kotrain/shared';
 import type { Provider, ChatRequest, ProviderChunk } from './types.js';
+import { DecodeClock } from './decode-clock.js';
 
 /**
  * Native Ollama client. Ollama also exposes an OpenAI-compatible endpoint, but
@@ -81,7 +82,12 @@ export class OllamaProvider implements Provider {
     const body = {
       model: req.model,
       stream: true,
-      options: { temperature: req.temperature ?? 0.7 },
+      // `num_predict` is Ollama's output cap; without it a looping model runs
+      // until it fills its context window.
+      options: {
+        temperature: req.temperature ?? 0.7,
+        ...(req.maxOutputTokens ? { num_predict: req.maxOutputTokens } : {}),
+      },
       // Ollama's native reasoning toggle (thinking models only). Left off the
       // body when undefined so non-reasoning models are unaffected.
       ...(req.think !== undefined ? { think: req.think } : {}),
@@ -101,6 +107,8 @@ export class OllamaProvider implements Provider {
     const reader = res.body.getReader();
     const dec = new TextDecoder();
     let buf = '';
+    // Fallback decode timer, used only if the server omits `eval_duration`.
+    const decode = new DecodeClock();
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
@@ -116,9 +124,16 @@ export class OllamaProvider implements Provider {
         } catch {
           continue;
         }
-        if (msg.message?.thinking) yield { type: 'reasoning', delta: msg.message.thinking as string };
-        if (msg.message?.content) yield { type: 'text', delta: msg.message.content };
+        if (msg.message?.thinking) {
+          decode.mark();
+          yield { type: 'reasoning', delta: msg.message.thinking as string };
+        }
+        if (msg.message?.content) {
+          decode.mark();
+          yield { type: 'text', delta: msg.message.content };
+        }
         if (msg.message?.tool_calls) {
+          decode.mark();
           for (const tc of msg.message.tool_calls) {
             const call: ToolCall = {
               id: `call_${Math.abs(hash(JSON.stringify(tc)))}`,
@@ -129,10 +144,17 @@ export class OllamaProvider implements Provider {
           }
         }
         if (msg.done) {
+          decode.stop();
+          // Ollama times its own decode phase and reports it in nanoseconds. That
+          // beats anything we can measure out here (it excludes transport as well
+          // as prompt processing) and is the figure `ollama run --verbose` prints,
+          // so prefer it and fall back to our clock only if it's absent.
+          const evalNs = Number(msg.eval_duration);
           yield {
             type: 'usage',
             inputTokens: msg.prompt_eval_count ?? 0,
             outputTokens: msg.eval_count ?? 0,
+            outputMs: evalNs > 0 ? Math.max(1, Math.round(evalNs / 1e6)) : decode.elapsed(),
           };
           yield { type: 'done' };
           return;

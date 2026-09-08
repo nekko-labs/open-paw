@@ -15,6 +15,7 @@ export * from './files.js';
 export * from './design.js';
 export * from './tasks.js';
 export * from './training.js';
+export * from './workflows.js';
 export * from './skills.js';
 export * from './skills-market.js';
 export * from './vaizer.js';

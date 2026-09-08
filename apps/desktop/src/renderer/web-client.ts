@@ -20,6 +20,7 @@ function makeWebClient(): KotrainApi {
   const changesCbs = new Set<(e: { sessionId: string }) => void>();
   const tasksCbs = new Set<(t: import('@kotrain/shared').AutomationTask[]) => void>();
   const trainingCbs = new Set<(r: import('@kotrain/shared').TrainingRun[]) => void>();
+  const workflowCbs = new Set<(s: import('@kotrain/shared').WorkflowsSnapshot) => void>();
   // Server build version captured when this tab loaded (for refresh detection).
   let loadVersion: string | null = null;
   const dispatchEvent = (channel: string, payload: any) => {
@@ -29,6 +30,7 @@ function makeWebClient(): KotrainApi {
     else if (channel === IpcEvents.changesUpdated) changesCbs.forEach((cb) => cb(payload));
     else if (channel === IpcEvents.tasksUpdated) tasksCbs.forEach((cb) => cb(payload));
     else if (channel === IpcEvents.trainingUpdated) trainingCbs.forEach((cb) => cb(payload));
+    else if (channel === IpcEvents.workflowsUpdated) workflowCbs.forEach((cb) => cb(payload));
   };
 
   // Relay transport: when the page is opened with ?relay=&room=&key=[&pair=],
@@ -358,6 +360,16 @@ function makeWebClient(): KotrainApi {
     stopTrainingRun: (id) => call(IpcChannels.trainingStop, id),
     addTrainingHint: (id, text) => call(IpcChannels.trainingHint, id, text),
 
+    listWorkflows: () => call(IpcChannels.workflowsList),
+    createWorkflow: (input) => call(IpcChannels.workflowCreate, input),
+    updateWorkflow: (id, patch) => call(IpcChannels.workflowUpdate, id, patch),
+    deleteWorkflow: (id) => call(IpcChannels.workflowDelete, id),
+    duplicateWorkflow: (id) => call(IpcChannels.workflowDuplicate, id),
+    runWorkflow: (id) => call(IpcChannels.workflowRun, id),
+    cancelWorkflowRun: (runId) => call(IpcChannels.workflowCancel, runId),
+    listWorkflowRuns: (workflowId) => call(IpcChannels.workflowRuns, workflowId),
+    dispatchWorkflowEvent: (event) => call(IpcChannels.workflowEvent, event),
+
     listConnectors: () => call(IpcChannels.connectorsList),
     connectConnector: (kind, t, settings) => call(IpcChannels.connectorConnect, kind, t, settings),
     disconnectConnector: (kind) => call(IpcChannels.connectorDisconnect, kind),
@@ -432,6 +444,10 @@ function makeWebClient(): KotrainApi {
     onTrainingUpdated: (cb) => {
       trainingCbs.add(cb);
       return () => trainingCbs.delete(cb);
+    },
+    onWorkflowsUpdated: (cb) => {
+      workflowCbs.add(cb);
+      return () => workflowCbs.delete(cb);
     },
     // A browser tab has no OS handing it `kotrain://` URLs, so this is the
     // honest implementation rather than a missing one.

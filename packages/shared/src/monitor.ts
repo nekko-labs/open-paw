@@ -2,7 +2,7 @@
  * Resource monitoring: what the HUD chip and the chat's monitor dock can show.
  *
  * Four independent monitors, each of which the user can switch off from the HUD.
- * Off means off: the renderer stops asking for that source, so no `nvidia-smi`
+ * Off means off: the renderer stops asking for that source, so no GPU probe
  * process is spawned and no CPU times are sampled for a monitor nobody is
  * looking at. GPU utilization and VRAM come from the same probe, so either one
  * being on keeps that probe alive; CPU and memory share the system probe the
@@ -24,8 +24,10 @@ export const MONITOR_LABELS: Record<MonitorKind, string> = {
 export const MONITOR_HINTS: Record<MonitorKind, string> = {
   cpu: 'Processor load across all cores.',
   memory: 'System RAM in use.',
-  gpu: 'GPU utilization (nvidia-smi).',
-  vram: 'GPU memory in use (nvidia-smi).',
+  gpu: 'GPU utilization.',
+  // Apple Silicon has no dedicated VRAM, so this is the GPU's share of the
+  // unified pool there; the meter renames itself to match what it is reading.
+  vram: 'GPU memory in use.',
 };
 
 /** All on: the numbers matter most when a local model is running. */

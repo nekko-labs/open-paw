@@ -1,10 +1,10 @@
 import React, { useEffect } from 'react';
-import { useStore, type View } from './store.js';
+import { useStore, viewEnabled, type View } from './store.js';
 import { useT } from './i18n.js';
 import { SHORTCUTS } from './shortcuts.js';
 import { hasAppChrome } from './chrome.js';
 import { TitleBar } from './components/TitleBar.js';
-import { Mascot, AphelionAvatar } from './components/Mascot.js';
+import { Mascot, NekkoAvatar } from './components/Mascot.js';
 import { ResourceHud } from './components/ResourceMonitor.js';
 import { Toasts } from './components/Toasts.js';
 import { CommandPalette } from './components/CommandPalette.js';
@@ -15,7 +15,7 @@ import { WorkbenchView } from './views/WorkbenchView.js';
 import { DesignBoardView } from './views/DesignBoardView.js';
 import { SkillsView } from './views/SkillsView.js';
 import { TrainingView } from './views/TrainingView.js';
-import { GoalsView } from './views/GoalsView.js';
+import { WorkflowsView } from './views/WorkflowsView.js';
 import { CommandCenterView } from './views/CommandCenterView.js';
 import { ModelsView } from './views/ModelsView.js';
 import { ConnectorsView } from './views/ConnectorsView.js';
@@ -25,7 +25,7 @@ import {
   CommandHudIcon,
   SkillsColorIcon,
   TrainingColorIcon,
-  GoalsColorIcon,
+  WorkflowsColorIcon,
   DesignColorIcon,
   ModelsColorIcon,
   ConnectorsColorIcon,
@@ -34,14 +34,14 @@ import {
 } from './navIcons.js';
 
 /** The Agent destination wears Aphelion herself, so the cat is the way in. */
-const AgentCatIcon = (_p: { className?: string }) => <AphelionAvatar size={22} />;
+const AgentCatIcon = (_p: { className?: string }) => <NekkoAvatar size={22} />;
 
 const NAV: Array<{ view: View; labelKey: string; Icon: (p: { className?: string }) => React.JSX.Element }> = [
   { view: 'command', labelKey: 'nav.command', Icon: CommandHudIcon },
   { view: 'chat', labelKey: 'nav.chat', Icon: AgentCatIcon },
   { view: 'skills', labelKey: 'nav.skills', Icon: SkillsColorIcon },
   { view: 'training', labelKey: 'nav.training', Icon: TrainingColorIcon },
-  { view: 'goals', labelKey: 'nav.goals', Icon: GoalsColorIcon },
+  { view: 'workflows', labelKey: 'nav.workflows', Icon: WorkflowsColorIcon },
   { view: 'design', labelKey: 'nav.design', Icon: DesignColorIcon },
   { view: 'models', labelKey: 'nav.models', Icon: ModelsColorIcon },
   { view: 'connectors', labelKey: 'nav.connectors', Icon: ConnectorsColorIcon },
@@ -50,11 +50,21 @@ const NAV: Array<{ view: View; labelKey: string; Icon: (p: { className?: string 
 ];
 
 /** Phone bottom-tab destinations (the remote-control essentials). */
-const MOBILE_NAV: View[] = ['command', 'chat', 'training', 'goals', 'settings'];
+const MOBILE_NAV: View[] = ['command', 'chat', 'training', 'workflows', 'settings'];
 
 export function App() {
   const { view, setView, mascotMood, settings, providers, refreshSettings, refreshProviders, refreshSessions, refreshTerminals } = useStore();
   const t = useT();
+
+  // Experimental surfaces only exist in the nav once their Settings flag is on.
+  const visibleNav = NAV.filter((n) => viewEnabled(n.view, settings));
+  const mobileNav = MOBILE_NAV.filter((v) => viewEnabled(v, settings));
+
+  // If the surface you're looking at gets switched off (say from another
+  // client over the same settings file), land somewhere real.
+  useEffect(() => {
+    if (!viewEnabled(view, settings)) setView('command');
+  }, [view, settings, setView]);
 
   useEffect(() => {
     refreshSettings();
@@ -107,7 +117,7 @@ export function App() {
         off = window.kotrain.onAgentEvent((e) => {
           if (e.type === 'done' && document.hidden) {
             LocalNotifications.schedule({
-              notifications: [{ id: nid++, title: 'Kotrain finished', body: 'Your task is ready in Kotrain.' }],
+              notifications: [{ id: nid++, title: 'Agent Nekko finished', body: 'Your task is ready in Agent Nekko.' }],
             }).catch(() => {});
           }
         });
@@ -157,10 +167,10 @@ export function App() {
                 shown twice and the rail starts on its first destination. */}
             {!hasAppChrome && (
               <div className="mb-3 flex h-9 items-center px-1.5">
-                <span className="rail-label text-[15px] font-semibold tracking-tight">Kotrain</span>
+                <span className="rail-label text-[15px] font-semibold tracking-tight">Agent Nekko</span>
               </div>
             )}
-            {NAV.map(({ view: v, labelKey, Icon }) => (
+            {visibleNav.map(({ view: v, labelKey, Icon }) => (
               <button
                 key={v}
                 className={`nav-item ${view === v ? 'active' : ''}`}
@@ -189,7 +199,7 @@ export function App() {
           {view === 'chat' && <WorkbenchView />}
           {view === 'skills' && <SkillsView />}
           {view === 'training' && <TrainingView />}
-          {view === 'goals' && <GoalsView />}
+          {view === 'workflows' && <WorkflowsView />}
           {view === 'design' && <DesignBoardView />}
           {view === 'models' && <ModelsView />}
           {view === 'connectors' && <ConnectorsView />}
@@ -204,7 +214,7 @@ export function App() {
         className="fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t border-line md:hidden"
         style={{ background: 'var(--paper)', paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
-        {MOBILE_NAV.map((v) => {
+        {mobileNav.map((v) => {
           const item = NAV.find((n) => n.view === v)!;
           const { Icon } = item;
           return (

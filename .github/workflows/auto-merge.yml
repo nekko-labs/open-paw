@@ -1,9 +1,19 @@
 name: Auto-merge
 
 # Turns on GitHub's native auto-merge for every non-draft PR, so it merges
-# itself once required checks pass. Requires "Allow auto-merge" enabled in repo
-# settings and required status checks on the target branch (otherwise a
-# mergeable PR merges immediately).
+# itself once required checks pass, then makes sure the merge actually releases.
+#
+# Requires "Allow auto-merge" enabled in repo settings and required status
+# checks on the target branch (otherwise a mergeable PR merges immediately).
+#
+# Why this also dispatches version-release: a merge performed with
+# GITHUB_TOKEN never starts a workflow run, so the `push` trigger on
+# version-release.yml has never once fired here. Every run in this repo's
+# history is `schedule` or `workflow_dispatch`; the push path is dead on
+# arrival for bot merges, which is what silently skipped v0.6.0's release and
+# left v0.6.1 waiting for a hand dispatch. Waiting for the merge and
+# dispatching explicitly is the same trick version-release already uses to
+# reach release.yml and docker.yml. The schedule stays as the backstop.
 
 on:
   pull_request:
@@ -12,14 +22,49 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  # Needed to dispatch version-release.yml once the PR lands.
+  actions: write
 
 jobs:
   auto-merge:
     if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
+    # Long enough to outlast CI on a slow day, short enough that a PR left open
+    # for review does not hold a runner all afternoon.
+    timeout-minutes: 35
     steps:
       - name: Enable auto-merge (squash)
         run: gh pr merge --auto --squash "$PR_URL"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}
+
+      # Dispatched for every merge, not just version bumps: version-release is
+      # idempotent (it stops when the version is already tagged), so a merge
+      # that does not bump the version costs one no-op run and a merge that
+      # does releases within seconds instead of waiting for the next tick.
+      - name: Release the merge
+        run: |
+          for _ in $(seq 1 90); do
+            state=$(gh pr view "$PR_URL" --json state -q .state 2>/dev/null || echo UNKNOWN)
+            case "$state" in
+              MERGED)
+                gh workflow run version-release.yml --repo "$GH_REPO" --ref main
+                echo "Merged. Dispatched version-release for $PR_URL"
+                exit 0
+                ;;
+              CLOSED)
+                echo "PR was closed without merging. Nothing to release."
+                exit 0
+                ;;
+            esac
+            sleep 20
+          done
+          echo "::warning::$PR_URL had not merged after 30 minutes, so no release was dispatched. The */15 schedule on version-release.yml remains the backstop."
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          # This job never checks out the repo, so gh has no git remote to infer
+          # from. `gh pr view` survives that because it is given a full URL;
+          # `gh workflow run` does not, and died with "not a git repository".
+          GH_REPO: ${{ github.repository }}

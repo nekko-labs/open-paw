@@ -1,6 +1,6 @@
 {
   "name": "@kotrain/server",
-  "version": "0.5.1",
+  "version": "0.6.1",
   "private": true,
   "type": "module",
   "description": "Kotrain self-hosted web server, same engine + UI as the desktop app.",
@@ -18,10 +18,10 @@
   "dependencies": {
     "@fastify/static": "^10.1.2",
     "@fastify/websocket": "^11.3.0",
-    "kotrain": "*",
     "@kotrain/host": "*",
     "@kotrain/shared": "*",
-    "fastify": "^5.11.2"
+    "fastify": "^5.11.2",
+    "kotrain": "*"
   },
   "devDependencies": {
     "esbuild": "^0.25.12"

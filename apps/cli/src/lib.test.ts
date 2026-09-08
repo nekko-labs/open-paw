@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { approvalPolicy, runChat, type Client } from './lib.js';
 import { CliError, EXIT_CODES, exitCodeForError, parseFlags, runCli } from './run.js';
 
@@ -22,6 +23,49 @@ function fakeClient(events: any[] = [], mode: 'ask' | 'guardrails' | 'yolo' = 'a
   } as unknown as Client;
   return { client, approvals, modes };
 }
+
+describe('CLI identity and compatibility', () => {
+  it('publishes under kotrain with canonical and legacy executable aliases', () => {
+    const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+    expect(manifest.name).toBe('kotrain');
+    expect(manifest.repository.url).toBe('git+https://github.com/nekko-labs/agent-nekko.git');
+    expect(manifest.bin).toEqual({
+      'agent-nekko': 'dist/index.js',
+      kotrain: 'dist/index.js',
+      nekkos: 'dist/index.js',
+    });
+  });
+
+  it.each([{ argv: [] }, { argv: ['--help'] }, { argv: ['help'] }])('leads help with Agent Nekko for $argv', async ({ argv }) => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      await runCli(argv);
+      const help = String(log.mock.calls[0][0]);
+      expect(help).toMatch(/^Agent Nekko CLI \(agent-nekko /);
+      expect(help).toContain('agent-nekko status|sessions|watch');
+      expect(help).toContain('Legacy aliases: kotrain, nekkos');
+      expect(help).toContain('KOTRAIN_URL');
+      expect(help).toContain('KOTRAIN_TOKEN');
+      expect(help).toContain('KOTRAIN_DATA_DIR');
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it.each(['workspace', 'tasks', 'workflow', 'train'])('uses canonical %s usage without changing exit codes', async (command) => {
+    await expect(runCli([command, 'invalid', '--url', 'http://127.0.0.1:1'])).rejects.toMatchObject({
+      message: expect.stringContaining(`Usage: agent-nekko ${command}`),
+      exitCode: EXIT_CODES.usage,
+    });
+  });
+
+  it('keeps the legacy skill target in canonical usage', async () => {
+    await expect(runCli(['skills', 'install', '--url', 'http://127.0.0.1:1'])).rejects.toMatchObject({
+      message: 'Usage: agent-nekko skills install <id> [--target kotrain|claude|codex]',
+      exitCode: EXIT_CODES.usage,
+    });
+  });
+});
 
 describe('CLI policy and flag parsing', () => {
   it('parses flags without consuming positional prompts', () => {

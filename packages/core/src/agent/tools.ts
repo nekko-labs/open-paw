@@ -94,6 +94,8 @@ export const BUILTIN_TOOLS: ToolSpec[] = [
       properties: {
         title: { type: 'string', description: 'Short label for the sub-agent tab.' },
         task: { type: 'string', description: 'The full, standalone instruction for the sub-agent.' },
+        provider_id: { type: 'string', description: 'Optional enabled provider ID from the routing guidance. Defaults to the parent provider. Changing provider requires an explicit model_id.' },
+        model_id: { type: 'string', description: 'Optional exact model ID known to belong to the target provider; never guess. Defaults to the parent model only when keeping the parent provider. The target is validated and failures never fall back to another model or provider.' },
       },
       required: ['task'],
     },

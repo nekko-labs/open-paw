@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type { GpuStats, MonitorKind, SystemStats } from '@kotrain/shared';
-import { MONITOR_HINTS, MONITOR_KINDS, MONITOR_LABELS, monitorSources, resolveMonitors } from '@kotrain/shared';
+import { MONITOR_HINTS, MONITOR_KINDS, MONITOR_LABELS, gpuMemoryLabel, monitorSources, resolveMonitors } from '@kotrain/shared';
 import { useStore } from '../store.js';
 import { ChevronIcon } from '../icons.js';
 
@@ -15,7 +15,8 @@ import { ChevronIcon } from '../icons.js';
  *    floating on top of it, so the two never overlap.
  *
  * Sampling follows the toggles: a monitor that is switched off is not polled, so
- * turning GPU and VRAM off really does stop spawning `nvidia-smi`.
+ * turning GPU and VRAM off really does stop spawning the GPU probe (`nvidia-smi`
+ * on Windows and Linux, `ioreg` on macOS).
  */
 
 const POLL_MS = 4000;
@@ -104,7 +105,7 @@ function setMonitor(current: Record<MonitorKind, boolean>, kind: MonitorKind, on
 
 /**
  * Latest readings for the enabled monitors. Returns nulls for anything switched
- * off (and for a probe that isn't available, e.g. no NVIDIA GPU).
+ * off (and for a probe the host can't answer, e.g. a PC with no NVIDIA driver).
  */
 export function useResourceSample(): ResourceSample {
   const ready = useStore((s) => s.settings !== null);
@@ -149,9 +150,10 @@ function Meter({ label, value, pct, sub }: { label: string; value: string; pct: 
 /* ── The dock: full monitoring section in the chat's context panel ────────── */
 
 /**
- * The chat window's monitoring section: CPU load, memory use, and (when an NVIDIA
- * GPU is present) GPU utilization and VRAM, aggregate plus per device. Pinned at
- * the foot of the context panel so it stays put while the sources above scroll.
+ * The chat window's monitoring section: CPU load, memory use, and (when the host
+ * can read a GPU) its utilization and memory, aggregate plus per device. Pinned
+ * at the foot of the context panel so it stays put while the sources above
+ * scroll.
  *
  * It publishes its own rectangle to the store, which is what lets the floating
  * chip warp into this section instead of covering it.
@@ -198,6 +200,9 @@ export function ResourceDock() {
 
   const vramPct = gpu ? pctOf(gpu.usedMB, gpu.totalMB) : 0;
   const gpuUtil = gpu ? Math.max(0, ...gpu.devices.map((d) => d.utilizationPct ?? 0)) : 0;
+  // "VRAM" is a lie on Apple Silicon, where the GPU draws from the same pool as
+  // the CPU, so the meter takes its name from what it is actually reading.
+  const memLabel = gpuMemoryLabel(gpu);
 
   return (
     <div ref={ref} className={`monitor-absorb shrink-0 border-t border-line px-4 text-[11px] ${open ? 'py-4' : 'py-2'}`}>
@@ -217,7 +222,7 @@ export function ResourceDock() {
         {/* Collapsed, the header still carries the numbers worth glancing at. */}
         <span className="flex shrink-0 items-center gap-2 text-[10px] tabular-nums text-ink-faint">
           {!open && monitors.cpu && system && <span>CPU {system.cpuPct}%</span>}
-          {!open && monitors.vram && gpu && <span>VRAM {Math.round(pctOf(gpu.usedMB, gpu.totalMB))}%</span>}
+          {!open && monitors.vram && gpu && <span>{memLabel} {Math.round(pctOf(gpu.usedMB, gpu.totalMB))}%</span>}
           {open && 'live'}
         </span>
       </button>
@@ -246,10 +251,10 @@ export function ResourceDock() {
         )}
         {monitors.vram && gpu && (
           <Meter
-            label="VRAM"
+            label={memLabel}
             value={`${Math.round(vramPct)}%`}
             pct={vramPct}
-            sub={`${GB(gpu.usedMB)} / ${GB(gpu.totalMB)} GB used`}
+            sub={`${GB(gpu.usedMB)} / ${GB(gpu.totalMB)} GB used${gpu.unified ? ' · unified with system RAM' : ''}`}
           />
         )}
       </div>
@@ -278,10 +283,11 @@ export function ResourceDock() {
       )}
 
       {(monitors.gpu || monitors.vram) && !gpu && (
-        <p className="mt-2 text-[10px] text-ink-faint">No NVIDIA GPU detected.</p>
+        <p className="mt-2 text-[10px] text-ink-faint">No GPU stats available on this machine.</p>
       )}
+      {/* Name the probes, so a number can be checked against the tool it came from. */}
       <p className="mt-2 text-right text-[10px] text-ink-faint">
-        {(monitors.gpu || monitors.vram) && gpu ? 'os + nvidia-smi' : 'os'}
+        {(monitors.gpu || monitors.vram) && gpu ? `os + ${gpu.source}` : 'os'}
       </p>
       </>
       )}
@@ -333,6 +339,7 @@ export function ResourceHud() {
   const memPct = system ? Math.round(pctOf(system.memUsedMB, system.memTotalMB)) : null;
   const gpuUtil = gpu ? Math.max(0, ...gpu.devices.map((d) => d.utilizationPct ?? 0)) : null;
   const vramPct = gpu ? pctOf(gpu.usedMB, gpu.totalMB) : 0;
+  const memLabel = gpuMemoryLabel(gpu);
 
   return (
     <div
@@ -382,7 +389,7 @@ export function ResourceHud() {
                   ✓
                 </span>
                 <span className={`min-w-0 flex-1 ${monitors[kind] ? 'text-ink-soft' : 'text-ink-faint'}`}>
-                  {MONITOR_LABELS[kind]}
+                  {kind === 'vram' ? memLabel : MONITOR_LABELS[kind]}
                 </span>
                 <span className="shrink-0 tabular-nums text-ink-faint">
                   {!monitors[kind] ? 'off'
@@ -417,7 +424,7 @@ export function ResourceHud() {
             </div>
           )}
           {(monitors.gpu || monitors.vram) && !gpu && (
-            <p className="mt-2 border-t border-line pt-2 text-ink-faint">No NVIDIA GPU detected.</p>
+            <p className="mt-2 border-t border-line pt-2 text-ink-faint">No GPU stats available on this machine.</p>
           )}
         </div>
       )}

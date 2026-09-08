@@ -1,5 +1,5 @@
 appId: dev.nekkolabs.kotrain
-productName: Kotrain
+productName: Agent Nekko
 # electron-builder 26 derives this from the npm package name (@kotrain/desktop →
 # "@kotraindesktop") and then rejects the @ as unsafe; pin it to what older
 # versions defaulted to (the product name), so nothing else moves.
@@ -23,11 +23,11 @@ extraMetadata:
 publish:
   provider: github
   owner: nekko-labs
-  repo: kotrain
+  repo: agent-nekko
 win:
   target:
     - nsis
-  artifactName: ${productName}-${version}-${arch}.${ext}
+  artifactName: Kotrain-${version}-${arch}.${ext}
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
@@ -38,7 +38,7 @@ nsis:
   # Add/Remove Programs + Start Menu uninstall entry, with a Start Menu folder.
   menuCategory: true
   createStartMenuShortcut: true
-  uninstallDisplayName: Kotrain
+  uninstallDisplayName: Agent Nekko
   # Custom uninstall hook lives at build/installer.nsh, electron-builder picks
   # it up automatically (its customUnInstall macro offers to remove user data).
 msi:
@@ -48,7 +48,7 @@ mac:
     - dmg
     - zip
   category: public.app-category.developer-tools
-  artifactName: ${productName}-${version}-${arch}.${ext}
+  artifactName: Kotrain-${version}-${arch}.${ext}
   # Developer ID signing + notarization. electron-builder signs when CSC_LINK
   # and CSC_KEY_PASSWORD are in the environment, and skips signing entirely
   # when they are not — in which case the afterPack hook ad-hoc signs instead
@@ -65,14 +65,14 @@ mac:
   extendInfo:
     # Required for the QR pairing scanner (QrScanner.tsx → getUserMedia).
     # Without it macOS kills the process instead of prompting.
-    NSCameraUsageDescription: Kotrain uses the camera to scan the pairing QR code shown by the Kotrain mobile app.
+    NSCameraUsageDescription: Agent Nekko uses the camera to scan the pairing QR code shown by the Agent Nekko mobile app.
 linux:
   target:
     - AppImage
     - deb
   category: Development
   syncDesktopName: true
-  artifactName: ${productName}-${version}-${arch}.${ext}
+  artifactName: Kotrain-${version}-${arch}.${ext}
 deb:
   # Replace this GitHub noreply fallback when the project publishes a mailbox.
   maintainer: Nekko Labs <nekko-labs@users.noreply.github.com>

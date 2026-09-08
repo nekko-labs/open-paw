@@ -132,6 +132,16 @@ export function createDispatcher(host: Host): (channel: string, args: any[]) => 
     [C.trainingStop]: ([id]) => host.stopTrainingRun(id),
     [C.trainingHint]: ([id, text]) => host.addTrainingHint(id, text),
 
+    [C.workflowsList]: () => host.listWorkflows(),
+    [C.workflowCreate]: ([input]) => host.createWorkflow(input),
+    [C.workflowUpdate]: ([id, patch]) => host.updateWorkflow(id, patch),
+    [C.workflowDelete]: ([id]) => host.deleteWorkflow(id),
+    [C.workflowDuplicate]: ([id]) => host.duplicateWorkflow(id),
+    [C.workflowRun]: ([id]) => host.runWorkflow(id),
+    [C.workflowCancel]: ([runId]) => host.cancelWorkflowRun(runId),
+    [C.workflowRuns]: ([wid]) => host.listWorkflowRuns(wid),
+    [C.workflowEvent]: ([event]) => host.dispatchWorkflowEvent(event),
+
     [C.connectorsList]: () => host.listConnectors(),
     [C.connectorConnect]: ([kind, token, settings]) => host.connectConnector(kind, token, settings),
     [C.connectorDisconnect]: ([kind]) => host.disconnectConnector(kind),
