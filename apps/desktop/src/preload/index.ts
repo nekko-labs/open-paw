@@ -13,6 +13,7 @@ import type {
   UpdateInfo,
   TerminalEvent,
   OAuthStatus,
+  SubscriptionLimits,
 } from '@kotrain/shared';
 import { IpcChannels, IpcEvents } from '@kotrain/shared';
 import {
@@ -179,6 +180,7 @@ const api: KotrainApi = {
   },
 
   getUsageSummary: () => inv(IpcChannels.usageSummary),
+  getLimits: (tokenKey: string) => inv(IpcChannels.limitsGet, tokenKey),
 
   oauthBegin: (provider) => inv(IpcChannels.oauthBegin, provider),
   oauthFinish: (sessionId, pasted) => inv(IpcChannels.oauthFinish, sessionId, pasted),
@@ -250,6 +252,11 @@ const api: KotrainApi = {
     const listener = (_: unknown, snapshot: import('@kotrain/shared').WorkflowsSnapshot) => cb(snapshot);
     ipcRenderer.on(IpcEvents.workflowsUpdated, listener);
     return () => ipcRenderer.removeListener(IpcEvents.workflowsUpdated, listener);
+  },
+  onLimitsUpdated: (cb: (e: { tokenKey: string; limits: SubscriptionLimits }) => void) => {
+    const listener = (_: unknown, e: { tokenKey: string; limits: SubscriptionLimits }) => cb(e);
+    ipcRenderer.on(IpcEvents.limitsUpdated, listener);
+    return () => ipcRenderer.removeListener(IpcEvents.limitsUpdated, listener);
   },
   onDeepLink: (cb: (url: string) => void) => {
     const listener = (_: unknown, url: string) => cb(url);

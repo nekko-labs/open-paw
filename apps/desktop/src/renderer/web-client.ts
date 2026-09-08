@@ -1,5 +1,5 @@
 import { IpcChannels, IpcEvents, deriveKey, seal, open, RELEASE_NOTES_URL } from '@kotrain/shared';
-import type { AppSettings, AgentEvent, IndexStatus, KotrainApi, AppInfo, UpdateInfo, TerminalEvent, OAuthStatus } from '@kotrain/shared';
+import type { AppSettings, AgentEvent, IndexStatus, KotrainApi, AppInfo, UpdateInfo, TerminalEvent, OAuthStatus, SubscriptionLimits } from '@kotrain/shared';
 
 /**
  * Browser transport for the web/Docker editions: implements the same KotrainApi
@@ -22,6 +22,7 @@ function makeWebClient(): KotrainApi {
   const trainingCbs = new Set<(r: import('@kotrain/shared').TrainingRun[]) => void>();
   const workflowCbs = new Set<(s: import('@kotrain/shared').WorkflowsSnapshot) => void>();
   const oauthStatusCbs = new Set<(s: OAuthStatus) => void>();
+  const limitsUpdatedCbs = new Set<(e: { tokenKey: string; limits: SubscriptionLimits }) => void>();
   // Server build version captured when this tab loaded (for refresh detection).
   let loadVersion: string | null = null;
   const dispatchEvent = (channel: string, payload: any) => {
@@ -33,6 +34,7 @@ function makeWebClient(): KotrainApi {
     else if (channel === IpcEvents.trainingUpdated) trainingCbs.forEach((cb) => cb(payload));
     else if (channel === IpcEvents.workflowsUpdated) workflowCbs.forEach((cb) => cb(payload));
     else if (channel === IpcEvents.oauthStatus) oauthStatusCbs.forEach((cb) => cb(payload));
+    else if (channel === IpcEvents.limitsUpdated) limitsUpdatedCbs.forEach((cb) => cb(payload));
   };
 
   // Relay transport: when the page is opened with ?relay=&room=&key=[&pair=],
@@ -392,6 +394,7 @@ function makeWebClient(): KotrainApi {
     },
 
     getUsageSummary: () => call(IpcChannels.usageSummary),
+    getLimits: (tokenKey) => call(IpcChannels.limitsGet, tokenKey),
 
     oauthBegin: (provider) => call(IpcChannels.oauthBegin, provider),
     oauthFinish: (sessionId, pasted) => call(IpcChannels.oauthFinish, sessionId, pasted),
@@ -466,6 +469,10 @@ function makeWebClient(): KotrainApi {
     onWorkflowsUpdated: (cb) => {
       workflowCbs.add(cb);
       return () => workflowCbs.delete(cb);
+    },
+    onLimitsUpdated: (cb) => {
+      limitsUpdatedCbs.add(cb);
+      return () => limitsUpdatedCbs.delete(cb);
     },
     // A browser tab has no OS handing it `kotrain://` URLs, so this is the
     // honest implementation rather than a missing one.

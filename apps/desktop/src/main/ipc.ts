@@ -74,4 +74,5 @@ export function registerIpc(host: Host): void {
   host.events.on('trainingUpdated', (r) => broadcast(IpcEvents.trainingUpdated, r));
   host.events.on('workflowsUpdated', (s) => broadcast(IpcEvents.workflowsUpdated, s));
   host.events.on('oauthStatus', (s) => broadcast(IpcEvents.oauthStatus, s));
+  host.events.on('limitsUpdated', (e) => broadcast(IpcEvents.limitsUpdated, e));
 }

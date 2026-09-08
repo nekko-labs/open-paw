@@ -58,6 +58,7 @@ import type {
   GpuStats,
   SystemStats,
   LmsProbe,
+  SubscriptionLimits,
 } from '@kotrain/shared';
 import { isLocalProvider } from '@kotrain/shared';
 import {
@@ -129,6 +130,7 @@ import {
   reconcileWorkflowRuns,
 } from './workflows.js';
 import { sendChat, abortChat, resolveApproval, previewContext, setContextPrefs } from './chat.js';
+import { initLimits, getLimits } from './limits.js';
 import { startWorkflowListeners } from './listeners.js';
 import {
   initOAuth,
@@ -345,6 +347,7 @@ export interface Host {
 
   classifyCommand(command: string): GuardrailDecision;
   usageSummary(): UsageSummary;
+  getLimits(tokenKey: string): Promise<SubscriptionLimits | undefined>;
 
   /** Expose this machine over a relay so paired devices can reach it. */
   enableRemote(relayUrl: string): RemoteStatus;
@@ -383,6 +386,7 @@ export function createHost(opts: { dataDir: string }): Host {
   setDataDir(opts.dataDir);
   const events = new EventEmitter();
   initOAuth(events);
+  initLimits(events);
   const onIndexProgress = (s: IndexStatus) => events.emit('indexProgress', s);
   // Fan terminal output out to renderers over the same event bus.
   setTerminalSender((e) => events.emit('terminalEvent', e));
@@ -661,6 +665,7 @@ export function createHost(opts: { dataDir: string }): Host {
 
     classifyCommand: (command) => classifyCommand(command, getSettings().guardrails),
     usageSummary,
+    getLimits: (tokenKey) => getLimits(tokenKey),
 
     enableRemote: (relayUrl) => host.remote.enable(relayUrl),
     disableRemote: () => host.remote.disable(),

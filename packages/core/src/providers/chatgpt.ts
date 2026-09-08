@@ -119,6 +119,7 @@ export class ChatGptProvider implements Provider {
       // failures land here.
       throw new Error(friendlyError(e, this.base()));
     }
+    req.onHeaders?.(res.headers);
     if (!res.ok) {
       const text = await res.text().catch(() => '');
       throw new Error(`chatgpt ${res.status}: ${text.slice(0, 200)}`);

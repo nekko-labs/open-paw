@@ -88,6 +88,7 @@ export class AnthropicProvider implements Provider {
       body: JSON.stringify(body),
       signal: req.signal,
     });
+    req.onHeaders?.(res.headers);
     if (!res.ok) {
       const text = await res.text().catch(() => '');
       throw new Error(`anthropic ${res.status}: ${text.slice(0, 200)}`);

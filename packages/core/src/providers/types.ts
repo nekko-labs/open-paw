@@ -28,6 +28,8 @@ export interface ChatRequest {
    */
   maxOutputTokens?: number;
   signal?: AbortSignal;
+  /** Hook for the host to read the raw HTTP response headers (rate limits, etc.). */
+  onHeaders?: (headers: Headers) => void;
 }
 
 /** Streamed chunk from a provider, normalized. */
