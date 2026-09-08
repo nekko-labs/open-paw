@@ -42,6 +42,10 @@ import type {
   ConnectorConfig,
   ConnectorKind,
   ConnectorResource,
+  AgentToolId,
+  AgentToolStatus,
+  SubagentInstallResult,
+  SubagentSnippet,
   GuardrailDecision,
   UsageSummary,
   RemoteStatus,
@@ -136,6 +140,7 @@ import {
 } from './oauth.js';
 import { buildSpec, buildSpecDoc, readSpecDocs, setSpecMethodology, toggleSpecTask, specPathForSession } from './spec.js';
 import { createRemoteService } from './remote.js';
+import { detectAgentTools, installSubagent, subagentSnippet } from './integrations.js';
 import { getGpuStats } from './gpu.js';
 import { getSystemStats } from './system.js';
 import { stopLocalServer } from './servers.js';
@@ -327,6 +332,13 @@ export interface Host {
   connectConnector(kind: ConnectorKind, token: string, settings?: Record<string, string>): ConnectorConfig[];
   disconnectConnector(kind: ConnectorKind): ConnectorConfig[];
   fetchConnector(kind: ConnectorKind, query?: string): Promise<ConnectorResource[]>;
+
+  /** Which agent CLIs are present and whether Nekko is installed as a subagent. */
+  detectAgentTools(): AgentToolStatus[];
+  /** Merge the agent-nekko MCP entry into a tool's config (backs up first). */
+  installSubagent(tool: AgentToolId): SubagentInstallResult;
+  /** The manual copy-paste config for a tool. */
+  subagentSnippet(tool: AgentToolId): SubagentSnippet;
 
   classifyCommand(command: string): GuardrailDecision;
   usageSummary(): UsageSummary;
@@ -631,9 +643,16 @@ export function createHost(opts: { dataDir: string }): Host {
     },
     fetchConnector: async (kind, query) => {
       const cfg = getSettings().connectors.find((c) => c.kind === kind);
-      if (!cfg?.connected || !cfg.token) throw new Error('Connector not connected');
-      return getConnector(kind).fetch(cfg.token, query, cfg.settings);
+      // Some connectors work without a token (e.g. a Teams incoming webhook
+      // lives in settings), so connected-not-token is the gate; a connector
+      // that genuinely needs a token fails on its own fetch.
+      if (!cfg?.connected) throw new Error('Connector not connected');
+      return getConnector(kind).fetch(cfg.token ?? '', query, cfg.settings);
     },
+
+    detectAgentTools: () => detectAgentTools(),
+    installSubagent: (tool) => installSubagent(tool),
+    subagentSnippet: (tool) => subagentSnippet(tool),
 
     classifyCommand: (command) => classifyCommand(command, getSettings().guardrails),
     usageSummary,

@@ -1,6 +1,6 @@
-/** External connector types: GitHub, Linear, Slack, Discord, Gmail, Google Drive. */
+/** External connector types: GitHub, Linear, Slack, Discord, Jira, Microsoft Teams, Gmail, Google Drive. */
 
-export type ConnectorKind = 'github' | 'linear' | 'slack' | 'discord' | 'gmail' | 'gdrive';
+export type ConnectorKind = 'github' | 'linear' | 'slack' | 'discord' | 'jira' | 'teams' | 'gmail' | 'gdrive';
 
 export type ConnectorAuthKind = 'token' | 'oauth';
 
@@ -36,6 +36,8 @@ export const CONNECTOR_CATALOG: ConnectorMeta[] = [
   { kind: 'linear', label: 'Linear', auth: 'token', description: 'Issues, projects, and cycles via Linear API key.' },
   { kind: 'slack', label: 'Slack', auth: 'token', description: 'Channels and messages via a bot/user token.' },
   { kind: 'discord', label: 'Discord', auth: 'token', description: 'Servers and channels via a bot token.' },
+  { kind: 'jira', label: 'Jira', auth: 'token', description: 'Issues and JQL search via Jira Cloud REST (site URL + email + API token).' },
+  { kind: 'teams', label: 'Microsoft Teams', auth: 'token', description: 'Post to a channel via an incoming webhook; read teams with a Microsoft Graph token.' },
   { kind: 'gmail', label: 'Gmail', auth: 'oauth', description: 'Threads and messages via Google OAuth.' },
   { kind: 'gdrive', label: 'Google Drive', auth: 'oauth', description: 'Docs and files via Google OAuth.' },
 ];

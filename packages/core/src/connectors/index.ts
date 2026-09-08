@@ -110,6 +110,104 @@ export const discordConnector: Connector = {
   },
 };
 
+/**
+ * Jira Cloud REST, Basic auth (email + API token). The site URL and email ride
+ * in `settings` (`site`, `email`) since the connector contract has a single
+ * token slot; the token is the API token from id.atlassian.com.
+ *
+ * The current JQL search endpoint is `/rest/api/3/search/jql`; the legacy
+ * `GET /rest/api/3/search` was removed from Jira Cloud in 2025, but we retry it
+ * on 404/410 for sites that still route the old path.
+ */
+export const jiraConnector: Connector = {
+  kind: 'jira',
+  async fetch(token, query, settings) {
+    const site = (settings?.site ?? '').trim().replace(/\/+$/, '');
+    const email = (settings?.email ?? '').trim();
+    if (!site || !email) throw new Error('Jira needs a site URL and the account email.');
+    let siteUrl: URL;
+    try {
+      siteUrl = new URL(site);
+    } catch {
+      throw new Error(`Jira site "${site}" isn't a valid URL.`);
+    }
+    if (siteUrl.protocol !== 'https:') throw new Error('Jira site URL must be https.');
+    const headers = {
+      Authorization: `Basic ${Buffer.from(`${email}:${token}`).toString('base64')}`,
+      Accept: 'application/json',
+    };
+    const jql = query
+      ? `text ~ "${query.replace(/["\\]/g, ' ').trim()}" order by updated desc`
+      : 'order by updated desc';
+    const qs = `jql=${encodeURIComponent(jql)}&maxResults=25&fields=summary,status,issuetype,description`;
+    let res = await fetch(`${site}/rest/api/3/search/jql?${qs}`, { headers });
+    if (res.status === 404 || res.status === 410) {
+      res = await fetch(`${site}/rest/api/3/search?${qs}`, { headers });
+    }
+    if (!res.ok) throw new Error(`Jira ${res.status}`);
+    const json: any = await res.json();
+    return (json.issues ?? []).map((issue: any) => ({
+      id: String(issue.id ?? issue.key),
+      title: `${issue.key} ${issue.fields?.summary ?? ''}`.trim(),
+      subtitle: [issue.fields?.issuetype?.name, issue.fields?.status?.name].filter(Boolean).join(' · ') || 'Jira issue',
+      url: `${site}/browse/${issue.key}`,
+      body: typeof issue.fields?.description === 'string' ? issue.fields.description : '',
+    }));
+  },
+};
+
+/**
+ * Microsoft Teams, v1. Posting goes through an incoming webhook URL
+ * (`settings.webhookUrl`); reads use a pasted Microsoft Graph token. Full Graph
+ * OAuth is deferred because it needs an app registration.
+ *
+ * The webhook is only URL-checked here: `fetch` is also "Fetch sample" in the
+ * UI, so it must never post to the channel.
+ */
+export const teamsConnector: Connector = {
+  kind: 'teams',
+  async fetch(token, query, settings) {
+    if (token) {
+      const res = await fetch('https://graph.microsoft.com/v1.0/me/joinedTeams', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`Graph ${res.status}`);
+      const json: any = await res.json();
+      let teams = (json.value ?? []).map((t: any) => ({
+        id: t.id,
+        title: t.displayName ?? 'Team',
+        subtitle: 'Microsoft Teams',
+        body: t.description ?? '',
+      }));
+      if (query) {
+        const q = query.toLowerCase();
+        teams = teams.filter((t: ConnectorResource) => t.title.toLowerCase().includes(q));
+      }
+      return teams;
+    }
+    const webhook = (settings?.webhookUrl ?? '').trim();
+    if (webhook) {
+      let host: string;
+      try {
+        const u = new URL(webhook);
+        if (u.protocol !== 'https:') throw new Error('not https');
+        host = u.hostname;
+      } catch {
+        throw new Error("The Teams webhook URL isn't a valid https URL.");
+      }
+      return [
+        {
+          id: 'webhook',
+          title: 'Incoming webhook',
+          subtitle: host,
+          body: 'Agent Nekko can post messages to this channel. Add a Graph token to read teams.',
+        },
+      ];
+    }
+    throw new Error('Teams needs an incoming webhook URL or a Microsoft Graph token.');
+  },
+};
+
 /** Gmail / Drive use Google OAuth; wired once the OAuth flow lands in main. */
 export const gmailConnector: Connector = {
   kind: 'gmail',
@@ -142,6 +240,8 @@ export const CONNECTORS: Record<ConnectorKind, Connector> = {
   linear: linearConnector,
   slack: slackConnector,
   discord: discordConnector,
+  jira: jiraConnector,
+  teams: teamsConnector,
   gmail: gmailConnector,
   gdrive: gdriveConnector,
 };

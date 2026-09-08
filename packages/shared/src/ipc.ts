@@ -13,6 +13,7 @@ import type { AutomationTask, NewTask } from './tasks.js';
 import type { TrainingRun, NewTrainingRun } from './training.js';
 import type { NewWorkflow, Workflow, WorkflowEvent, WorkflowRun, WorkflowsSnapshot } from './workflows.js';
 import type { ConnectorConfig, ConnectorKind, ConnectorResource } from './connectors.js';
+import type { AgentToolId, AgentToolStatus, SubagentInstallResult, SubagentSnippet } from './integrations.js';
 import type { GuardrailRule } from './guardrails.js';
 import type { OAuthProvider, OAuthSessionInfo, OAuthStatus } from './oauth.js';
 import type { AppInfo, UpdateInfo } from './update.js';
@@ -163,6 +164,10 @@ export const IpcChannels = {
   connectorConnect: 'connector:connect',
   connectorDisconnect: 'connector:disconnect',
   connectorFetch: 'connector:fetch',
+
+  integrationsDetect: 'integrations:detect',
+  integrationsInstall: 'integrations:install',
+  integrationsSnippet: 'integrations:snippet',
 
   guardrailsClassify: 'guardrails:classify',
 
@@ -416,6 +421,13 @@ export interface KotrainApi {
   connectConnector(kind: ConnectorKind, token: string, settings?: Record<string, string>): Promise<ConnectorConfig[]>;
   disconnectConnector(kind: ConnectorKind): Promise<ConnectorConfig[]>;
   fetchConnector(kind: ConnectorKind, query?: string): Promise<ConnectorResource[]>;
+
+  /** Which agent CLIs are present and whether Nekko is installed as an MCP subagent. */
+  detectAgentTools(): Promise<AgentToolStatus[]>;
+  /** Merge the agent-nekko MCP entry into a tool's config (backs up to <file>.bak first). */
+  installSubagent(tool: AgentToolId): Promise<SubagentInstallResult>;
+  /** The manual copy-paste config for a tool (target path + snippet). */
+  subagentSnippet(tool: AgentToolId): Promise<SubagentSnippet>;
 
   classifyCommand(command: string): Promise<import('./guardrails.js').GuardrailDecision>;
   saveGuardrail(rule: GuardrailRule): Promise<GuardrailRule[]>;

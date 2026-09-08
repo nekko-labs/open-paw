@@ -22,6 +22,7 @@ export * from './vaizer.js';
 export * from './agent-types.js';
 export * from './project-detect.js';
 export * from './connectors.js';
+export * from './integrations.js';
 export * from './ipc.js';
 export * from './settings.js';
 export * from './e2e.js';

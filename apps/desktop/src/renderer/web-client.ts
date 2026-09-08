@@ -378,6 +378,10 @@ function makeWebClient(): KotrainApi {
     disconnectConnector: (kind) => call(IpcChannels.connectorDisconnect, kind),
     fetchConnector: (kind, query) => call(IpcChannels.connectorFetch, kind, query),
 
+    detectAgentTools: () => call(IpcChannels.integrationsDetect),
+    installSubagent: (tool) => call(IpcChannels.integrationsInstall, tool),
+    subagentSnippet: (tool) => call(IpcChannels.integrationsSnippet, tool),
+
     classifyCommand: (command) => call(IpcChannels.guardrailsClassify, command),
     saveGuardrail: async (rule) => {
       const settings: AppSettings = await call(IpcChannels.settingsGet);

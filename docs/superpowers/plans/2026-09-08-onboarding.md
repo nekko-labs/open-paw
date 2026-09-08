@@ -68,9 +68,9 @@ Each preset may also carry `surface`/`ink` overrides via `[data-preset]` blocks 
 
 ### PR 8 — `feat/onboarding-integrations` (+ new connectors)
 
-- [ ] **T5: jira + teams connectors** — kinds, catalog entries, `jiraConnector` (Basic-auth REST), `teamsConnector` (webhook post + token read), icons, ConnectorsView cards.
-- [ ] **T6: subagent install** — `host/integrations.ts`: `detectAgentTools()` (which config dirs exist), `installSubagent(tool)` merging `{ command: 'npx', args: ['-y','kotrain','mcp'] }` (or the desktop binary path) into `~/.claude.json` `mcpServers`, `~/.codex/config.toml` `[mcp_servers]`, `~/.cursor/mcp.json` — TOML write is a small hand-rolled merge or section-append; JSON gets parse-merge-write. Always `file.bak` first. Manual copy-snippet fallback. `integrations:*` channels + five-touch.
-- [ ] **T7: integrations step UI** — two groups: "Use Nekko inside other tools" (per-tool Connect cards with detected/not-installed states) and "Connect your apps" (compact connector grid reusing ConnectorsView cards: GitHub, Linear, Slack, Discord, Jira, Teams, Gmail, Drive).
+- [x] **T5: jira + teams connectors** — kinds, catalog entries, `jiraConnector` (Basic-auth REST), `teamsConnector` (webhook post + token read), icons, ConnectorsView cards.
+- [x] **T6: subagent install** — `host/integrations.ts`: `detectAgentTools()` (which config dirs exist), `installSubagent(tool)` merging `{ command: 'npx', args: ['-y','kotrain','mcp'] }` (or the desktop binary path) into `~/.claude.json` `mcpServers`, `~/.codex/config.toml` `[mcp_servers]`, `~/.cursor/mcp.json` — TOML write is a small hand-rolled merge or section-append; JSON gets parse-merge-write. Always `file.bak` first. Manual copy-snippet fallback. `integrations:*` channels + five-touch.
+- [x] **T7: integrations step UI** — two groups: "Use Nekko inside other tools" (per-tool Connect cards with detected/not-installed states) and "Connect your apps" (compact connector grid reusing ConnectorsView cards: GitHub, Linear, Slack, Discord, Jira, Teams, Gmail, Drive).
 - [ ] **T8: verify** — build + typecheck + tests green; screenshots of each step desktop/mobile, light/dark (per the repo's visual-evidence rule).
 
 ## Self-review notes

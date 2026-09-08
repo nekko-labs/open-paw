@@ -1,0 +1,268 @@
+import React, { useEffect, useState } from 'react';
+import type { ConnectorConfig, ConnectorKind, ConnectorMeta, ConnectorResource } from '@kotrain/shared';
+import { CONNECTOR_CATALOG } from '@kotrain/shared';
+import { ConnectorIcon } from '../connectorIcons.js';
+import { Badge } from './primitives/index.js';
+
+/** Where to get each connector's credentials, with a link to open. */
+const HELP: Record<ConnectorKind, { hint: string; url: string }> = {
+  github: { hint: 'Personal access token (fine-grained or classic) with repo read access, GitHub → Settings → Developer settings → Personal access tokens.', url: 'https://github.com/settings/tokens' },
+  linear: { hint: 'Personal API key, Linear → Settings → Security & access → New API key.', url: 'https://linear.app/settings/api' },
+  slack: { hint: 'Bot/User OAuth token (xoxb-/xoxp-) with channels:read + search:read scopes.', url: 'https://api.slack.com/apps' },
+  discord: { hint: 'Bot token, Discord Developer Portal → your app → Bot → Reset Token.', url: 'https://discord.com/developers/applications' },
+  jira: { hint: 'API token for the account email above, id.atlassian.com → Security → Create and manage API tokens.', url: 'https://id.atlassian.com/manage-profile/security/api-tokens' },
+  teams: { hint: 'Incoming webhook: Teams channel → ⋯ → Manage channel → Connectors → Incoming Webhook. Graph token (optional): Graph Explorer with Team.ReadBasic.All.', url: 'https://learn.microsoft.com/microsoftteams/platform/webhooks-and-connectors/how-to/add-incoming-webhook' },
+  gmail: { hint: 'OAuth access token with the gmail.readonly scope (one-click OAuth coming; for now grab a token from the OAuth Playground).', url: 'https://developers.google.com/oauthplayground' },
+  gdrive: { hint: 'OAuth access token with the drive.readonly scope (one-click OAuth coming; for now grab a token from the OAuth Playground).', url: 'https://developers.google.com/oauthplayground' },
+};
+
+interface ConnectorField {
+  key: string;
+  label: string;
+  placeholder: string;
+}
+
+/**
+ * Extra per-kind inputs a token alone can't cover. Jira's Basic auth needs the
+ * site URL and the account email alongside the API token; a Teams incoming
+ * webhook is a posting target rather than a read credential, so it lives in
+ * settings while `token` stays the optional Graph token.
+ */
+const EXTRA_FIELDS: Partial<Record<ConnectorKind, ConnectorField[]>> = {
+  jira: [
+    { key: 'site', label: 'Site URL', placeholder: 'https://your-team.atlassian.net' },
+    { key: 'email', label: 'Account email', placeholder: 'you@company.com' },
+  ],
+  teams: [{ key: 'webhookUrl', label: 'Incoming webhook URL', placeholder: 'https://….webhook.office.com/…' }],
+};
+
+const TOKEN_LABEL: Partial<Record<ConnectorKind, string>> = {
+  jira: 'Jira API token',
+  teams: 'Microsoft Graph token (optional, enables reads)',
+};
+
+/** What a card needs before Connect lights up. */
+function canConnect(kind: ConnectorKind, token: string, fields: Record<string, string>): boolean {
+  if (kind === 'jira') return Boolean(token && fields.site?.trim() && fields.email?.trim());
+  // Either half of Teams is useful on its own: the webhook posts, the token reads.
+  if (kind === 'teams') return Boolean(token || fields.webhookUrl?.trim());
+  return Boolean(token);
+}
+
+/**
+ * The connector cards shared by the Connectors view and the onboarding
+ * integrations step. Owns the whole connect → validate → preview cycle: Connect
+ * stores the credentials, then a real fetch decides whether they stay, so a
+ * bad token surfaces immediately instead of silently "connecting".
+ *
+ * `compact` drops the sample-fetch area and stacks the cards in a grid so the
+ * wizard stays skimmable; everything still works from here or from the full
+ * Connectors tab later.
+ */
+export function ConnectorGrid({ compact = false }: { compact?: boolean }) {
+  const [configs, setConfigs] = useState<ConnectorConfig[]>([]);
+  const [tokens, setTokens] = useState<Record<string, string>>({});
+  const [fields, setFields] = useState<Record<string, Record<string, string>>>({});
+  const [preview, setPreview] = useState<Record<string, ConnectorResource[] | string>>({});
+  const [busy, setBusy] = useState<ConnectorKind | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const load = async () => setConfigs(await window.kotrain.listConnectors());
+  useEffect(() => {
+    void load();
+  }, []);
+
+  const isConnected = (k: ConnectorKind) => configs.find((c) => c.kind === k)?.connected;
+
+  const connect = async (k: ConnectorKind) => {
+    const token = tokens[k]?.trim() ?? '';
+    const settings = fields[k];
+    if (!canConnect(k, token, settings ?? {}) || busy) return;
+    setBusy(k);
+    setErrors((e) => ({ ...e, [k]: '' }));
+    try {
+      await window.kotrain.connectConnector(k, token, settings);
+      const res = await window.kotrain.fetchConnector(k);
+      setConfigs(await window.kotrain.listConnectors());
+      setTokens((t) => ({ ...t, [k]: '' }));
+      setFields((f) => ({ ...f, [k]: {} }));
+      setPreview((p) => ({ ...p, [k]: res }));
+    } catch (e) {
+      await window.kotrain.disconnectConnector(k);
+      setConfigs(await window.kotrain.listConnectors());
+      setErrors((er) => ({ ...er, [k]: (e as Error).message || 'Could not connect, check the credentials.' }));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const disconnect = async (k: ConnectorKind) => {
+    setConfigs(await window.kotrain.disconnectConnector(k));
+    setPreview((p) => ({ ...p, [k]: undefined as unknown as ConnectorResource[] }));
+  };
+
+  const fetchData = async (k: ConnectorKind) => {
+    try {
+      const res = await window.kotrain.fetchConnector(k);
+      setPreview((p) => ({ ...p, [k]: res }));
+    } catch (e) {
+      setPreview((p) => ({ ...p, [k]: (e as Error).message }));
+    }
+  };
+
+  return (
+    <div className={compact ? 'grid grid-cols-1 gap-3 sm:grid-cols-2' : 'space-y-4'}>
+      {CONNECTOR_CATALOG.map((meta) => (
+        <ConnectorCard
+          key={meta.kind}
+          meta={meta}
+          compact={compact}
+          connected={Boolean(isConnected(meta.kind))}
+          token={tokens[meta.kind] ?? ''}
+          fields={fields[meta.kind] ?? {}}
+          data={preview[meta.kind]}
+          busy={busy === meta.kind}
+          error={errors[meta.kind]}
+          onToken={(v) => setTokens((t) => ({ ...t, [meta.kind]: v }))}
+          onField={(key, v) => setFields((f) => ({ ...f, [meta.kind]: { ...f[meta.kind], [key]: v } }))}
+          onConnect={() => void connect(meta.kind)}
+          onDisconnect={() => void disconnect(meta.kind)}
+          onFetch={() => void fetchData(meta.kind)}
+        />
+      ))}
+    </div>
+  );
+}
+
+function ConnectorCard({
+  meta,
+  compact,
+  connected,
+  token,
+  fields,
+  data,
+  busy,
+  error,
+  onToken,
+  onField,
+  onConnect,
+  onDisconnect,
+  onFetch,
+}: {
+  meta: ConnectorMeta;
+  compact: boolean;
+  connected: boolean;
+  token: string;
+  fields: Record<string, string>;
+  data?: ConnectorResource[] | string;
+  busy: boolean;
+  error?: string;
+  onToken: (v: string) => void;
+  onField: (key: string, v: string) => void;
+  onConnect: () => void;
+  onDisconnect: () => void;
+  onFetch: () => void;
+}) {
+  const extra = EXTRA_FIELDS[meta.kind] ?? [];
+  const help = HELP[meta.kind];
+  return (
+    <div className={`card ${compact ? 'p-4' : 'p-5'}`}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="grid h-9 w-9 place-items-center rounded-xl" style={{ background: 'var(--surface-2)' }}>
+            <ConnectorIcon kind={meta.kind} size={20} />
+          </div>
+          <div>
+            <h3 className="font-semibold">{meta.label}</h3>
+            <p className="text-[12px] text-ink-faint">{meta.description}</p>
+          </div>
+        </div>
+        {connected && (
+          <Badge tone="success" variant="solid">
+            connected
+          </Badge>
+        )}
+      </div>
+
+      {connected ? (
+        <div className="mt-3 flex gap-2">
+          {!compact && (
+            <button className="btn btn-outline py-1.5 text-[12px]" onClick={onFetch}>
+              Fetch sample
+            </button>
+          )}
+          <button className="btn btn-ghost py-1.5 text-[12px]" onClick={onDisconnect}>
+            Disconnect
+          </button>
+        </div>
+      ) : (
+        <div className="mt-3">
+          {extra.map((f) => (
+            <input
+              key={f.key}
+              className="input mb-2 py-1.5 text-[12px]"
+              aria-label={`${meta.label} ${f.label}`}
+              placeholder={`${f.label}: ${f.placeholder}`}
+              value={fields[f.key] ?? ''}
+              onChange={(e) => onField(f.key, e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') onConnect();
+              }}
+              disabled={busy}
+            />
+          ))}
+          <div className="flex gap-2">
+            <input
+              className="input py-1.5 text-[12px]"
+              type="password"
+              placeholder={TOKEN_LABEL[meta.kind] ?? (meta.auth === 'oauth' ? 'OAuth access token' : 'API token')}
+              value={token}
+              onChange={(e) => onToken(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') onConnect();
+              }}
+              disabled={busy}
+            />
+            <button
+              className="btn btn-primary py-1.5 text-[12px]"
+              disabled={busy || !canConnect(meta.kind, token.trim(), fields)}
+              onClick={onConnect}
+            >
+              {busy ? 'Connecting…' : 'Connect'}
+            </button>
+          </div>
+          <p className="mt-1.5 text-[11px] text-ink-faint">
+            {help.hint}{' '}
+            <button className="text-accent hover:underline" onClick={() => window.kotrain.openPath(help.url)}>
+              Where to get it →
+            </button>
+          </p>
+          {error && (
+            <p className="mt-1 text-[11px]" style={{ color: 'var(--danger)' }}>
+              {error}
+            </p>
+          )}
+        </div>
+      )}
+
+      {!compact && data && (
+        <div className="mt-3 max-h-40 space-y-1 overflow-y-auto rounded-xl p-2" style={{ background: 'var(--surface-2)' }}>
+          {typeof data === 'string' ? (
+            <p className="text-[12px]" style={{ color: 'var(--danger)' }}>
+              {data}
+            </p>
+          ) : data.length === 0 ? (
+            <p className="text-[12px] text-ink-faint">No results.</p>
+          ) : (
+            data.map((r) => (
+              <div key={r.id} className="text-[12px]">
+                <span className="font-medium">{r.title}</span>
+                {r.subtitle && <span className="text-ink-faint"> · {r.subtitle}</span>}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
