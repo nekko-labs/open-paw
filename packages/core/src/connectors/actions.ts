@@ -58,7 +58,7 @@ export interface WorkflowTemplateContext {
   run?: Record<string, unknown>;
 }
 
-const TEMPLATE_RE = /\{\{\s*([a-zA-Z0-9_.]+)\s*\}\}/g;
+const TEMPLATE_RE = /\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g;
 
 export function renderTemplate(template: string, ctx: WorkflowTemplateContext): string {
   if (!template.includes('{{')) return template;
@@ -444,6 +444,6 @@ export async function runWorkflowAction(
   try {
     return await action.run(config, params, ctx);
   } catch (e) {
-    return fail((e as Error).message);
+    return fail(e instanceof Error ? e.message : String(e));
   }
 }

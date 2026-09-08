@@ -124,7 +124,10 @@ export function gitlabBase(settings?: Record<string, string>): string {
     throw new Error(`GitLab site "${site}" isn't a valid URL.`);
   }
   if (u.protocol !== 'https:') throw new Error('The GitLab instance URL must be https.');
-  return u.origin + u.pathname.replace(/\/+$/, '');
+  if (u.pathname.replace(/\/+$/, '') !== '') {
+    throw new Error(`The GitLab instance URL should be the instance origin (e.g. https://gitlab.example.com), not "${site}".`);
+  }
+  return u.origin;
 }
 
 /** GitLab REST v4, personal access token (PRIVATE-TOKEN header). Lists the
