@@ -224,8 +224,8 @@ Philip's three initiatives: (1) support Claude and ChatGPT **subscriptions** via
 
 Follow-on to the subscription stack: surface real plan state (5-hour + weekly reset windows, per-model scoped limits) and cost (per-model price estimates, running session total). Plan: [usage-visibility](docs/superpowers/plans/2026-09-08-usage-visibility.md).
 
-- [ ] **T147**, Usage-limits data path: normalized `SubscriptionLimits` (Claude `anthropic-ratelimit-unified-*` response headers + `/api/oauth/usage`; ChatGPT `GET /wham/usage`), host `LimitsService` (header capture + throttled poll), `limits:get` + `limitsUpdated` IPC. PR `feat/usage-limits`.
-- [ ] **T148**, Limits + pricing UI: chat-header limits chip + popover (all windows + reset times + plan/credits), provider-card breakdown, per-model price estimate in model pickers ("Included in plan" + muted equiv. for subs, `$` for metered), running session-cost total. `docs/USAGE-LIMITS.md`. PR `feat/usage-limits-ui`.
+- [x] **T147**, Usage-limits data path: normalized `SubscriptionLimits` (Claude `anthropic-ratelimit-unified-*` response headers + `/api/oauth/usage`; ChatGPT `GET /wham/usage`), host `LimitsService` (header capture + throttled poll), `limits:get` + `limitsUpdated` IPC. PR `feat/usage-limits`. · merged #179 · Done: 2026-09-08
+- [x] **T148**, Limits + pricing UI: chat-header limits chip + popover (all windows + reset times + plan/credits), provider-card breakdown, per-model price estimate in model pickers ("Included in plan" + muted equiv. for subs, `$` for metered), running session-cost total. `docs/USAGE-LIMITS.md`. PR `feat/usage-limits-ui`. · merged #180 · Done: 2026-09-08
 
 ### Agent Nekko rebrand and next product wave (added 2026-09-07)
 
