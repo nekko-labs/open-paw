@@ -205,7 +205,7 @@ function sessionDepth(sessionId: string): number {
 }
 
 function providerEndpoint(provider: ProviderConfig): URL | null {
-  if (!isLocalProvider(provider.kind) && !['anthropic', 'openai', 'openrouter', 'chatgpt'].includes(provider.kind)) return null;
+  if (!isLocalProvider(provider.kind) && !['anthropic', 'openai', 'openrouter', 'chatgpt', 'openai-compat'].includes(provider.kind)) return null;
   try {
     const url = new URL(provider.baseUrl);
     return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password ? url : null;
@@ -216,7 +216,9 @@ function providerEndpoint(provider: ProviderConfig): URL | null {
 
 function offlineProviderAllowed(provider: ProviderConfig): boolean {
   const url = providerEndpoint(provider);
-  return !!url && isLocalProvider(provider.kind) && (
+  // openai-compat is dual-use rather than a local kind, so it is allowed by
+  // name; the loopback check still decides whether this endpoint is local.
+  return !!url && (isLocalProvider(provider.kind) || provider.kind === 'openai-compat') && (
     url.hostname === 'localhost' || url.hostname === '[::1]' || /^127\.\d+\.\d+\.\d+$/.test(url.hostname)
   );
 }

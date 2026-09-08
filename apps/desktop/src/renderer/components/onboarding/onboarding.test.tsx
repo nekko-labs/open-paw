@@ -143,9 +143,10 @@ describe('onboarding step content', () => {
     const html = renderToStaticMarkup(<ProvidersStep />);
     expect(html).toContain('Connect a model');
     expect(html).toContain('>Claude<');
-    expect(html).toContain('>ChatGPT<');
+    expect(html).toContain('>ChatGPT / OpenAI<');
     expect(html).toContain('OpenRouter');
     expect(html).toContain('OpenAI-compatible');
+    expect(html).toContain('aria-expanded="false"');
     expect(html).toContain('Agent Nekko');
     expect(html).toContain('Open Models');
     expect(html).toContain('Models tab');
@@ -174,6 +175,30 @@ describe('onboarding step content', () => {
       // Other kinds still offer setup, and the default-provider offer appears.
       expect(html).toContain('Set up');
       expect(html).toContain('Use one as your default?');
+    } finally {
+      mockStoreState.providers = [];
+    }
+  });
+
+  it('labels a saved OpenAI API key honestly under the shared ChatGPT card', () => {
+    // The card covers both paths, so a plain API key must not read as a
+    // ChatGPT subscription in the connected state.
+    mockStoreState.providers = [
+      {
+        id: 'p1',
+        kind: 'openai',
+        label: 'OpenAI',
+        baseUrl: 'https://api.openai.com/v1',
+        apiKey: 'sk-test',
+        enabled: true,
+      } as ProviderConfig,
+    ];
+    try {
+      const html = renderToStaticMarkup(<ProvidersStep />);
+      expect(html).toContain('>ChatGPT / OpenAI<');
+      expect(html).toContain('Connected');
+      expect(html).toContain('OpenAI (API key)');
+      expect(html).not.toContain('Sign in with ChatGPT');
     } finally {
       mockStoreState.providers = [];
     }

@@ -69,7 +69,7 @@ export function ProvidersStep({ onExit }: { onExit?: (after?: () => void) => voi
 
   // Local dedup is per-kind: a configured Ollama (even on another host) covers
   // the discovered one; the Models tab remains the place for a second server.
-  const savedLocal = providers.filter((p) => isLocalProvider(p.kind) && p.kind !== 'openai-compat');
+  const savedLocal = providers.filter((p) => isLocalProvider(p.kind));
   const savedFor = (d: ProviderConfig) => providers.find((p) => p.kind === d.kind);
   const extraLocal = savedLocal.filter((p) => !found.some((d) => d.kind === p.kind));
 
@@ -147,8 +147,8 @@ export function ProvidersStep({ onExit }: { onExit?: (after?: () => void) => voi
             <ApiKeyDisclosure kind="anthropic" apiKeyOnly onSaved={refresh} />
           </OnlineCard>
           <OnlineCard
-            title="ChatGPT"
-            blurb="Sign in with a ChatGPT Plus, Pro, or Business plan - runs on your subscription."
+            title="ChatGPT / OpenAI"
+            blurb="Runs on a ChatGPT Plus, Pro, or Business subscription, or an OpenAI API key billed per token."
             connected={chatgpt}
           >
             <SubscriptionSignIn
@@ -262,6 +262,17 @@ export function ProvidersStep({ onExit }: { onExit?: (after?: () => void) => voi
 }
 
 /**
+ * The connected summary names the saved provider and how it authenticates, so
+ * an OpenAI API key under the shared "ChatGPT / OpenAI" card doesn't read as a
+ * subscription. Labels written by the subscription flow already carry the
+ * "(subscription)" suffix, so the mode is only added when it isn't spelled out.
+ */
+function describeConnection(p: ProviderConfig): string {
+  const mode = p.auth === 'subscription' ? 'subscription' : p.apiKey ? 'API key' : null;
+  return mode && !p.label.includes(`(${mode})`) ? `${p.label} (${mode})` : p.label;
+}
+
+/**
  * One online option: a collapsed summary row that expands into its connect UI.
  * Once a provider of the card's kind exists it reads as connected and the add
  * UI is replaced, so the wizard can't create a duplicate.
@@ -292,13 +303,15 @@ function OnlineCard({
             )}
           </div>
           <p className="mt-0.5 text-[12px] text-ink-faint">
-            {isConnected
-              ? connected.map((p) => `${p.label}${p.auth === 'subscription' ? ' (subscription)' : ''}`).join(' · ')
-              : blurb}
+            {isConnected ? connected.map(describeConnection).join(' · ') : blurb}
           </p>
         </div>
         {!isConnected && (
-          <button className="btn btn-outline shrink-0 py-1.5 text-[12px]" onClick={() => setOpen((v) => !v)}>
+          <button
+            className="btn btn-outline shrink-0 py-1.5 text-[12px]"
+            aria-expanded={open}
+            onClick={() => setOpen((v) => !v)}
+          >
             {open ? 'Close' : 'Set up'}
           </button>
         )}
