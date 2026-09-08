@@ -4,6 +4,7 @@ export type ProviderKind =
   | 'anthropic'
   | 'openai'
   | 'openrouter'
+  | 'chatgpt'
   | 'ollama'
   | 'lmstudio'
   | 'vllm'
@@ -18,6 +19,12 @@ export interface ProviderConfig {
   baseUrl: string;
   /** API key (cloud) or token (some local servers). Stored locally. */
   apiKey?: string;
+  /** Auth mode: 'apikey' is the default, 'subscription' pulls a fresh OAuth token. */
+  auth?: 'apikey' | 'subscription';
+  /** Vendor account id (decoded from ChatGPT id_token, or a stable account handle). */
+  accountId?: string;
+  /** Key into the host's token store. This is not the token itself. */
+  tokenKey?: string;
   /** Whether this provider was auto-discovered on the local network. */
   discovered?: boolean;
   enabled: boolean;
@@ -119,6 +126,7 @@ export const PROVIDER_DEFAULTS: Record<ProviderKind, { baseUrl: string; needsKey
   anthropic: { baseUrl: 'https://api.anthropic.com', needsKey: true, label: 'Anthropic (Claude)' },
   openai: { baseUrl: 'https://api.openai.com/v1', needsKey: true, label: 'OpenAI' },
   openrouter: { baseUrl: 'https://openrouter.ai/api/v1', needsKey: true, label: 'OpenRouter' },
+  chatgpt: { baseUrl: 'https://chatgpt.com/backend-api', needsKey: false, label: 'ChatGPT (subscription)' },
   ollama: { baseUrl: 'http://localhost:11434', needsKey: false, label: 'Ollama' },
   lmstudio: { baseUrl: 'http://localhost:1234/v1', needsKey: false, label: 'LM Studio' },
   vllm: { baseUrl: 'http://localhost:8000/v1', needsKey: false, label: 'vLLM' },

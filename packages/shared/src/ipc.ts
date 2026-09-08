@@ -14,6 +14,7 @@ import type { TrainingRun, NewTrainingRun } from './training.js';
 import type { NewWorkflow, Workflow, WorkflowEvent, WorkflowRun, WorkflowsSnapshot } from './workflows.js';
 import type { ConnectorConfig, ConnectorKind, ConnectorResource } from './connectors.js';
 import type { GuardrailRule } from './guardrails.js';
+import type { OAuthProvider, OAuthSessionInfo, OAuthStatus } from './oauth.js';
 import type { AppInfo, UpdateInfo } from './update.js';
 
 /** Invoke (request/response) channels. */
@@ -166,6 +167,13 @@ export const IpcChannels = {
 
   usageSummary: 'usage:summary',
 
+  oauthBegin: 'oauth:begin',
+  oauthFinish: 'oauth:finish',
+  oauthCancel: 'oauth:cancel',
+  oauthStatus: 'oauth:status',
+  oauthSignOut: 'oauth:signout',
+  providersImportCliAuth: 'providers:importCliAuth',
+
   remoteEnable: 'remote:enable',
   remoteDisable: 'remote:disable',
   remoteStatus: 'remote:status',
@@ -191,6 +199,7 @@ export const IpcChannels = {
 /** Push (main → renderer) channels. */
 export const IpcEvents = {
   agentEvent: 'agent:event',
+  oauthStatus: 'oauth:status',
   indexProgress: 'index:progress',
   updateEvent: 'update:event',
   terminalEvent: 'terminal:event',
@@ -405,6 +414,14 @@ export interface KotrainApi {
 
   getUsageSummary(): Promise<UsageSummary>;
 
+  oauthBegin(provider: OAuthProvider): Promise<OAuthSessionInfo>;
+  oauthFinish(sessionId: string, pasted: string): Promise<OAuthStatus>;
+  oauthCancel(sessionId: string): Promise<void>;
+  oauthStatus(providerConfigId: string): Promise<OAuthStatus>;
+  oauthSignOut(providerConfigId: string): Promise<void>;
+  /** Import tokens from the official CLI credential files without returning the secrets. */
+  importCliAuth(): Promise<{ claude: boolean; chatgpt: boolean }>;
+
   enableRemote(relayUrl: string): Promise<import('./remote.js').RemoteStatus>;
   disableRemote(): Promise<import('./remote.js').RemoteStatus>;
   getRemoteStatus(): Promise<import('./remote.js').RemoteStatus>;
@@ -435,6 +452,7 @@ export interface KotrainApi {
   quitAndInstall(): Promise<void>;
 
   onAgentEvent(cb: (e: AgentEvent) => void): () => void;
+  onOAuthStatus(cb: (s: OAuthStatus) => void): () => void;
   onIndexProgress(cb: (s: IndexStatus) => void): () => void;
   onUpdateEvent(cb: (u: UpdateInfo) => void): () => void;
   onTerminalEvent(cb: (e: import('./terminal.js').TerminalEvent) => void): () => void;

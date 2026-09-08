@@ -6,6 +6,9 @@ import type {
   ModelInfo,
   Session,
   SendOptions,
+  OAuthProvider,
+  OAuthSessionInfo,
+  OAuthStatus,
   ContextBundle,
   MemoryEntry,
   MemoryScope,
@@ -121,6 +124,16 @@ import {
   reconcileWorkflowRuns,
 } from './workflows.js';
 import { sendChat, abortChat, resolveApproval, previewContext, setContextPrefs } from './chat.js';
+import {
+  initOAuth,
+  beginOAuth,
+  finishOAuth,
+  cancelOAuth,
+  getOAuthStatus,
+  signOut as signOutOAuth,
+  importCliAuth,
+  resolveSubscriptionProvider,
+} from './oauth.js';
 import { buildSpec, buildSpecDoc, readSpecDocs, setSpecMethodology, toggleSpecTask, specPathForSession } from './spec.js';
 import { createRemoteService } from './remote.js';
 import { getGpuStats } from './gpu.js';
@@ -328,6 +341,14 @@ export interface Host {
   rotateRemoteSecret(): RemoteStatus;
   /** The remote-access service itself (headless relay-agent mode attaches here). */
   remote: import('./remote.js').RemoteService;
+
+  beginOAuth(provider: OAuthProvider): Promise<OAuthSessionInfo>;
+  finishOAuth(sessionId: string, pasted: string): Promise<OAuthStatus>;
+  cancelOAuth(sessionId: string): Promise<void>;
+  oauthStatus(providerConfigId: string): Promise<OAuthStatus>;
+  oauthSignOut(providerConfigId: string): Promise<void>;
+  importCliAuth(): Promise<{ claude: boolean; chatgpt: boolean }>;
+
   appInfo(): AppInfo;
   /** Connect (or reconnect) configured MCP servers and return their status. */
   mcpStatus(): Promise<McpServerStatus[]>;
@@ -344,6 +365,7 @@ export interface Host {
 export function createHost(opts: { dataDir: string }): Host {
   setDataDir(opts.dataDir);
   const events = new EventEmitter();
+  initOAuth(events);
   const onIndexProgress = (s: IndexStatus) => events.emit('indexProgress', s);
   // Fan terminal output out to renderers over the same event bus.
   setTerminalSender((e) => events.emit('terminalEvent', e));
@@ -395,11 +417,18 @@ export function createHost(opts: { dataDir: string }): Host {
     },
     testProvider: async (id) => {
       const p = findProvider(id);
-      return p ? createProvider(p).test() : { ok: false, message: 'Not found' };
+      if (!p) return { ok: false, message: 'Not found' };
+      try {
+        const resolved = await resolveSubscriptionProvider(p);
+        return await createProvider(resolved).test();
+      } catch (e) {
+        return { ok: false, message: (e as Error).message };
+      }
     },
     testProviderConfig: async (cfg) => {
       try {
-        return await createProvider(cfg).test();
+        const resolved = await resolveSubscriptionProvider(cfg);
+        return await createProvider(resolved).test();
       } catch (e) {
         return { ok: false, message: (e as Error).message };
       }
@@ -409,7 +438,8 @@ export function createHost(opts: { dataDir: string }): Host {
       const p = findProvider(providerId);
       if (!p) return [];
       try {
-        return await createProvider(p).listModels();
+        const resolved = await resolveSubscriptionProvider(p);
+        return await createProvider(resolved).listModels();
       } catch {
         return [];
       }
@@ -614,6 +644,28 @@ export function createHost(opts: { dataDir: string }): Host {
     revokeRemoteDevice: (deviceId) => host.remote.revoke(deviceId),
     renameRemoteDevice: (deviceId, name) => host.remote.rename(deviceId, name),
     rotateRemoteSecret: () => host.remote.rotate(),
+
+    beginOAuth,
+    finishOAuth,
+    cancelOAuth: async (sessionId) => { cancelOAuth(sessionId); },
+    oauthStatus: async (providerConfigId) => {
+      const provider = findProvider(providerConfigId);
+      if (!provider?.tokenKey) {
+        return {
+          tokenKey: providerConfigId,
+          connected: false,
+          state: 'missing',
+          message: provider ? 'Provider has no token key.' : 'Provider not found.',
+        };
+      }
+      return getOAuthStatus(provider.tokenKey);
+    },
+    oauthSignOut: async (providerConfigId) => {
+      const provider = findProvider(providerConfigId);
+      if (provider?.tokenKey) signOutOAuth(provider.tokenKey);
+    },
+    importCliAuth: async () => importCliAuth(),
+
     appInfo: () => ({ version: process.env.KOTRAIN_VERSION ?? '0.0.0', platform: process.platform, edition: 'web' }),
     mcpStatus: async () => {
       const configs = getSettings().mcpServers ?? [];

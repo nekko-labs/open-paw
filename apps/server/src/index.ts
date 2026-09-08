@@ -139,17 +139,20 @@ async function main() {
     const onTerminal = (e: unknown) => socket.send(JSON.stringify({ channel: IpcEvents.terminalEvent, payload: e }));
     const onChanges = (e: unknown) => socket.send(JSON.stringify({ channel: IpcEvents.changesUpdated, payload: e }));
     const onWorkflows = (s: unknown) => socket.send(JSON.stringify({ channel: IpcEvents.workflowsUpdated, payload: s }));
+    const onOauth = (s: unknown) => socket.send(JSON.stringify({ channel: IpcEvents.oauthStatus, payload: s }));
     host.events.on('agentEvent', onAgent);
     host.events.on('indexProgress', onIndex);
     host.events.on('terminalEvent', onTerminal);
     host.events.on('changesUpdated', onChanges);
     host.events.on('workflowsUpdated', onWorkflows);
+    host.events.on('oauthStatus', onOauth);
     socket.on('close', () => {
       host.events.off('agentEvent', onAgent);
       host.events.off('indexProgress', onIndex);
       host.events.off('terminalEvent', onTerminal);
       host.events.off('changesUpdated', onChanges);
       host.events.off('workflowsUpdated', onWorkflows);
+      host.events.off('oauthStatus', onOauth);
     });
   });
 

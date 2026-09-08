@@ -150,6 +150,13 @@ export function createDispatcher(host: Host): (channel: string, args: any[]) => 
     [C.guardrailsClassify]: ([cmd]) => host.classifyCommand(cmd),
     [C.usageSummary]: () => host.usageSummary(),
 
+    [C.oauthBegin]: ([provider]) => host.beginOAuth(provider),
+    [C.oauthFinish]: ([sessionId, pasted]) => host.finishOAuth(sessionId, pasted),
+    [C.oauthCancel]: ([sessionId]) => host.cancelOAuth(sessionId),
+    [C.oauthStatus]: ([providerConfigId]) => host.oauthStatus(providerConfigId),
+    [C.oauthSignOut]: ([providerConfigId]) => host.oauthSignOut(providerConfigId),
+    [C.providersImportCliAuth]: () => host.importCliAuth(),
+
     [C.remoteEnable]: ([relayUrl]) => host.enableRemote(relayUrl),
     [C.remoteDisable]: () => host.disableRemote(),
     [C.remoteStatus]: () => host.remoteStatus(),

@@ -5,6 +5,7 @@ import type { SpecDocDef, SpecDocRole, SpecDocStatus } from '@kotrain/shared';
 import { getMethodology, getSessionWorkspaceIds, toggleTaskLine } from '@kotrain/shared';
 import { getSettings } from './store.js';
 import { getSession, saveSession } from './sessions.js';
+import { resolveSubscriptionProvider } from './oauth.js';
 
 /** The methodology a session uses (its own override, else the global default). */
 function methodologyForSession(sessionId: string) {
@@ -137,7 +138,8 @@ Be concise and concrete. Output ONLY the markdown for ${doc.filename}, with no p
 
   let out = '';
   try {
-    for await (const chunk of createProvider(provider).chat({
+    const resolved = await resolveSubscriptionProvider(provider);
+    for await (const chunk of createProvider(resolved).chat({
       model: session.modelId,
       system,
       messages: [{ id: 'spec', role: 'user', content: prompt, createdAt: Date.now() }],
