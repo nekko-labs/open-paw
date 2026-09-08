@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import type { ArtifactKind, ExperimentNode, MazeNode, ModelInfo, TrainingRun } from '@kotrain/shared';
-import { formatRuntime, layoutMaze, runOutputDir, runStats } from '@kotrain/shared';
+import type { ArtifactKind, ExperimentNode, MazeNode, ModelInfo, ProviderConfig, TrainingRun } from '@kotrain/shared';
+import { formatRuntime, layoutMaze, runOutputDir, runStats, isLocalProvider, formatModelPriceLabel } from '@kotrain/shared';
 import { useStore } from '../store.js';
 import { LogSurface, StatTile } from './primitives/index.js';
 import { STATUS } from '../tokens.js';
@@ -447,7 +447,8 @@ export function RunModelPicker({
   onChange: (next: { providerId: string; modelId: string }) => void;
 }) {
   const { settings } = useStore();
-  const providers = (settings?.providers ?? []).filter((p) => p.enabled);
+  const providers = (settings?.providers ?? []).filter((p) => p.enabled) as ProviderConfig[];
+  const provider = providers.find((p) => p.id === providerId);
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -481,7 +482,16 @@ export function RunModelPicker({
           onChange={(e) => onChange({ providerId, modelId: e.target.value })}
         >
           <option value="">Pick a model…</option>
-          {models.map((m) => <option key={m.id} value={m.id}>{m.name || m.id}</option>)}
+          {models.map((m) => {
+            const price = provider
+              ? formatModelPriceLabel({ modelId: m.id, auth: provider.auth, isLocal: isLocalProvider(provider.kind) })
+              : undefined;
+            return (
+              <option key={m.id} value={m.id}>
+                {m.name || m.id}{price ? ` · ${price}` : ''}
+              </option>
+            );
+          })}
         </select>
       ) : (
         <input

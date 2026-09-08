@@ -3,6 +3,7 @@ import {
   getModelPrice,
   estimateCost,
   estimateCostUSD,
+  formatModelPriceLabel,
   MODEL_PRICING,
 } from './limits.js';
 
@@ -113,5 +114,29 @@ describe('estimateCostUSD', () => {
 
   it('returns 0 when the model id is missing', () => {
     expect(estimateCostUSD(undefined, 1_000_000, 1_000_000)).toBe(0);
+  });
+});
+
+describe('formatModelPriceLabel', () => {
+  it('labels local models as Free', () => {
+    expect(formatModelPriceLabel({ modelId: 'llama3.2', isLocal: true })).toBe('Free');
+  });
+
+  it('labels subscription usage as Included in plan with a muted list price', () => {
+    expect(formatModelPriceLabel({ modelId: 'claude-sonnet-4-6', auth: 'subscription' }))
+      .toBe('Included in plan · ~$3.00/$15.00 per MTok');
+  });
+
+  it('falls back to Included in plan when the subscription model has no list price', () => {
+    expect(formatModelPriceLabel({ modelId: 'llama3.2', auth: 'subscription' })).toBe('Included in plan');
+  });
+
+  it('labels metered usage with the list price', () => {
+    expect(formatModelPriceLabel({ modelId: 'claude-opus-4-8', auth: 'apikey' }))
+      .toBe('$5.00/$25.00 per MTok');
+  });
+
+  it('returns undefined for unknown metered models', () => {
+    expect(formatModelPriceLabel({ modelId: 'local-custom-7b', auth: 'apikey' })).toBeUndefined();
   });
 });

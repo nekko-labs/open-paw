@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import type { ModelInfo, OAuthStatus, ProviderConfig, ProviderKind } from '@kotrain/shared';
-import { PROVIDER_DEFAULTS, isLocalProvider } from '@kotrain/shared';
+import { PROVIDER_DEFAULTS, isLocalProvider, formatModelPriceLabel } from '@kotrain/shared';
 import { useStore } from '../../store.js';
 import { Badge } from '../primitives/index.js';
 import { SubscriptionSignIn } from '../SubscriptionSignIn.js';
@@ -499,6 +499,8 @@ function DefaultOffer({ providers }: { providers: ProviderConfig[] }) {
 
   if (!showPicker) return null;
 
+  const provider = providers.find((p) => p.id === pid);
+
   return (
     <div className="card mt-6 p-4">
       <h3 className="text-[13px] font-semibold">Use one as your default?</h3>
@@ -531,11 +533,16 @@ function DefaultOffer({ providers }: { providers: ProviderConfig[] }) {
             ) : (
               <>
                 <option value="">Ask per chat</option>
-                {models.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
+                {models.map((m) => {
+                  const price = provider
+                    ? formatModelPriceLabel({ modelId: m.id, auth: provider.auth, isLocal: isLocalProvider(provider.kind) })
+                    : undefined;
+                  return (
+                    <option key={m.id} value={m.id}>
+                      {m.name}{price ? ` · ${price}` : ''}
+                    </option>
+                  );
+                })}
               </>
             )}
           </select>

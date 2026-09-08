@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { AgentEvent, AutoQuality, ChatMessage, Session, ToolCall, ContextBundle, IndexedFile, ModelInfo, SkillDef, PrInfo } from '@kotrain/shared';
-import { pickAutoModel, AUTO_MODEL_ID, AUTO_QUALITIES, AUTO_QUALITY_META, matchSkills, estimateTokens, modelSupportsThinking, getSessionWorkspaceIds, extractPrUrls, collectSessionPrUrls, detectSessionWorkspace, decodeRate, formatRate, hasResumableProgress, isLocalProvider } from '@kotrain/shared';
+import type { AgentEvent, AutoQuality, ChatMessage, Session, ToolCall, ContextBundle, IndexedFile, ModelInfo, ProviderConfig, SkillDef, PrInfo } from '@kotrain/shared';
+import { pickAutoModel, AUTO_MODEL_ID, AUTO_QUALITIES, AUTO_QUALITY_META, matchSkills, estimateTokens, modelSupportsThinking, getSessionWorkspaceIds, extractPrUrls, collectSessionPrUrls, detectSessionWorkspace, decodeRate, formatRate, hasResumableProgress, isLocalProvider, formatModelPriceLabel } from '@kotrain/shared';
 import { useStore } from '../store.js';
 import { clearDraft, loadDraft, saveDraft } from '../composerDrafts.js';
 import { Markdown } from './Markdown.js';
 import { ContextGauge, EffortMenu } from './ChatMetrics.js';
+import { UsageLimitsChip } from './UsageLimitsChip.js';
 import { ContextWarning } from './ContextWarning.js';
 import { ChatControls } from './ChatControls.js';
 import { PromptAnalyzer } from './PromptAnalyzer.js';
@@ -984,8 +985,9 @@ export function ChatPane({ sessionId, onRunningChange }: { sessionId: string; on
   };
 
   const providerKind = providers.find((p) => p.id === providerId)?.kind;
+  const activeProvider = providers.find((p) => p.id === providerId);
   const isCloudModel = !providerKind || !isLocalProvider(providerKind);
-  const isSubscription = providers.some((p) => p.id === session?.providerId && p.auth === 'subscription');
+  const isSubscription = activeProvider?.auth === 'subscription';
   // Reasoning toggle: offered only for a concrete, reasoning-capable model.
   const selectedModelInfo = modelId && modelId !== AUTO_MODEL_ID ? models.find((m) => m.id === modelId) : undefined;
   const thinkingSupported = !!modelId && modelId !== AUTO_MODEL_ID && modelSupportsThinking({ id: modelId, name: selectedModelInfo?.name });
@@ -1601,11 +1603,10 @@ export function ChatPane({ sessionId, onRunningChange }: { sessionId: string; on
                   </div>
                   <ContextGauge
                     bundle={ctx}
-                    cost={cost}
-                    subscription={isSubscription}
                     skill={activeSkill ? { name: activeSkill.name, tokens: estimateTokens(activeSkill.template) } : null}
                     draftTokens={draft.trim() ? estimateTokens(draft) : 0}
                   />
+                  <UsageLimitsChip provider={activeProvider} session={session ?? undefined} cost={cost} />
                   <div className="flex-1" />
                   {draft.trim() && hasProvider && (
                     <button
@@ -1685,7 +1686,7 @@ function ModelPicker({
   onProvider,
   onModel,
 }: {
-  providers: Array<{ id: string; label: string }>;
+  providers: ProviderConfig[];
   providerId: string | null;
   models: ModelInfo[];
   modelId: string | null;
@@ -1766,10 +1767,11 @@ function ModelPicker({
     setOpen(false);
   };
 
-  const row = (p: { id: string; label: string }, m: ModelInfo, showProvider: boolean) => {
+  const row = (p: ProviderConfig, m: ModelInfo, showProvider: boolean) => {
     const key = `${p.id}::${m.id}`;
     const fav = favSet.has(key);
     const selected = p.id === providerId && modelId === m.id;
+    const price = formatModelPriceLabel({ modelId: m.id, auth: p.auth, isLocal: isLocalProvider(p.kind) });
     return (
       <div
         key={key}
@@ -1782,6 +1784,7 @@ function ModelPicker({
           onClick={() => pick(p.id, m.id)}
         >
           <span className="min-w-0 truncate">{m.name}</span>
+          {price && <span className="ml-auto shrink-0 text-[10px] text-ink-faint" title="Estimated list price per 1M tokens">{price}</span>}
           {showProvider && <span className="shrink-0 text-[10px] text-ink-faint">{p.label}</span>}
         </button>
         <button

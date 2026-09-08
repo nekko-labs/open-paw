@@ -151,7 +151,7 @@ export function CommandCenterView() {
           <StatDivider />
           <Stat value={tokensToday.toLocaleString()} label="tokens today" />
           <StatDivider />
-          <Stat value={isSubscriptionSpend ? 'Subscription' : formatUSD(usage?.totalCost ?? 0)} label="est. spend" />
+          <Stat value={isSubscriptionSpend ? 'Included in plan' : formatUSD(usage?.totalCost ?? 0)} label="est. spend" />
         </div>
 
         {/* NOW — what is being worked on this second. */}
@@ -697,7 +697,7 @@ function UsagePanel({ usage }: { usage: UsageSummary | null }) {
         <div className="mt-4 space-y-1">
           {Object.entries(usage.byModel).map(([model, v]) => {
             const cost = v.cost ?? estimateCostUSD(model, v.input, v.output);
-            const costLabel = cost > 0 ? formatUSD(cost) : v.subscription ? 'Subscription' : formatUSD(0);
+            const costLabel = cost > 0 ? formatUSD(cost) : v.subscription ? 'Included in plan' : formatUSD(0);
             return (
               <div key={model} className="flex justify-between gap-3 text-[12px]">
                 <span className="truncate font-mono text-ink-soft" title={v.subscription ? 'Included in a subscription plan' : undefined}>{model}</span>
