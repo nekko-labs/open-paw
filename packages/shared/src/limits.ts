@@ -122,3 +122,31 @@ export function estimateCost(
 export function estimateCostUSD(modelId: string | undefined, input: number, output: number): number {
   return estimateCost(modelId, { inputTokens: input, outputTokens: output }) ?? 0;
 }
+
+/** Inputs for `formatModelPriceLabel`. */
+export interface ModelPriceLabelInputs {
+  modelId: string;
+  /** Provider auth mode. */
+  auth?: 'apikey' | 'subscription';
+  /** Whether the provider is a local on-device server (free). */
+  isLocal?: boolean;
+}
+
+/**
+ * Text label for a model option in a picker or list:
+ * - local models: "Free"
+ * - subscription auth: "Included in plan" + muted equivalent list price
+ * - metered API key: "$in/$out per MTok"
+ * - unknown / unpriced: undefined, so the UI shows nothing rather than a wrong number.
+ */
+export function formatModelPriceLabel({ modelId, auth, isLocal }: ModelPriceLabelInputs): string | undefined {
+  if (isLocal) return 'Free';
+  if (auth === 'subscription') {
+    const p = getModelPrice(modelId);
+    if (!p) return 'Included in plan';
+    return `Included in plan · ~$${p.input.toFixed(2)}/$${p.output.toFixed(2)} per MTok`;
+  }
+  const p = getModelPrice(modelId);
+  if (!p) return undefined;
+  return `$${p.input.toFixed(2)}/$${p.output.toFixed(2)} per MTok`;
+}

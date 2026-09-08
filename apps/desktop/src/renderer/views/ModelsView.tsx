@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import type { ModelInfo, OAuthProvider, OAuthStatus, ProviderConfig, ProviderKind } from '@kotrain/shared';
-import { isLocalProvider } from '@kotrain/shared';
+import type { LimitWindow, ModelInfo, OAuthProvider, OAuthStatus, ProviderConfig, ProviderKind, SubscriptionLimits } from '@kotrain/shared';
+import { formatUSD, isLocalProvider, formatModelPriceLabel } from '@kotrain/shared';
 import { useStore } from '../store.js';
 import { Badge } from '../components/primitives/index.js';
 import { SubscriptionSignIn } from '../components/SubscriptionSignIn.js';
@@ -8,6 +8,19 @@ import { AddProvider } from '../components/providers/AddProvider.js';
 import { PlusIcon, TrashIcon, CheckIcon, StarIcon } from '../icons.js';
 
 const isLocal = (k: ProviderKind) => isLocalProvider(k);
+
+/** Compact "in 12m" / "in 2h" countdown for a future timestamp. */
+function timeUntil(ms: number): string {
+  if (!Number.isFinite(ms) || ms <= 0) return 'soon';
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `in ${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `in ${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `in ${h}h ${m % 60 ? `${m % 60}m` : ''}`;
+  const d = Math.floor(h / 24);
+  return `in ${d}d`;
+}
 
 /** Format a subscription session expiry as a short, human-readable note. */
 function formatExpiry(expiresAt?: number): string | null {
@@ -101,6 +114,49 @@ export function ModelsView() {
   );
 }
 
+const LIMIT_STATUS_COLOR: Record<LimitWindow['status'], string> = {
+  allowed: 'var(--success)',
+  warning: 'var(--warning)',
+  rate_limited: 'var(--danger)',
+};
+
+function LimitsPanel({ limits, now, subName }: { limits: SubscriptionLimits | null; now: number; subName: string }) {
+  if (!limits) return null;
+  const windowOrder: LimitWindow['scope'][] = ['session', 'weekly', 'model'];
+  const sorted = [...limits.windows].sort(
+    (a, b) => windowOrder.indexOf(a.scope) - windowOrder.indexOf(b.scope) || b.usedPercent - a.usedPercent,
+  );
+  return (
+    <div className="mt-3 space-y-1.5 border-t border-line pt-3">
+      <div className="flex items-center justify-between text-[11px] text-ink-faint">
+        <span title={`Live read from ${subName}`}>Plan: {limits.planType ?? '—'}</span>
+        <span>Credits: {limits.creditsBalance === undefined ? 'Unlimited' : formatUSD(limits.creditsBalance)}</span>
+      </div>
+      {sorted.length === 0 ? (
+        <p className="text-[11px] text-ink-faint">No usage windows reported yet.</p>
+      ) : (
+        <div className="space-y-1">
+          {sorted.map((w) => (
+            <div key={w.id} className="flex items-center gap-2 text-[11px]">
+              <span
+                className="h-2 w-2 shrink-0 rounded-full"
+                style={{ background: LIMIT_STATUS_COLOR[w.status] }}
+                title={w.status === 'rate_limited' ? 'Rate limited' : w.status === 'warning' ? 'Warning' : 'OK'}
+              />
+              <span className="min-w-0 flex-1 truncate text-ink-soft">{w.label}</span>
+              <span className="shrink-0 tabular-nums font-medium">{Math.round(w.usedPercent)}%</span>
+              <span className="w-14 shrink-0 text-right tabular-nums text-ink-faint">
+                {w.resetAt > now ? timeUntil(w.resetAt - now) : 'soon'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      <p className="text-[10px] text-ink-faint">Live reads from {subName}; not a bill.</p>
+    </div>
+  );
+}
+
 function ProviderSection({
   title,
   subtitle,
@@ -149,8 +205,15 @@ function ProviderCard({ provider, onChanged }: { provider: ProviderConfig; onCha
   // ever sees this sanitized status (connected/account/expiry, never a token).
   const subscription = provider.auth === 'subscription';
   const [sub, setSub] = useState<OAuthStatus | null>(null);
+  const [limits, setLimits] = useState<SubscriptionLimits | null>(null);
   const [relinking, setRelinking] = useState(false);
   const [customModel, setCustomModel] = useState(provider.customModelId ?? '');
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
   const subName = provider.kind === 'chatgpt' ? 'ChatGPT' : 'Claude';
   const subOAuthProvider: OAuthProvider = provider.kind === 'chatgpt' ? 'chatgpt' : 'claude';
 
@@ -197,6 +260,18 @@ function ProviderCard({ provider, onChanged }: { provider: ProviderConfig; onCha
       if (s.tokenKey && s.tokenKey === provider.tokenKey) setSub(s);
     });
   }, [subscription, provider.tokenKey]);
+
+  // Live subscription limits for this provider's token key.
+  useEffect(() => {
+    const tokenKey = provider.tokenKey;
+    if (!tokenKey) { setLimits(null); return; }
+    let live = true;
+    window.kotrain.getLimits(tokenKey).then((l) => { if (live) setLimits(l ?? null); }).catch(() => {});
+    const off = window.kotrain.onLimitsUpdated((e) => {
+      if (e.tokenKey === tokenKey) setLimits(e.limits);
+    });
+    return () => { live = false; off(); };
+  }, [provider.tokenKey]);
 
   const signOutSubscription = async () => {
     setRelinking(false);
@@ -391,6 +466,8 @@ function ProviderCard({ provider, onChanged }: { provider: ProviderConfig; onCha
                   />
                 </label>
               )}
+
+              <LimitsPanel limits={limits} now={now} subName={subName} />
             </div>
           ) : (
             <div className="space-y-2">
@@ -430,10 +507,12 @@ function ProviderCard({ provider, onChanged }: { provider: ProviderConfig; onCha
 
       <div className="mt-2 max-h-44 space-y-1 overflow-y-auto">
         {models.length === 0 && <p className="text-[12px] text-ink-faint">No models found.</p>}
-        {models.map((m) => (
-          <div key={m.id} className="flex items-center justify-between rounded-lg px-2 py-1.5 text-[12.5px]" style={{ background: 'var(--surface-2)' }}>
-            <div className="flex min-w-0 items-center gap-1.5">
-              <button
+        {models.map((m) => {
+          const price = formatModelPriceLabel({ modelId: m.id, auth: provider.auth, isLocal: local });
+          return (
+            <div key={m.id} className="flex items-center justify-between rounded-lg px-2 py-1.5 text-[12.5px]" style={{ background: 'var(--surface-2)' }}>
+              <div className="flex min-w-0 items-center gap-1.5">
+                <button
                 title={isFavorite(`${provider.id}::${m.id}`) ? 'Unfavorite' : 'Favorite (pin to top of the model picker)'}
                 className={isFavorite(`${provider.id}::${m.id}`) ? 'text-accent' : 'text-ink-faint hover:text-ink'}
                 onClick={() => toggleFavorite(`${provider.id}::${m.id}`)}
@@ -443,6 +522,9 @@ function ProviderCard({ provider, onChanged }: { provider: ProviderConfig; onCha
               <span className="truncate font-mono">{m.name}</span>
             </div>
             <div className="flex shrink-0 items-center gap-2">
+              {price && (
+                <span className="max-w-[160px] truncate text-[10px] text-ink-faint" title="Estimated list price per 1M tokens">{price}</span>
+              )}
               {m.vramBytes ? (
                 <span className="text-[10px] text-ink-faint" title="VRAM used while loaded">{(m.vramBytes / 1e9).toFixed(1)} GB VRAM</span>
               ) : m.sizeBytes ? (
@@ -485,7 +567,8 @@ function ProviderCard({ provider, onChanged }: { provider: ProviderConfig; onCha
               ) : null}
             </div>
           </div>
-        ))}
+        );
+        })}
       </div>
     </div>
   );
