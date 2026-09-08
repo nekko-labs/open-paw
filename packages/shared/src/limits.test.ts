@@ -43,6 +43,20 @@ describe('getModelPrice', () => {
     expect(getModelPrice('')).toBeUndefined();
     expect(getModelPrice(undefined)).toBeUndefined();
   });
+
+  it('prefers specific variants over their family prefix', () => {
+    expect(getModelPrice('o1-mini')?.match).toBe('o1-mini');
+    expect(getModelPrice('o1-mini')?.input).not.toBe(getModelPrice('o1')?.input);
+
+    expect(getModelPrice('o3-mini')?.match).toBe('o3-mini');
+    expect(getModelPrice('o3-mini')?.input).not.toBe(getModelPrice('o3')?.input);
+
+    expect(getModelPrice('gpt-4.1-nano')?.match).toBe('gpt-4.1-nano');
+    expect(getModelPrice('gpt-4.1-nano')?.input).not.toBe(getModelPrice('gpt-4.1')?.input);
+
+    expect(getModelPrice('gpt-4.1-mini')?.match).toBe('gpt-4.1-mini');
+    expect(getModelPrice('gpt-4.1-mini')?.input).not.toBe(getModelPrice('gpt-4.1')?.input);
+  });
 });
 
 describe('estimateCost', () => {

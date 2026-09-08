@@ -506,7 +506,7 @@ export async function sendChat(opts: SendOptions, send: Sender): Promise<void> {
         resume: opts.resume,
         signal: abort.signal,
         onHeaders:
-          provider.auth === 'subscription' && provider.tokenKey
+          provider.kind === 'anthropic' && provider.auth === 'subscription' && provider.tokenKey
             ? (headers) => LimitsService.recordFromHeaders(provider.tokenKey!, provider.kind, headers)
             : undefined,
       })) {

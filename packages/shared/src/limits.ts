@@ -44,7 +44,8 @@ export interface ModelPricing {
 
 /**
  * Conservative list prices (USD per 1M tokens). Match is a substring of the
- * model id; more-specific entries are listed first so the first hit wins.
+ * model id. `getModelPrice` picks the entry with the longest matching substring
+ * so specific variants (e.g. `o1-mini`) are not shadowed by their family prefix.
  * Unknown / local models have no entry, so the UI can honestly say "no
  * estimate" while usage accounting falls back to $0.
  */
@@ -54,23 +55,33 @@ export const MODEL_PRICING: ModelPricing[] = [
   { match: 'claude-haiku', input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.10 },
   { match: 'gpt-4o-mini', input: 0.15, output: 0.6 },
   { match: 'gpt-4o', input: 2.5, output: 10 },
+  { match: 'gpt-4.1-nano', input: 0.10, output: 0.40 },
+  { match: 'gpt-4.1-mini', input: 0.40, output: 1.60 },
   { match: 'gpt-4.1', input: 2, output: 8 },
+  { match: 'o3-mini', input: 1.10, output: 4.40 },
   { match: 'o3', input: 2, output: 8 },
+  { match: 'o1-mini', input: 1.10, output: 4.40 },
   { match: 'o1', input: 15, output: 60 },
   { match: 'gpt-3.5', input: 0.5, output: 1.5 },
 ];
 
-/** Find the first pricing entry whose match is a substring of `modelId`. */
+/** Find the pricing entry whose match is the longest substring of `modelId`. */
 export function getModelPrice(modelId: string | undefined): ModelPricing | undefined {
   if (!modelId) return undefined;
   const id = modelId.toLowerCase();
-  return MODEL_PRICING.find((p) => id.includes(p.match));
+  return [...MODEL_PRICING]
+    .sort((a, b) => b.match.length - a.match.length)
+    .find((p) => id.includes(p.match));
 }
 
 export interface EstimateCostInputs {
+  /** Non-cached input/prompt tokens. Do not include cached tokens here. */
   inputTokens: number;
+  /** Non-cached output/completion tokens. Do not include cached tokens here. */
   outputTokens: number;
+  /** Cached read tokens, priced separately from `inputTokens`. */
   cacheReadTokens?: number;
+  /** Cached write tokens, priced separately from `inputTokens`. */
   cacheWriteTokens?: number;
   /** Subscription plans bill through the plan, not per token. */
   auth?: 'apikey' | 'subscription';
@@ -80,6 +91,11 @@ export interface EstimateCostInputs {
  * Estimated USD cost for a usage record. Returns `undefined` when the model
  * has no published price, so callers can avoid showing a wrong number.
  * Subscription auth always returns 0 (the usage is included in the plan).
+ *
+ * `inputTokens` and `outputTokens` must be the non-cached prompt and
+ * generation counts; cached reads and writes are priced separately via
+ * `cacheReadTokens` and `cacheWriteTokens`. Including cached tokens in the
+ * main counts would double-count them.
  */
 export function estimateCost(
   modelId: string | undefined,

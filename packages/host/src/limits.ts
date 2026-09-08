@@ -48,6 +48,22 @@ const ANTHROPIC_WINDOWS: Array<{
 /** Wire the service to the host's event bus. Called once in createHost. */
 export function initLimits(eventBus: EventEmitter): void {
   events = eventBus;
+  store.clear();
+  lastPollByToken.clear();
+  inFlight.clear();
+}
+
+/** Drop all cached state for a token key, or for every key if omitted. */
+export function clearLimits(tokenKey?: string): void {
+  if (tokenKey) {
+    store.delete(tokenKey);
+    lastPollByToken.delete(tokenKey);
+    inFlight.delete(tokenKey);
+  } else {
+    store.clear();
+    lastPollByToken.clear();
+    inFlight.clear();
+  }
 }
 
 /** Latest normalized state for a token key, or undefined if none captured yet. */
@@ -58,13 +74,18 @@ export function get(tokenKey: string): SubscriptionLimits | undefined {
 /**
  * Return the latest state, polling first if it is missing or stale.
  * The poll is throttled, so this is safe to call from UI refresh paths.
+ * If the cached snapshot is stale and the poll cannot refresh it, this
+ * returns `undefined` rather than handing back the stale snapshot as fresh.
  */
 export async function getLimits(tokenKey: string): Promise<SubscriptionLimits | undefined> {
   const state = get(tokenKey);
   if (state && state.updatedAt + state.staleAfterMs > Date.now()) {
     return state;
   }
-  return poll(tokenKey);
+  const polled = await poll(tokenKey);
+  if (!polled) return undefined;
+  if (polled.updatedAt + polled.staleAfterMs <= Date.now()) return undefined;
+  return polled;
 }
 
 /**
@@ -86,7 +107,14 @@ export function recordFromHeaders(
     return get(tokenKey);
   }
   store.set(tokenKey, limits);
-  events?.emit('limitsUpdated', { tokenKey, limits });
+  const bus = events;
+  if (bus) {
+    try {
+      bus.emit('limitsUpdated', { tokenKey, limits });
+    } catch {
+      // A throwing observer must not abort an in-flight chat turn.
+    }
+  }
   return limits;
 }
 
@@ -107,7 +135,9 @@ export async function poll(tokenKey: string): Promise<SubscriptionLimits | undef
   const existing = inFlight.get(tokenKey);
   if (existing) return existing;
 
-  const promise = (async (): Promise<SubscriptionLimits | undefined> => {
+  const bus = events;
+  let promise!: Promise<SubscriptionLimits | undefined>;
+  promise = (async (): Promise<SubscriptionLimits | undefined> => {
     try {
       const accessToken = await ensureFreshToken(tokenKey);
       const fresh = getToken(tokenKey);
@@ -122,14 +152,23 @@ export async function poll(tokenKey: string): Promise<SubscriptionLimits | undef
         next = get(tokenKey);
       }
 
-      if (next) {
-        lastPollByToken.set(tokenKey, Date.now());
+      if (inFlight.get(tokenKey) !== promise) {
+        return get(tokenKey);
       }
-      return next;
+      if (next) {
+        store.set(tokenKey, next);
+        try {
+          bus?.emit('limitsUpdated', { tokenKey, limits: next });
+        } catch {
+          // A throwing observer must not abort a background poll.
+        }
+      }
+      lastPollByToken.set(tokenKey, Date.now());
+      return next ?? get(tokenKey);
     } catch {
       return get(tokenKey);
     } finally {
-      inFlight.delete(tokenKey);
+      if (inFlight.get(tokenKey) === promise) inFlight.delete(tokenKey);
     }
   })();
 
@@ -145,16 +184,13 @@ async function pollClaude(tokenKey: string, accessToken: string): Promise<Subscr
       'anthropic-beta': 'oauth-2025-04-20',
     },
   });
-  if (!res.ok) return get(tokenKey);
+  if (!res.ok) return undefined;
 
   const text = await res.text();
   const json = safeJson(text);
-  if (!json || typeof json !== 'object') return get(tokenKey);
+  if (!json || typeof json !== 'object') return undefined;
 
-  const limits = parseAnthropicUsageJson(json as Record<string, unknown>);
-  store.set(tokenKey, limits);
-  events?.emit('limitsUpdated', { tokenKey, limits });
-  return limits;
+  return parseAnthropicUsageJson(json as Record<string, unknown>);
 }
 
 async function pollChatGpt(
@@ -162,7 +198,7 @@ async function pollChatGpt(
   accessToken: string,
   accountId: string | undefined,
 ): Promise<SubscriptionLimits | undefined> {
-  if (!accountId) return get(tokenKey);
+  if (!accountId) return undefined;
 
   const configuredBase = getSettings().providers.find((p) => p.tokenKey === tokenKey)?.baseUrl;
   const baseUrl = (configuredBase ?? 'https://chatgpt.com/backend-api').replace(/\/+$/, '');
@@ -173,16 +209,13 @@ async function pollChatGpt(
       'ChatGPT-Account-Id': accountId,
     },
   });
-  if (!res.ok) return get(tokenKey);
+  if (!res.ok) return undefined;
 
   const text = await res.text();
   const json = safeJson(text);
-  if (!json || typeof json !== 'object') return get(tokenKey);
+  if (!json || typeof json !== 'object') return undefined;
 
-  const limits = parseChatGptUsage(json as Record<string, unknown>);
-  store.set(tokenKey, limits);
-  events?.emit('limitsUpdated', { tokenKey, limits });
-  return limits;
+  return parseChatGptUsage(json as Record<string, unknown>);
 }
 
 function safeJson(text: string): unknown {

@@ -130,7 +130,7 @@ import {
   reconcileWorkflowRuns,
 } from './workflows.js';
 import { sendChat, abortChat, resolveApproval, previewContext, setContextPrefs } from './chat.js';
-import { initLimits, getLimits } from './limits.js';
+import { initLimits, getLimits, clearLimits } from './limits.js';
 import { startWorkflowListeners } from './listeners.js';
 import {
   initOAuth,
@@ -428,6 +428,8 @@ export function createHost(opts: { dataDir: string }): Host {
       return saveSettings({ providers }).providers;
     },
     removeProvider: (id) => {
+      const removed = findProvider(id);
+      if (removed?.tokenKey) clearLimits(removed.tokenKey);
       const providers = getSettings().providers.filter((x) => x.id !== id);
       return saveSettings({ providers }).providers;
     },
@@ -527,6 +529,7 @@ export function createHost(opts: { dataDir: string }): Host {
       sessions.clearSessions('all');
       memory.clearMemory();
       clearUsage();
+      clearLimits();
       return resetSettings();
     },
     listTools: () => [...BUILTIN_TOOLS.map((t) => ({ name: t.name, description: t.description })), ...mcpToolList()],
@@ -694,7 +697,10 @@ export function createHost(opts: { dataDir: string }): Host {
     },
     oauthSignOut: async (providerConfigId) => {
       const provider = findProvider(providerConfigId);
-      if (provider?.tokenKey) signOutOAuth(provider.tokenKey);
+      if (provider?.tokenKey) {
+        signOutOAuth(provider.tokenKey);
+        clearLimits(provider.tokenKey);
+      }
     },
     importCliAuth: async () => importCliAuth(),
 
