@@ -1,13 +1,29 @@
 import React, { useEffect, useState } from 'react';
-import type { ModelInfo, OAuthStatus, ProviderConfig, ProviderKind } from '@kotrain/shared';
+import type { ModelInfo, OAuthProvider, OAuthStatus, ProviderConfig, ProviderKind } from '@kotrain/shared';
 import { PROVIDER_DEFAULTS, isLocalProvider } from '@kotrain/shared';
 import { useStore } from '../store.js';
 import { Badge } from '../components/primitives/index.js';
 import { SubscriptionSignIn } from '../components/SubscriptionSignIn.js';
 import { PlusIcon, TrashIcon, CheckIcon, StarIcon } from '../icons.js';
 
-const KINDS: ProviderKind[] = ['ollama', 'lmstudio', 'vllm', 'anthropic', 'openai', 'openrouter', 'openai-compat'];
+const KINDS: ProviderKind[] = [
+  'ollama',
+  'lmstudio',
+  'vllm',
+  'anthropic',
+  'chatgpt',
+  'openai',
+  'openrouter',
+  'openai-compat',
+];
 const isLocal = (k: ProviderKind) => isLocalProvider(k);
+
+/** Provider kinds whose primary path is a subscription sign-in, mapped to the
+ *  OAuth provider they sign in through. */
+const SUBSCRIPTION_KINDS: Partial<Record<ProviderKind, OAuthProvider>> = {
+  anthropic: 'claude',
+  chatgpt: 'chatgpt',
+};
 
 export function ModelsView() {
   const { providers, refreshProviders, pushToast } = useStore();
@@ -122,8 +138,10 @@ function AddProvider({ onDone }: { onDone: () => void }) {
   const [baseUrl, setBaseUrl] = useState(PROVIDER_DEFAULTS.ollama.baseUrl);
   const [apiKey, setApiKey] = useState('');
   // For Anthropic the subscription sign-in is the primary path; the API key
-  // field hides behind a quiet disclosure until the user asks for it.
+  // field hides behind a quiet disclosure until the user asks for it. ChatGPT
+  // is subscription-only, so it has no API-key disclosure at all.
   const [useApiKey, setUseApiKey] = useState(false);
+  const oauthProvider = SUBSCRIPTION_KINDS[kind];
 
   const pick = (k: ProviderKind) => {
     setKind(k);
@@ -140,17 +158,18 @@ function AddProvider({ onDone }: { onDone: () => void }) {
   // token). The provider saves with auth: 'subscription'; the host injects the
   // fresh access token at request time.
   const connectSubscription = async (status: OAuthStatus) => {
+    const chatgpt = status.provider === 'chatgpt' || kind === 'chatgpt';
     await window.kotrain.saveProvider({
-      id: `anthropic-${Date.now().toString(36)}`,
-      kind: 'anthropic',
-      label: label || 'Claude (subscription)',
+      id: `${chatgpt ? 'chatgpt' : 'anthropic'}-${Date.now().toString(36)}`,
+      kind: chatgpt ? 'chatgpt' : 'anthropic',
+      label: label || (chatgpt ? 'ChatGPT (subscription)' : 'Claude (subscription)'),
       baseUrl,
       auth: 'subscription',
       tokenKey: status.tokenKey,
       accountId: status.accountId,
       enabled: true,
     });
-    pushToast('success', 'Signed in with your Claude subscription.');
+    pushToast('success', `Signed in with your ${chatgpt ? 'ChatGPT' : 'Claude'} subscription.`);
     onDone();
   };
 
@@ -202,14 +221,18 @@ function AddProvider({ onDone }: { onDone: () => void }) {
           Base URL
           <input className="input mt-1" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />
         </label>
-        {kind === 'anthropic' && (
+        {oauthProvider && (
           <div className="col-span-2 rounded-xl border p-4" style={{ borderColor: 'var(--line)', background: 'var(--surface-2)' }}>
-            <p className="text-[13px] font-medium">Use your Claude subscription</p>
+            <p className="text-[13px] font-medium">
+              Use your {oauthProvider === 'claude' ? 'Claude' : 'ChatGPT'} subscription
+            </p>
             <p className="mt-0.5 text-[12px] text-ink-faint">
-              Sign in with your Claude Pro or Max account to run on your existing plan, with no API usage fees.
+              {oauthProvider === 'claude'
+                ? 'Sign in with your Claude Pro or Max account to run on your existing plan, with no API usage fees.'
+                : 'Sign in with your ChatGPT Plus, Pro, or Business account to run on your existing plan, with no API usage fees.'}
             </p>
             <div className="mt-2.5">
-              <SubscriptionSignIn oauthProvider="claude" onConnected={connectSubscription} />
+              <SubscriptionSignIn oauthProvider={oauthProvider} onConnected={connectSubscription} />
             </div>
           </div>
         )}
@@ -240,8 +263,9 @@ function AddProvider({ onDone }: { onDone: () => void }) {
         <div className="flex shrink-0 gap-2">
           <button className="btn btn-ghost" onClick={onDone}>Cancel</button>
           {/* For Anthropic the subscription sign-in completes the add itself;
-              test/save only make sense once the API-key path is revealed. */}
-          {(kind !== 'anthropic' || useApiKey) && (
+              test/save only make sense once the API-key path is revealed.
+              ChatGPT has no API-key path, so its sign-in always completes. */}
+          {(oauthProvider === undefined || (kind === 'anthropic' && useApiKey)) && (
             <>
               <button className="btn btn-outline" onClick={test} disabled={testing}>
                 {testing ? 'Testing…' : 'Test connection'}
@@ -272,6 +296,8 @@ function ProviderCard({ provider, onChanged }: { provider: ProviderConfig; onCha
   // ever sees this sanitized status (connected/account/expiry, never a token).
   const subscription = provider.auth === 'subscription';
   const [sub, setSub] = useState<OAuthStatus | null>(null);
+  const subName = provider.kind === 'chatgpt' ? 'ChatGPT' : 'Claude';
+  const subOAuthProvider: OAuthProvider = provider.kind === 'chatgpt' ? 'chatgpt' : 'claude';
 
   const isFavorite = (key: string) => (settings?.favoriteModels ?? []).includes(key);
   const toggleFavorite = async (key: string) => {
@@ -316,7 +342,7 @@ function ProviderCard({ provider, onChanged }: { provider: ProviderConfig; onCha
   const signOutSubscription = async () => {
     await window.kotrain.oauthSignOut(provider.id);
     setSub(await window.kotrain.oauthStatus(provider.id).catch(() => null));
-    pushToast('info', 'Signed out of the Claude subscription.');
+    pushToast('info', `Signed out of the ${subName} subscription.`);
   };
 
   // A re-auth (or a first connect on an existing card) returns a new tokenKey;
@@ -334,7 +360,7 @@ function ProviderCard({ provider, onChanged }: { provider: ProviderConfig; onCha
       accountId: status.accountId ?? provider.accountId,
     });
     setSub(await window.kotrain.oauthStatus(provider.id).catch(() => null));
-    pushToast('success', 'Signed in with your Claude subscription.');
+    pushToast('success', `Signed in with your ${subName} subscription.`);
     onChanged();
   };
 
@@ -396,7 +422,7 @@ function ProviderCard({ provider, onChanged }: { provider: ProviderConfig; onCha
               <Badge
                 tone={sub?.connected ? 'success' : 'warning'}
                 variant="soft"
-                title="Runs on your Claude subscription instead of a metered API key"
+                title={`Runs on your ${subName} subscription instead of a metered API key`}
               >
                 Subscription
               </Badge>
@@ -448,7 +474,7 @@ function ProviderCard({ provider, onChanged }: { provider: ProviderConfig; onCha
               <span className="inline-flex min-w-0 items-center gap-1.5 text-ink-soft">
                 <CheckIcon className="h-3.5 w-3.5 shrink-0 text-success" />
                 <span className="truncate">
-                  Signed in with Claude{provider.accountId ? ` · ${provider.accountId}` : ''}
+                  Signed in with {subName}{provider.accountId ? ` · ${provider.accountId}` : ''}
                 </span>
               </span>
               <button className="shrink-0 text-ink-faint hover:text-ink" onClick={() => void signOutSubscription()}>
@@ -462,7 +488,11 @@ function ProviderCard({ provider, onChanged }: { provider: ProviderConfig; onCha
                   ? sub.message
                   : 'Subscription session expired or signed out — sign in again.'}
               </p>
-              <SubscriptionSignIn oauthProvider="claude" label="Sign in with Claude" onConnected={relinkSubscription} />
+              <SubscriptionSignIn
+                oauthProvider={subOAuthProvider}
+                label={`Sign in with ${subName}`}
+                onConnected={relinkSubscription}
+              />
             </div>
           )}
         </div>

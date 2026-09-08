@@ -25,6 +25,9 @@ const CHATGPT_REDIRECT_URI = 'http://localhost:1455/auth/callback';
 /** Milliseconds a pending OAuth session stays valid. */
 const SESSION_TTL_MS = 10 * 60 * 1000;
 
+/** ChatGPT CLI access tokens are valid for 10 days after `last_refresh`. */
+const CHATGPT_CLI_TOKEN_TTL_MS = 10 * 24 * 60 * 60 * 1000;
+
 /** In-memory pending sessions keyed by session id. */
 interface OAuthSession {
   id: string;
@@ -93,7 +96,8 @@ function buildStatus(
   if (!tokenSet) {
     return { tokenKey, connected: false, state: state ?? 'missing', message };
   }
-  const expired = !!tokenSet.expiresAt && tokenSet.expiresAt < Date.now();
+  const expiresAt = tokenExpiresAt(tokenSet);
+  const expired = !!expiresAt && expiresAt < Date.now();
   return {
     tokenKey,
     provider: tokenSet.provider,
@@ -383,6 +387,28 @@ function extractAccountId(idToken: string): string | undefined {
   }
 }
 
+/** Decode the `exp` claim from an unvalidated JWT, returning epoch milliseconds. */
+function expFromJwt(jwt: string | undefined): number | undefined {
+  if (typeof jwt !== 'string') return undefined;
+  const parts = jwt.split('.');
+  if (parts.length < 2) return undefined;
+  try {
+    const payload = Buffer.from(parts[1], 'base64url').toString('utf8');
+    const json = JSON.parse(payload) as Record<string, unknown>;
+    if (typeof json.exp === 'number') return json.exp * 1000;
+  } catch {
+    /* malformed or not a JWT */
+  }
+  return undefined;
+}
+
+/** Best-effort expiry for a stored token, falling back to a JWT `exp` claim. */
+function tokenExpiresAt(tokenSet: OAuthTokenSet): number | undefined {
+  if (tokenSet.expiresAt) return tokenSet.expiresAt;
+  if (tokenSet.provider === 'chatgpt') return expFromJwt(tokenSet.accessToken);
+  return undefined;
+}
+
 function tokenFromResponse(provider: OAuthProvider, json: Record<string, unknown>, obtainedAt: number): OAuthTokenSet {
   const accessToken = json.access_token as string | undefined;
   if (!accessToken) throw new Error('Token response missing access_token.');
@@ -393,11 +419,16 @@ function tokenFromResponse(provider: OAuthProvider, json: Record<string, unknown
   const expiresIn = typeof json.expires_in === 'number' ? json.expires_in : 3600;
   const scopes = json.scope as string | undefined;
 
+  // ChatGPT access tokens are JWTs; their `exp` claim is more reliable than
+  // the `expires_in` field when it is missing or rounded down.
+  const jwtExp = provider === 'chatgpt' ? expFromJwt(accessToken) : undefined;
+  const expiresAt = jwtExp ?? Date.now() + expiresIn * 1000;
+
   return {
     provider,
     accessToken,
     refreshToken: json.refresh_token as string | undefined,
-    expiresAt: Date.now() + expiresIn * 1000,
+    expiresAt,
     accountId,
     scopes,
     obtainedAt,
@@ -445,7 +476,11 @@ async function exchangeCode(
   }
   const json = safeJson(text);
   if (!json) throw new Error('Token response was not valid JSON.');
-  return tokenFromResponse(provider, json, obtainedAt);
+  const tokenSet = tokenFromResponse(provider, json, obtainedAt);
+  if (provider === 'chatgpt' && !tokenSet.accountId) {
+    throw new Error('Could not read your ChatGPT account id from the sign-in response.');
+  }
+  return tokenSet;
 }
 
 async function refreshTokenSet(tokenSet: OAuthTokenSet): Promise<OAuthTokenSet> {
@@ -514,7 +549,11 @@ export async function ensureFreshToken(tokenKey: string, force = false): Promise
     if (!tokenSet) {
       throw new Error(`No subscription token found for ${tokenKey}. Sign in again.`);
     }
-    if (!force && tokenSet.expiresAt && tokenSet.expiresAt - 60_000 > Date.now()) {
+    // A missing expiresAt does not mean the token is expired; try to recover
+    // the `exp` claim from a ChatGPT JWT, and refresh only if no expiry can be
+    // determined or the token is within 60 seconds of expiring.
+    const expiresAt = tokenExpiresAt(tokenSet);
+    if (!force && expiresAt && expiresAt - 60_000 > Date.now()) {
       return tokenSet.accessToken;
     }
     if (!tokenSet.refreshToken) {
@@ -538,7 +577,11 @@ export async function resolveSubscriptionProvider(config: ProviderConfig): Promi
     throw new Error('Provider is configured for subscription sign-in but has no token key. Sign in again in Settings.');
   }
   const accessToken = await ensureFreshToken(config.tokenKey);
-  return { ...config, apiKey: accessToken };
+  // Backfill the account id from the stored token set when the provider config
+  // lacks one: the CLI-import path (e.g. ~/.codex/auth.json) records it on the
+  // token, and the renderer never sees it to save on the config.
+  const accountId = config.accountId ?? getToken(config.tokenKey)?.accountId;
+  return { ...config, apiKey: accessToken, accountId };
 }
 
 export function signOut(tokenKey: string): void {
@@ -548,6 +591,16 @@ export function signOut(tokenKey: string): void {
 export function getOAuthStatus(tokenKey: string): OAuthStatus {
   const tokenSet = getToken(tokenKey);
   return buildStatus(tokenKey, tokenSet, tokenSet ? 'success' : 'missing');
+}
+
+/** Parse a timestamp from a CLI credential file, which may be a number or an ISO string. */
+function parseCliTimestamp(raw: unknown): number {
+  if (typeof raw === 'number') return raw;
+  if (typeof raw === 'string') {
+    const ms = Date.parse(raw);
+    return Number.isNaN(ms) ? Date.now() : ms;
+  }
+  return Date.now();
 }
 
 export function importCliAuth(): { claude: boolean; chatgpt: boolean } {
@@ -585,13 +638,21 @@ export function importCliAuth(): { claude: boolean; chatgpt: boolean } {
       const parsed = JSON.parse(raw) as Record<string, unknown>;
       const tokens = parsed.tokens as Record<string, unknown> | undefined;
       if (tokens?.access_token) {
-        const lastRefresh = typeof parsed.last_refresh === 'number' ? parsed.last_refresh : Date.now();
+        const accessToken = tokens.access_token as string;
+        const refreshToken = tokens.refresh_token as string | undefined;
+        const accountId = tokens.account_id as string | undefined;
+        const obtainedAt = parseCliTimestamp(parsed.last_refresh);
+        const expiresAt =
+          expFromJwt(accessToken) ??
+          expFromJwt(tokens.id_token as string) ??
+          obtainedAt + CHATGPT_CLI_TOKEN_TTL_MS;
         setToken('chatgpt', {
           provider: 'chatgpt',
-          accessToken: tokens.access_token as string,
-          refreshToken: tokens.refresh_token as string | undefined,
-          accountId: tokens.account_id as string | undefined,
-          obtainedAt: lastRefresh,
+          accessToken,
+          refreshToken,
+          accountId,
+          expiresAt,
+          obtainedAt,
         });
         result.chatgpt = true;
       }

@@ -3,11 +3,13 @@ import { DISCOVERY_TARGETS } from '@kotrain/shared';
 import type { Provider } from './types.js';
 import { OpenAICompatProvider } from './openai-compat.js';
 import { AnthropicProvider } from './anthropic.js';
+import { ChatGptProvider } from './chatgpt.js';
 import { OllamaProvider } from './ollama.js';
 
 export * from './types.js';
 export { OpenAICompatProvider } from './openai-compat.js';
 export { AnthropicProvider } from './anthropic.js';
+export { ChatGptProvider } from './chatgpt.js';
 export { OllamaProvider } from './ollama.js';
 
 /** Build a Provider instance from its stored config. */
@@ -24,7 +26,7 @@ export function createProvider(config: ProviderConfig): Provider {
     case 'openai-compat':
       return new OpenAICompatProvider(config);
     case 'chatgpt':
-      throw new Error('ChatGPT provider is not implemented in this PR');
+      return new ChatGptProvider(config);
   }
 }
 

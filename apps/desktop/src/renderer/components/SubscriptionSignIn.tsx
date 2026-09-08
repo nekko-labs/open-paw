@@ -13,13 +13,11 @@ type Phase =
  * Subscription sign-in flow (browser OAuth + paste fallback). Renders only the
  * controls; the parent decides what to persist via `onConnected`, which gets a
  * sanitized OAuthStatus — the access token itself never crosses into the
- * renderer.
- *
- * Today this is wired for Claude; ChatGPT sign-in reuses it in a later PR.
+ * renderer. Shared by the Claude and ChatGPT subscription flows.
  */
 export function SubscriptionSignIn({
   oauthProvider = 'claude',
-  label = 'Sign in with Claude',
+  label,
   onConnected,
 }: {
   oauthProvider?: OAuthProvider;
@@ -32,6 +30,10 @@ export function SubscriptionSignIn({
   const [finishing, setFinishing] = useState(false);
   const [importing, setImporting] = useState(false);
   const sessionRef = useRef<OAuthSessionInfo | null>(null);
+  const signInLabel = label ?? (oauthProvider === 'claude' ? 'Sign in with Claude' : 'Sign in with ChatGPT');
+  // The official first-party CLI whose credential file the host can import as
+  // a zero-browser sign-in path.
+  const cliName = oauthProvider === 'claude' ? 'Claude Code' : 'the Codex CLI';
   const onConnectedRef = useRef(onConnected);
   useEffect(() => {
     onConnectedRef.current = onConnected;
@@ -122,17 +124,23 @@ export function SubscriptionSignIn({
     }
   };
 
-  // Zero-browser path: reuse the sign-in the user already did in Claude Code.
-  // The host reads ~/.claude/.credentials.json into its token store under the
-  // 'claude' token key and reports only that it found one.
+  // Zero-browser path: reuse the sign-in the user already did in the official
+  // CLI. The host reads the credential file (~/.claude/.credentials.json or
+  // ~/.codex/auth.json) into its token store under the provider's token key
+  // and reports only that it found one.
   const importCli = async () => {
     setImporting(true);
     try {
       const found = await window.kotrain.importCliAuth();
-      if (found.claude) {
-        await onConnectedRef.current({ tokenKey: 'claude', provider: 'claude', connected: true, state: 'success' });
+      if (found[oauthProvider]) {
+        await onConnectedRef.current({
+          tokenKey: oauthProvider,
+          provider: oauthProvider,
+          connected: true,
+          state: 'success',
+        });
       } else {
-        pushToast('info', 'No Claude Code sign-in found on this machine.');
+        pushToast('info', `No ${cliName} sign-in found on this machine.`);
       }
     } catch (e) {
       pushToast('error', (e as Error).message);
@@ -187,21 +195,19 @@ export function SubscriptionSignIn({
   return (
     <div className="space-y-1.5">
       <button className="btn btn-primary" onClick={() => void begin()} disabled={phase.kind === 'starting'}>
-        {phase.kind === 'starting' ? 'Opening…' : label}
+        {phase.kind === 'starting' ? 'Opening…' : signInLabel}
       </button>
       {phase.kind === 'error' && (
         <p className="text-[12px]" style={{ color: 'var(--danger)' }}>
           {phase.message}
         </p>
       )}
-      {oauthProvider === 'claude' && (
-        <p className="text-[11.5px] text-ink-faint">
-          Already signed in to Claude Code?{' '}
-          <button className="text-accent hover:underline" onClick={() => void importCli()} disabled={importing}>
-            {importing ? 'Importing…' : 'Import that sign-in'}
-          </button>
-        </p>
-      )}
+      <p className="text-[11.5px] text-ink-faint">
+        Already signed in to {cliName}?{' '}
+        <button className="text-accent hover:underline" onClick={() => void importCli()} disabled={importing}>
+          {importing ? 'Importing…' : 'Import that sign-in'}
+        </button>
+      </p>
     </div>
   );
 }
