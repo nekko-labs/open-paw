@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { useStore, type View } from '../store.js';
+import { useStore, viewEnabled, type View } from '../store.js';
 import { SHORTCUTS } from '../shortcuts.js';
 import { Modal } from './primitives/index.js';
 
@@ -12,7 +12,7 @@ interface Command {
 
 /** Ctrl/Cmd+K command palette for fast navigation and actions. */
 export function CommandPalette() {
-  const { paletteOpen, setPaletteOpen, setView, newChat, newTerminal, toggleContextPanel } = useStore();
+  const { paletteOpen, setPaletteOpen, setView, newChat, newTerminal, toggleContextPanel, settings } = useStore();
   const hypergate = useStore((s) => s.hypergate);
   const hypergateConnected = useStore((s) => (s.settings?.mcpServers ?? []).some((m) => m.id === 'hypergate' || m.id === 'kotrain-mcp'));
   const [query, setQuery] = useState('');
@@ -29,7 +29,8 @@ export function CommandPalette() {
       go('skills', 'Go to Skills'),
       go('models', 'Go to Models'),
       go('connectors', 'Go to Connectors'),
-      go('memory', 'Go to Memory'),
+      // Experimental destinations stay out of the palette while their flag is off.
+      ...(viewEnabled('memory', settings) ? [go('memory', 'Go to Memory')] : []),
       go('settings', 'Go to Settings'),
       { id: 'toggle-context', label: 'Toggle context panel', run: () => toggleContextPanel() },
       // Only when there is a daemon to reach: an entry that can only fail is
@@ -47,7 +48,7 @@ export function CommandPalette() {
           }]
         : []),
     ];
-  }, [setView, newChat, newTerminal, toggleContextPanel, hypergate, hypergateConnected]);
+  }, [setView, newChat, newTerminal, toggleContextPanel, hypergate, hypergateConnected, settings]);
 
   const filtered = commands.filter((c) => c.label.toLowerCase().includes(query.toLowerCase()));
 

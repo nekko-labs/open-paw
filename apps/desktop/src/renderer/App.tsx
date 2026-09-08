@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useStore, type View } from './store.js';
+import { useStore, viewEnabled, type View } from './store.js';
 import { useT } from './i18n.js';
 import { SHORTCUTS } from './shortcuts.js';
 import { hasAppChrome } from './chrome.js';
@@ -55,6 +55,16 @@ const MOBILE_NAV: View[] = ['command', 'chat', 'training', 'workflows', 'setting
 export function App() {
   const { view, setView, mascotMood, settings, providers, refreshSettings, refreshProviders, refreshSessions, refreshTerminals } = useStore();
   const t = useT();
+
+  // Experimental surfaces only exist in the nav once their Settings flag is on.
+  const visibleNav = NAV.filter((n) => viewEnabled(n.view, settings));
+  const mobileNav = MOBILE_NAV.filter((v) => viewEnabled(v, settings));
+
+  // If the surface you're looking at gets switched off (say from another
+  // client over the same settings file), land somewhere real.
+  useEffect(() => {
+    if (!viewEnabled(view, settings)) setView('command');
+  }, [view, settings, setView]);
 
   useEffect(() => {
     refreshSettings();
@@ -160,7 +170,7 @@ export function App() {
                 <span className="rail-label text-[15px] font-semibold tracking-tight">Agent Nekko</span>
               </div>
             )}
-            {NAV.map(({ view: v, labelKey, Icon }) => (
+            {visibleNav.map(({ view: v, labelKey, Icon }) => (
               <button
                 key={v}
                 className={`nav-item ${view === v ? 'active' : ''}`}
@@ -204,7 +214,7 @@ export function App() {
         className="fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around border-t border-line md:hidden"
         style={{ background: 'var(--paper)', paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
-        {MOBILE_NAV.map((v) => {
+        {mobileNav.map((v) => {
           const item = NAV.find((n) => n.view === v)!;
           const { Icon } = item;
           return (
