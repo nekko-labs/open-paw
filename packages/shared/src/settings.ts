@@ -42,6 +42,20 @@ export const EFFORT_TEMPERATURE: Record<EffortLevel, number> = {
   high: 1.0,
 };
 
+/**
+ * Opt-in experimental surfaces. Each flag reveals a nav destination that stays
+ * hidden until the user turns it on under Settings → Experimental. Undefined
+ * means off: a flag that was never touched keeps its surface hidden.
+ */
+export interface ExperimentalFlags {
+  /** The Training tab (data-scientist agent runs). */
+  training?: boolean;
+  /** The Design tab (sketch/describe-to-prototype board). */
+  design?: boolean;
+  /** The Memory tab (global + per-project memory). */
+  memory?: boolean;
+}
+
 export interface AppSettings {
   theme: ThemeMode;
   accent: string;
@@ -92,6 +106,8 @@ export interface AppSettings {
    * GPU-probe spawn and no CPU sampling happen for it.
    */
   monitors?: Partial<Record<import('./monitor.js').MonitorKind, boolean>>;
+  /** Experimental feature toggles (Settings → Experimental). Off = surface hidden. */
+  experimental?: ExperimentalFlags;
 }
 
 /**

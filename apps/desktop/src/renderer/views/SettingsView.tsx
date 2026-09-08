@@ -4,7 +4,7 @@ import { useStore } from '../store.js';
 import { Badge } from '../components/primitives/index.js';
 import { UpdateProgress, useUpdater } from '../components/UpdateBanner.js';
 import { DEFAULT_SPEC_METHODOLOGY, SPEC_METHODOLOGIES, ORCHESTRATION_STRATEGIES, DEFAULT_ORCHESTRATION, DEFAULT_MAX_STEPS, MAX_STEPS_RANGE, clampMaxSteps, MAX_OUTPUT_TOKENS_DEFAULT, MAX_OUTPUT_TOKENS_RANGE, clampMaxOutputTokens } from '@kotrain/shared';
-import { ShieldIcon, SunIcon, TrashIcon, RobotIcon } from '../icons.js';
+import { ShieldIcon, SunIcon, TrashIcon, RobotIcon, WandIcon } from '../icons.js';
 import { RemoteAccess } from '../components/RemoteAccess.js';
 import { useT, LANGUAGES } from '../i18n.js';
 
@@ -208,6 +208,32 @@ export function SettingsView() {
 
         {/* Guardrails */}
         <GuardrailsSection settings={settings} update={update} updateGuardrail={updateGuardrail} />
+
+        {/* Experimental */}
+        <section className="card mt-5 p-5">
+          <div className="flex items-center gap-2"><WandIcon className="h-4 w-4" /><h2 className="font-semibold">Experimental</h2></div>
+          <p className="mt-1 text-[12px] text-ink-faint">
+            In-progress surfaces, kept out of the sidebar until you switch them on here. Off by default; turning one off hides the tab again.
+          </p>
+          <div className="mt-3">
+            {([
+              { key: 'training', label: 'Model training', desc: 'Show the Training tab: launch and watch data-scientist agent runs.' },
+              { key: 'design', label: 'Design board', desc: 'Show the Design tab: sketch or describe a UI and generate live prototypes.' },
+              { key: 'memory', label: 'Memory', desc: 'Show the Memory tab: browse and edit global and per-project memory.' },
+            ] as const).map((f) => (
+              <div key={f.key} className="flex min-h-[40px] items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <span className="text-[13px]">{f.label}</span>
+                  <p className="text-[11px] text-ink-faint">{f.desc}</p>
+                </div>
+                <Toggle
+                  on={settings.experimental?.[f.key] === true}
+                  onChange={(v) => update({ experimental: { ...settings.experimental, [f.key]: v } })}
+                />
+              </div>
+            ))}
+          </div>
+        </section>
 
         {/* Backup & restore */}
         <BackupSection settings={settings} onSettings={(s) => { setSettings(s); useStore.setState({ settings: s }); applyTheme(); }} />
