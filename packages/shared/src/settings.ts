@@ -56,6 +56,22 @@ export interface ExperimentalFlags {
   memory?: boolean;
 }
 
+/**
+ * First-run setup wizard state. `completedAt` is the "don't auto-show again"
+ * flag: it is written whether the user finished or skipped setup, and cleared
+ * by Settings → Replay setup. `version` lets a future step list re-prompt, and
+ * `steps` records each step's outcome so a later version can tell finished
+ * steps from skipped ones.
+ */
+export interface OnboardingState {
+  version: number;
+  completedAt?: number;
+  steps?: Record<string, 'done' | 'skipped'>;
+}
+
+/** Bump when the wizard's steps change enough that existing users should see it again. */
+export const ONBOARDING_VERSION = 1;
+
 export interface AppSettings {
   theme: ThemeMode;
   accent: string;
@@ -112,6 +128,8 @@ export interface AppSettings {
   monitors?: Partial<Record<import('./monitor.js').MonitorKind, boolean>>;
   /** Experimental feature toggles (Settings → Experimental). Off = surface hidden. */
   experimental?: ExperimentalFlags;
+  /** First-run setup wizard progress (undefined on installs that predate it). */
+  onboarding?: OnboardingState;
 }
 
 /**

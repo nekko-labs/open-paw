@@ -21,6 +21,7 @@ import { ModelsView } from './views/ModelsView.js';
 import { ConnectorsView } from './views/ConnectorsView.js';
 import { MemoryView } from './views/MemoryView.js';
 import { SettingsView } from './views/SettingsView.js';
+import { OnboardingView } from './views/OnboardingView.js';
 import {
   CommandHudIcon,
   SkillsColorIcon,
@@ -53,7 +54,7 @@ const NAV: Array<{ view: View; labelKey: string; Icon: (p: { className?: string 
 const MOBILE_NAV: View[] = ['command', 'chat', 'training', 'workflows', 'settings'];
 
 export function App() {
-  const { view, setView, mascotMood, settings, providers, refreshSettings, refreshProviders, refreshSessions, refreshTerminals } = useStore();
+  const { view, setView, mascotMood, settings, settingsLoaded, providers, onboardingOpen, refreshSettings, refreshProviders, refreshSessions, refreshTerminals } = useStore();
   const t = useT();
 
   // Experimental surfaces only exist in the nav once their Settings flag is on.
@@ -81,6 +82,9 @@ export function App() {
 
     // Global keyboard shortcuts (chords + their hint labels live in shortcuts.ts).
     const onKey = (e: KeyboardEvent) => {
+      // While the setup wizard owns the screen its own keys apply (arrows,
+      // Esc); firing global shortcuts underneath it would be a surprise.
+      if (useStore.getState().onboardingOpen) return;
       if (SHORTCUTS.palette.matches(e)) {
         e.preventDefault();
         useStore.getState().setPaletteOpen(!useStore.getState().paletteOpen);
@@ -156,8 +160,14 @@ export function App() {
       {/* The window's own title bar, in the desktop shell only. */}
       <TitleBar />
 
-      <div className="flex min-h-0 w-full flex-1">
-        {/* Left rail: icon-only at rest, expands over the content on hover to
+      {!settingsLoaded ? (
+        <div className="relative flex min-h-0 w-full flex-1 items-center justify-center">
+          <span className="text-ink-faint">Loading…</span>
+        </div>
+      ) : (
+        <>
+          <div className="relative flex min-h-0 w-full flex-1">
+            {/* Left rail: icon-only at rest, expands over the content on hover to
             reveal each destination's label. Hidden on phones (hover is useless on
             touch), where the bottom tab bar below takes over. */}
         <nav className="relative z-40 hidden w-16 shrink-0 md:block">
@@ -206,6 +216,10 @@ export function App() {
           {view === 'memory' && <MemoryView />}
           {view === 'settings' && <SettingsView />}
         </main>
+
+        {/* First-run setup wizard: covers nav + main but leaves the window's
+            title bar (and its OS buttons) reachable above it. */}
+        {onboardingOpen && <OnboardingView />}
       </div>
 
       {/* Phone bottom tab bar: the remote-control surface. The long tail of
@@ -232,6 +246,10 @@ export function App() {
         })}
       </nav>
 
+      </>)}
+
+      {/* Global overlays stay mounted even while settings load, so deep links,
+          toasts, and update banners keep working on any settings failure. */}
       <UpdateBanner />
       <RelayPairing />
       <ResourceHud />

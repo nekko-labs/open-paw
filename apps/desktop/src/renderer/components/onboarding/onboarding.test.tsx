@@ -1,0 +1,223 @@
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { describe, expect, it, vi } from 'vitest';
+import type { AppSettings } from '@kotrain/shared';
+import { ONBOARDING_VERSION } from '@kotrain/shared';
+import { WizardShell } from './WizardShell.js';
+import { WelcomeStep } from './WelcomeStep.js';
+import { ProvidersStep } from './ProvidersStep.js';
+import { IntegrationsStep } from './IntegrationsStep.js';
+import { DoneStep } from './DoneStep.js';
+import { ONBOARDING_STEPS, wizardTransition, type WizardState } from './onboardingMachine.js';
+
+// The step components and the store read browser globals at import time;
+// node has none, so provide the minimum first (hoisted above module imports
+// and mock factories).
+vi.hoisted(() => {
+  (globalThis as { window?: unknown }).window = {
+    innerWidth: 1280,
+    matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
+  };
+});
+
+vi.mock('../../store.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../store.js')>()
+  return {
+    ...actual,
+    useStore: (selector?: (s: unknown) => unknown) => {
+      const state = { settings: null, providers: [], setView: vi.fn(), newChat: vi.fn(), applyTheme: vi.fn() };
+      return selector ? selector(state) : state;
+    },
+  };
+});
+
+const { shouldAutoOpenOnboarding } = await import('../../store.js');
+
+const TEST_STEPS = [
+  { id: 'welcome', title: 'Welcome' },
+  { id: 'theme', title: 'Theme' },
+  { id: 'done', title: 'All set' },
+];
+
+function shell(index: number, extra: { nextLabel?: string; showSkipStep?: boolean } = {}) {
+  return renderToStaticMarkup(
+    <WizardShell
+      steps={TEST_STEPS}
+      index={index}
+      onBack={() => {}}
+      onNext={() => {}}
+      onSkipStep={() => {}}
+      onSkipAll={() => {}}
+      onGoTo={() => {}}
+      nextLabel={extra.nextLabel}
+      showSkipStep={extra.showSkipStep}
+    >
+      <p>step body</p>
+    </WizardShell>,
+  );
+}
+
+const baseSettings = { providers: [] } as unknown as AppSettings;
+
+describe('shouldAutoOpenOnboarding', () => {
+  it('opens on a genuinely fresh install and not once setup is done', () => {
+    expect(shouldAutoOpenOnboarding(baseSettings)).toBe(true);
+    expect(
+      shouldAutoOpenOnboarding({
+        ...baseSettings,
+        onboarding: { version: ONBOARDING_VERSION, completedAt: 1 },
+      }),
+    ).toBe(false);
+    // Skipping writes the same flag: "don't auto-show again," not "did everything."
+    expect(
+      shouldAutoOpenOnboarding({
+        ...baseSettings,
+        onboarding: { version: ONBOARDING_VERSION, completedAt: 1, steps: { theme: 'skipped' } },
+      }),
+    ).toBe(false);
+  });
+
+  it('stays closed for installs that predate the wizard', () => {
+    // completedAt is unset on every upgrade; a configured provider is the
+    // signal that setup already happened, so the wizard must not ambush them.
+    expect(
+      shouldAutoOpenOnboarding({ ...baseSettings, providers: [{ id: 'p1' }] as AppSettings['providers'] }),
+    ).toBe(false);
+  });
+
+  it('stays closed until settings have loaded', () => {
+    expect(shouldAutoOpenOnboarding(null)).toBe(false);
+    expect(shouldAutoOpenOnboarding(undefined)).toBe(false);
+  });
+});
+
+describe('WizardShell', () => {
+  it('renders as a modal dialog with step dots, controls, and focusable step region', () => {
+    const html = shell(1);
+    expect(html).toContain('role="dialog"');
+    expect(html).toContain('aria-modal="true"');
+    expect(html).toContain('aria-label="Agent Nekko setup"');
+    expect(html).toContain('aria-label="Setup progress"');
+    expect(html).toContain('aria-current="step"');
+    expect(html.match(/aria-label="Step \d of 3:/g)).toHaveLength(3);
+    for (const label of ['Back', 'Skip step', 'Skip setup', 'Next']) {
+      expect(html).toContain(`>${label}<`);
+    }
+    expect(html).toContain('tabindex="-1"');
+    expect(html).toContain('aria-label="Theme"');
+    expect(html).toContain('step body');
+  });
+
+  it('disables Back on the first step and swaps the label on the last', () => {
+    const first = shell(0);
+    expect(first).toContain('disabled=""');
+    const last = shell(2, { nextLabel: 'Finish', showSkipStep: false });
+    expect(last).toContain('>Finish<');
+    expect(last).not.toContain('>Skip step<');
+    expect(last).toContain('>Skip setup<');
+  });
+});
+
+describe('onboarding step content', () => {
+  it('greets with the mascot and the Agent Nekko name', () => {
+    const html = renderToStaticMarkup(<WelcomeStep />);
+    expect(html).toContain('Welcome to Agent Nekko');
+    expect(html).toContain('aria-label="Nekko"');
+  });
+
+  it('keeps the placeholder steps honest about landing later', () => {
+    const providers = renderToStaticMarkup(<ProvidersStep />);
+    expect(providers).toContain('Connect a model');
+    expect(providers).toContain('Models tab');
+    const integrations = renderToStaticMarkup(<IntegrationsStep />);
+    expect(integrations).toContain('kotrain mcp');
+    expect(integrations).toContain('Connectors tab');
+  });
+
+  it('offers three first moves on the done step', () => {
+    const html = renderToStaticMarkup(<DoneStep onFinish={() => {}} />);
+    expect(html).toContain('You&#x27;re set');
+    expect(html).toContain('Start your first chat');
+    expect(html).toContain('Connect a model provider');
+    expect(html).toContain('Wire up your apps');
+  });
+});
+
+describe('onboarding state machine', () => {
+  const initial: WizardState = { index: 0, steps: {} };
+
+  it('advances through steps and marks each done on Next', () => {
+    let state = initial;
+    for (let i = 0; i < ONBOARDING_STEPS.length; i++) {
+      const { state: next, complete } = wizardTransition(state, { type: 'next' });
+      expect(complete).toBe(i === ONBOARDING_STEPS.length - 1);
+      if (i < ONBOARDING_STEPS.length - 1) {
+        expect(next.index).toBe(i + 1);
+        expect(next.steps[ONBOARDING_STEPS[i].id]).toBe('done');
+      } else {
+        expect(next.steps[ONBOARDING_STEPS[i].id]).toBe('done');
+      }
+      state = next;
+    }
+  });
+
+  it('moves back one step without mutating the outcome map', () => {
+    const forward = wizardTransition(initial, { type: 'next' }).state;
+    const back = wizardTransition(forward, { type: 'back' }).state;
+    expect(back.index).toBe(0);
+    expect(back.steps).toEqual(forward.steps);
+  });
+
+  it('marks intermediate steps skipped when jumping forward via dots', () => {
+    const { state } = wizardTransition(initial, { type: 'goTo', to: 3 });
+    expect(state.index).toBe(3);
+    expect(state.steps['welcome']).toBe('skipped');
+    expect(state.steps['theme']).toBe('skipped');
+    expect(state.steps['providers']).toBe('skipped');
+    expect(state.steps['integrations']).toBeUndefined();
+  });
+
+  it('does not override done outcomes when jumping forward', () => {
+    const atProviders = wizardTransition(
+      wizardTransition(initial, { type: 'next' }).state,
+      { type: 'next' },
+    ).state;
+    const jumped = wizardTransition(atProviders, { type: 'goTo', to: 3 }).state;
+    expect(jumped.steps['welcome']).toBe('done');
+    expect(jumped.steps['theme']).toBe('done');
+    expect(jumped.steps['providers']).toBe('skipped');
+  });
+
+  it('completes with done on finish', () => {
+    const { state, complete } = wizardTransition({ index: 4, steps: { theme: 'done' } } as WizardState, { type: 'finish' });
+    expect(complete).toBe(true);
+    expect(state.steps['done']).toBe('done');
+  });
+
+  it('completes with skipped on skip-all', () => {
+    const { state, complete } = wizardTransition({ index: 2, steps: { theme: 'done' } } as WizardState, { type: 'skipAll' });
+    expect(complete).toBe(true);
+    expect(state.steps['providers']).toBe('skipped');
+  });
+
+  it('keeps the final step outcome on skip from the last step', () => {
+    const { state, complete } = wizardTransition({ index: 4, steps: {} } as WizardState, { type: 'skipStep' });
+    expect(complete).toBe(true);
+    expect(state.steps['done']).toBe('skipped');
+  });
+
+  it('does not leave an incomplete outcome map after skipping forward and finishing', () => {
+    let state = initial;
+    state = wizardTransition(state, { type: 'goTo', to: 4 }).state;
+    expect(state.steps['welcome']).toBe('skipped');
+    expect(state.steps['theme']).toBe('skipped');
+    expect(state.steps['providers']).toBe('skipped');
+    expect(state.steps['integrations']).toBe('skipped');
+    const { state: finished, complete } = wizardTransition(state, { type: 'finish' });
+    expect(complete).toBe(true);
+    expect(finished.steps['done']).toBe('done');
+    for (const s of ONBOARDING_STEPS) {
+      expect(finished.steps[s.id]).toBeDefined();
+    }
+  });
+});
