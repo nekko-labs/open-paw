@@ -52,9 +52,11 @@ export function SubscriptionSignIn({
         setPhase({ kind: 'idle' });
         // The parent's save (e.g. saveProvider) can still fail; surface it as
         // a phase error instead of an unhandled rejection.
-        Promise.resolve(onConnectedRef.current(s)).catch((e) => {
-          setPhase({ kind: 'error', message: (e as Error).message });
-        });
+        Promise.resolve()
+          .then(() => onConnectedRef.current(s))
+          .catch((e) => {
+            setPhase({ kind: 'error', message: (e as Error).message });
+          });
       } else if (s.state === 'error') {
         // A failed exchange leaves the host session (and its loopback
         // listener) open, so close it out before dropping the ref.
@@ -171,7 +173,11 @@ export function SubscriptionSignIn({
             </button>
           </div>
         )}
-        <button className="btn btn-ghost py-1 text-[12px]" onClick={() => void cancel()}>
+        <button
+          className="btn btn-ghost py-1 text-[12px]"
+          onClick={() => void cancel()}
+          disabled={finishing}
+        >
           Cancel
         </button>
       </div>
