@@ -538,7 +538,11 @@ export async function resolveSubscriptionProvider(config: ProviderConfig): Promi
     throw new Error('Provider is configured for subscription sign-in but has no token key. Sign in again in Settings.');
   }
   const accessToken = await ensureFreshToken(config.tokenKey);
-  return { ...config, apiKey: accessToken };
+  // Backfill the account id from the stored token set when the provider config
+  // lacks one: the CLI-import path (e.g. ~/.codex/auth.json) records it on the
+  // token, and the renderer never sees it to save on the config.
+  const accountId = config.accountId ?? getToken(config.tokenKey)?.accountId;
+  return { ...config, apiKey: accessToken, accountId };
 }
 
 export function signOut(tokenKey: string): void {
