@@ -204,10 +204,16 @@ describe('onboarding step content', () => {
     }
   });
 
-  it('keeps the integrations placeholder honest about landing later', () => {
-    const integrations = renderToStaticMarkup(<IntegrationsStep />);
-    expect(integrations).toContain('kotrain mcp');
-    expect(integrations).toContain('Connectors tab');
+  it('offers subagent installs and the app connector grid', () => {
+    const html = renderToStaticMarkup(<IntegrationsStep />);
+    expect(html).toContain('Meet your tools');
+    expect(html).toContain('Use Nekko inside other tools');
+    expect(html).toContain('Connect your apps');
+    // Detection runs in an effect; SSR shows the in-flight scan.
+    expect(html).toContain('Checking for Claude Code, Codex, Cursor, and Windsurf');
+    for (const label of ['GitHub', 'Linear', 'Slack', 'Discord', 'Jira', 'Microsoft Teams', 'Gmail', 'Google Drive']) {
+      expect(html).toContain(label);
+    }
   });
 
   it('maps a subscription sign-in to a provider config without secrets', async () => {

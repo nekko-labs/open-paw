@@ -165,6 +165,10 @@ const api: KotrainApi = {
   disconnectConnector: (kind: ConnectorKind) => inv(IpcChannels.connectorDisconnect, kind),
   fetchConnector: (kind: ConnectorKind, query) => inv(IpcChannels.connectorFetch, kind, query),
 
+  detectAgentTools: () => inv(IpcChannels.integrationsDetect),
+  installSubagent: (tool) => inv(IpcChannels.integrationsInstall, tool),
+  subagentSnippet: (tool) => inv(IpcChannels.integrationsSnippet, tool),
+
   classifyCommand: (command) => inv(IpcChannels.guardrailsClassify, command),
   saveGuardrail: async (rule: GuardrailRule) => {
     const settings: AppSettings = await inv(IpcChannels.settingsGet);

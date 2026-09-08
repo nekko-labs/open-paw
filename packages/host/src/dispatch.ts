@@ -148,6 +148,10 @@ export function createDispatcher(host: Host): (channel: string, args: any[]) => 
     [C.connectorDisconnect]: ([kind]) => host.disconnectConnector(kind),
     [C.connectorFetch]: ([kind, query]) => host.fetchConnector(kind, query),
 
+    [C.integrationsDetect]: () => host.detectAgentTools(),
+    [C.integrationsInstall]: ([tool]) => host.installSubagent(tool),
+    [C.integrationsSnippet]: ([tool]) => host.subagentSnippet(tool),
+
     [C.guardrailsClassify]: ([cmd]) => host.classifyCommand(cmd),
     [C.usageSummary]: () => host.usageSummary(),
 
