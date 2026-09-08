@@ -21,6 +21,7 @@ import { getSettings } from './store.js';
 import { getSession, saveSession, createSession } from './sessions.js';
 import { executeTool } from './tools.js';
 import { recordUsage } from './usage.js';
+import * as LimitsService from './limits.js';
 import { listMemory } from './memory.js';
 import { ensureFreshToken, resolveSubscriptionProvider } from './oauth.js';
 import { searchWorkspace } from './workspace.js';
@@ -504,6 +505,10 @@ export async function sendChat(opts: SendOptions, send: Sender): Promise<void> {
         maxHistoryTurns: opts.maxHistoryTurns,
         resume: opts.resume,
         signal: abort.signal,
+        onHeaders:
+          provider.kind === 'anthropic' && provider.auth === 'subscription' && provider.tokenKey
+            ? (headers) => LimitsService.recordFromHeaders(provider.tokenKey!, provider.kind, headers)
+            : undefined,
       })) {
         eventsSeen = true;
         if (event.type === 'usage') {
@@ -516,6 +521,9 @@ export async function sendChat(opts: SendOptions, send: Sender): Promise<void> {
             sessionId: opts.sessionId,
             auth: provider.auth,
           });
+        }
+        if (event.type === 'done' && provider.auth === 'subscription' && provider.tokenKey) {
+          LimitsService.poll(provider.tokenKey).catch(() => {});
         }
         // Checkpoint after every completed step, not just at the end. The agent
         // loop appends each assistant message and tool result to `session.messages`

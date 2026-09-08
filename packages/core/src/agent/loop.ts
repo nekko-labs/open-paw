@@ -38,6 +38,8 @@ export interface RunAgentOptions {
    * what is already there, so the steps it already took are not repeated.
    */
   resume?: boolean;
+  /** Pass response headers up to the host (rate-limit capture). */
+  onHeaders?: (headers: Headers) => void;
 }
 
 let counter = 0;
@@ -141,6 +143,7 @@ export async function* runAgent(opts: RunAgentOptions): AsyncGenerator<AgentEven
         think: opts.think,
         maxOutputTokens: opts.maxOutputTokens,
         signal: ctl.signal,
+        onHeaders: opts.onHeaders,
       })) {
         switch (chunk.type) {
           case 'text':

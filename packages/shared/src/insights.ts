@@ -7,7 +7,7 @@
  */
 
 import type { UsageSummary } from './settings.js';
-import { estimateCostUSD } from './settings.js';
+import { estimateCostUSD } from './limits.js';
 import type { ProviderConfig, ProviderKind } from './models.js';
 import type { Session } from './chat.js';
 

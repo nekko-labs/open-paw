@@ -16,6 +16,7 @@ import type { ConnectorConfig, ConnectorKind, ConnectorResource } from './connec
 import type { AgentToolId, AgentToolStatus, SubagentInstallResult, SubagentSnippet } from './integrations.js';
 import type { GuardrailRule } from './guardrails.js';
 import type { OAuthProvider, OAuthSessionInfo, OAuthStatus } from './oauth.js';
+import type { SubscriptionLimits } from './limits.js';
 import type { AppInfo, UpdateInfo } from './update.js';
 
 /** Invoke (request/response) channels. */
@@ -172,6 +173,7 @@ export const IpcChannels = {
   guardrailsClassify: 'guardrails:classify',
 
   usageSummary: 'usage:summary',
+  limitsGet: 'limits:get',
 
   oauthBegin: 'oauth:begin',
   oauthFinish: 'oauth:finish',
@@ -213,6 +215,7 @@ export const IpcEvents = {
   tasksUpdated: 'tasks:updated',
   trainingUpdated: 'training:updated',
   workflowsUpdated: 'workflows:updated',
+  limitsUpdated: 'limits:updated',
   deepLink: 'app:deepLink',
 } as const;
 
@@ -433,6 +436,7 @@ export interface KotrainApi {
   saveGuardrail(rule: GuardrailRule): Promise<GuardrailRule[]>;
 
   getUsageSummary(): Promise<UsageSummary>;
+  getLimits(tokenKey: string): Promise<SubscriptionLimits | undefined>;
 
   oauthBegin(provider: OAuthProvider): Promise<OAuthSessionInfo>;
   oauthFinish(sessionId: string, pasted: string): Promise<OAuthStatus>;
@@ -484,6 +488,8 @@ export interface KotrainApi {
   onTrainingUpdated(cb: (runs: TrainingRun[]) => void): () => void;
   /** Fires when a workflow is edited or any run advances a step. */
   onWorkflowsUpdated(cb: (snapshot: WorkflowsSnapshot) => void): () => void;
+  /** Fires when subscription limits are captured or polled for any token key. */
+  onLimitsUpdated(cb: (e: { tokenKey: string; limits: SubscriptionLimits }) => void): () => void;
   /**
    * Fires when another app asks Kotrain to do something through a `kotrain://`
    * URL: today, Hypergate's "Connect Kotrain" button. Desktop only, since the

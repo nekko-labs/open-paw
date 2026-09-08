@@ -82,6 +82,7 @@ export function connectRelayAgent(host: Host, opts: RelayAgentOptions): RelayAge
   const onTasks = (t: unknown) => void broadcast({ type: 'event', channel: IpcEvents.tasksUpdated, payload: t });
   const onTraining = (r: unknown) => void broadcast({ type: 'event', channel: IpcEvents.trainingUpdated, payload: r });
   const onWorkflows = (s: unknown) => void broadcast({ type: 'event', channel: IpcEvents.workflowsUpdated, payload: s });
+  const onLimits = (e: unknown) => void broadcast({ type: 'event', channel: IpcEvents.limitsUpdated, payload: e });
   host.events.on('agentEvent', onAgent);
   host.events.on('indexProgress', onIndex);
   host.events.on('terminalEvent', onTerminal);
@@ -89,6 +90,7 @@ export function connectRelayAgent(host: Host, opts: RelayAgentOptions): RelayAge
   host.events.on('tasksUpdated', onTasks);
   host.events.on('trainingUpdated', onTraining);
   host.events.on('workflowsUpdated', onWorkflows);
+  host.events.on('limitsUpdated', onLimits);
 
   const handleClientFrame = async (cid: string, data: string) => {
     let envelope: { enc?: string };
