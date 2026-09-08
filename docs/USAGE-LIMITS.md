@@ -6,9 +6,9 @@ This page explains where Agent Nekko's usage numbers come from and what they mea
 
 The app does not guess your usage. It asks the provider:
 
-- **Claude (Anthropic subscription)** — Every subscription-mode response carries `anthropic-ratelimit-unified-*` headers that report the 5-hour, 7-day, and per-model 7-day windows. The host also polls `GET https://api.anthropic.com/api/oauth/usage` for the first paint and manual refreshes.
+- **Claude (Anthropic subscription)** - Every subscription-mode response carries `anthropic-ratelimit-unified-*` headers that report the 5-hour, 7-day, and per-model 7-day windows. The host also polls `GET https://api.anthropic.com/api/oauth/usage` for the first paint and manual refreshes.
 
-- **ChatGPT (Codex subscription)** — The host polls `GET https://chatgpt.com/backend-api/wham/usage` with the current Bearer token and `ChatGPT-Account-Id`. The `/wham/usage` endpoint returns the rolling 5-hour (`primary_window`) and 7-day (`secondary_window`) usage, plus plan type and credits.
+- **ChatGPT (Codex subscription)** - The host polls `GET https://chatgpt.com/backend-api/wham/usage` with the current Bearer token and `ChatGPT-Account-Id`. The `/wham/usage` endpoint returns the rolling 5-hour (`primary_window`) and 7-day (`secondary_window`) usage, plus plan type and credits.
 
 Both providers are normalized into the same `SubscriptionLimits` shape in `packages/shared/src/limits.ts`.
 

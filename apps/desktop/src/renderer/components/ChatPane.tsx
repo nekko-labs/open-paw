@@ -1603,6 +1603,7 @@ export function ChatPane({ sessionId, onRunningChange }: { sessionId: string; on
                   </div>
                   <ContextGauge
                     bundle={ctx}
+                    subscription={isSubscription}
                     skill={activeSkill ? { name: activeSkill.name, tokens: estimateTokens(activeSkill.template) } : null}
                     draftTokens={draft.trim() ? estimateTokens(draft) : 0}
                   />
