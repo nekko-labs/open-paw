@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import type { LimitWindow, ModelInfo, OAuthProvider, OAuthStatus, ProviderConfig, ProviderKind, SubscriptionLimits } from '@kotrain/shared';
-import { formatUSD, isLocalProvider, formatModelPriceLabel } from '@kotrain/shared';
+import { formatUSD, isLocalProvider, isRuntimeKind, formatModelPriceLabel } from '@kotrain/shared';
 import { useStore } from '../store.js';
 import { Badge } from '../components/primitives/index.js';
 import { SubscriptionSignIn } from '../components/SubscriptionSignIn.js';
 import { AddProvider } from '../components/providers/AddProvider.js';
 import { PlusIcon, TrashIcon, CheckIcon, StarIcon } from '../icons.js';
+import { RuntimeCard } from '../components/runtimes/RuntimeCard.js';
 
 const isLocal = (k: ProviderKind) => isLocalProvider(k);
 
@@ -377,7 +378,7 @@ function ProviderCard({ provider, onChanged }: { provider: ProviderConfig; onCha
             )}
             {provider.discovered && <span className="chip">discovered</span>}
           </div>
-          <p className="mt-0.5 font-mono text-[11px] text-ink-faint">{provider.baseUrl}</p>
+          {!local && <p className="mt-0.5 font-mono text-[11px] text-ink-faint">{provider.baseUrl}</p>}
         </div>
         <button
           className="btn btn-ghost px-2"
@@ -394,22 +395,25 @@ function ProviderCard({ provider, onChanged }: { provider: ProviderConfig; onCha
         </button>
       </div>
 
+      {/* A local server gets the full control surface: power, address, residency,
+          and the fit planner. Start/stop, the address, and the model list all live
+          in the card, so the old standalone "Stop server" button is gone. */}
+      {local && isRuntimeKind(provider.kind) && (
+        <div className="mt-3">
+          <RuntimeCard
+            provider={provider}
+            kind={provider.kind}
+            onChanged={() => {
+              onChanged();
+              load();
+              test();
+            }}
+          />
+        </div>
+      )}
+
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <button className="btn btn-outline py-1.5 text-[12px]" onClick={test}>Test connection</button>
-        {/* Stopping a server only makes sense while one is answering: an offline
-            (or not-yet-probed) provider has no process to stop, and a greyed-out
-            button just invites a click that can't work. */}
-        {local && conn.state === 'ok' && (
-          <button
-            className="btn btn-outline py-1.5 text-[12px]"
-            style={{ color: 'var(--danger)', borderColor: 'color-mix(in srgb, var(--danger) 40%, transparent)' }}
-            onClick={stopServer}
-            disabled={stopping}
-            title="Stop this local model server (kills its process and unloads its models)"
-          >
-            {stopping ? 'Stopping…' : 'Stop server'}
-          </button>
-        )}
         {conn.state === 'fail' && <span className="text-[12px]" style={{ color: 'var(--danger)' }}>{conn.message}</span>}
       </div>
 
