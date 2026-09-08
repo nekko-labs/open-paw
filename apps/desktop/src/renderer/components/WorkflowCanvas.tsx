@@ -20,6 +20,7 @@ const KIND: Record<WorkflowStepKind | 'terminal', { color: string; glyph: string
   skill: { color: 'var(--cat-skill)', glyph: '◈', label: 'Skill' },
   workflow: { color: 'var(--info)', glyph: '⇥', label: 'Workflow' },
   shell: { color: 'var(--cat-index)', glyph: '$', label: 'Shell' },
+  action: { color: 'var(--accent)', glyph: '↗', label: 'Action' },
   terminal: { color: 'var(--neutral)', glyph: '●', label: 'End' },
 };
 

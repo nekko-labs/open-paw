@@ -13,15 +13,17 @@
  * carries a category and its triggers are addressable, and the list groups by
  * both (see groupWorkflows).
  */
+import type { ConnectorKind } from './connectors.js';
 
 /** What a step actually does when it runs. */
-export type WorkflowStepKind = 'prompt' | 'skill' | 'workflow' | 'shell';
+export type WorkflowStepKind = 'prompt' | 'skill' | 'workflow' | 'shell' | 'action';
 
 export const WORKFLOW_STEP_KINDS: Array<{ kind: WorkflowStepKind; label: string; hint: string }> = [
   { kind: 'prompt', label: 'Prompt', hint: 'Give the agent an instruction and let it work.' },
   { kind: 'skill', label: 'Skill', hint: 'Run an installed skill by name.' },
   { kind: 'workflow', label: 'Workflow', hint: 'Trigger another workflow and wait for it.' },
   { kind: 'shell', label: 'Shell', hint: 'Run a command in the workspace.' },
+  { kind: 'action', label: 'Action', hint: 'Call an integration: post a message, comment on a PR, set a commit status.' },
 ];
 
 /** Where control goes when a step finishes. */
@@ -80,11 +82,18 @@ export interface WorkflowStep {
   kind: WorkflowStepKind;
   /**
    * What to run, read according to `kind`: the instruction (prompt), the skill
-   * id (skill), the target workflow id (workflow), or the command line (shell).
+   * id (skill), the target workflow id (workflow), the command line (shell),
+   * or the `<connector>.<op>` an action performs (see WORKFLOW_ACTIONS).
    */
   run: string;
   /** Extra context appended to a prompt or skill step. */
   with?: string;
+  /**
+   * action only: named inputs for the op (channel, issue key, message…).
+   * Values may use templates (`{{trigger.repo}}`, `{{steps.build.output}}`),
+   * interpolated when the step runs.
+   */
+  params?: Record<string, string>;
   /** shell only: working directory, absolute or relative to the workspace root. */
   cwd?: string;
   /** Attempts after the first before the step counts as failed. */
@@ -101,6 +110,192 @@ export interface WorkflowStep {
   providerId?: string;
   modelId?: string;
 }
+
+/* ------------------------------------------------------------------ *
+ * Action steps
+ *
+ * An `action` step's `run` names one entry here (`slack.postMessage`,
+ * `github.setCommitStatus`, …) and its `params` carry that op's inputs. The
+ * catalog is metadata only — op, grouping, label, and the params the editor
+ * should render — so the editor can enumerate everything without hardcoding;
+ * the code that performs each call lives in the host's action registry (see
+ * core/connectors/actions.ts), which resolves credentials from the stored
+ * connector config rather than the step.
+ * ------------------------------------------------------------------ */
+
+/** One named input an action op takes, so the editor can render a real field. */
+export interface WorkflowActionParam {
+  /** Key in the step's `params` record. */
+  key: string;
+  label: string;
+  /** Shown in the field and flagged when an empty value would fail the call. */
+  required?: boolean;
+  placeholder?: string;
+  hint?: string;
+  /** Render as a multi-line box (message bodies, comment text). */
+  multiline?: boolean;
+}
+
+/** One callable integration op an `action` step can name. */
+export interface WorkflowActionSpec {
+  /** `<connector>.<op>` — stored on the step's `run`. */
+  op: string;
+  /** Connector whose stored credentials run the op; undefined = none needed. */
+  connector?: ConnectorKind;
+  /** Picker grouping (the connector's label, or 'Webhooks'). */
+  group: string;
+  label: string;
+  hint?: string;
+  params: WorkflowActionParam[];
+}
+
+/** Look up an action's metadata by its `<connector>.<op>` name. */
+export function findWorkflowAction(op: string): WorkflowActionSpec | undefined {
+  return WORKFLOW_ACTIONS.find((a) => a.op === op);
+}
+
+/**
+ * Every action a step can run. Params that take templating mention it in their
+ * placeholder so the editor stays declarative; `{{trigger.*}}`,
+ * `{{steps.<stepId>.output}}`, and `{{run.*}}` are interpolated at run time.
+ */
+export const WORKFLOW_ACTIONS: WorkflowActionSpec[] = [
+  {
+    op: 'slack.postMessage',
+    connector: 'slack',
+    group: 'Slack',
+    label: 'Post a message',
+    hint: 'Post to a Slack channel as the connected app.',
+    params: [
+      { key: 'channel', label: 'Channel', required: true, placeholder: '#builds or a channel id' },
+      { key: 'text', label: 'Message', required: true, multiline: true, placeholder: 'Build {{run.status}} on {{trigger.branch}}' },
+    ],
+  },
+  {
+    op: 'linear.createIssue',
+    connector: 'linear',
+    group: 'Linear',
+    label: 'Create an issue',
+    params: [
+      { key: 'team', label: 'Team', required: true, placeholder: 'Team key, e.g. ENG' },
+      { key: 'title', label: 'Title', required: true, placeholder: '{{trigger.text}}' },
+      { key: 'description', label: 'Description', multiline: true },
+    ],
+  },
+  {
+    op: 'linear.commentIssue',
+    connector: 'linear',
+    group: 'Linear',
+    label: 'Comment on an issue',
+    params: [
+      { key: 'issue', label: 'Issue', required: true, placeholder: 'ENG-123' },
+      { key: 'body', label: 'Comment', required: true, multiline: true },
+    ],
+  },
+  {
+    op: 'jira.createIssue',
+    connector: 'jira',
+    group: 'Jira',
+    label: 'Create an issue',
+    params: [
+      { key: 'project', label: 'Project', required: true, placeholder: 'Project key, e.g. ENG' },
+      { key: 'summary', label: 'Summary', required: true },
+      { key: 'description', label: 'Description', multiline: true },
+      { key: 'issueType', label: 'Issue type', placeholder: 'Task' },
+    ],
+  },
+  {
+    op: 'jira.commentIssue',
+    connector: 'jira',
+    group: 'Jira',
+    label: 'Comment on an issue',
+    params: [
+      { key: 'issue', label: 'Issue key', required: true, placeholder: 'ENG-123' },
+      { key: 'body', label: 'Comment', required: true, multiline: true },
+    ],
+  },
+  {
+    op: 'github.commentPR',
+    connector: 'github',
+    group: 'GitHub',
+    label: 'Comment on a PR',
+    params: [
+      { key: 'repo', label: 'Repo', required: true, placeholder: 'owner/name' },
+      { key: 'number', label: 'PR number', required: true, placeholder: '{{trigger.number}}' },
+      { key: 'body', label: 'Comment', required: true, multiline: true },
+    ],
+  },
+  {
+    op: 'github.setCommitStatus',
+    connector: 'github',
+    group: 'GitHub',
+    label: 'Set commit status',
+    hint: 'Report a check result on a commit, like a CI run does.',
+    params: [
+      { key: 'repo', label: 'Repo', required: true, placeholder: 'owner/name' },
+      { key: 'sha', label: 'Commit SHA', required: true, placeholder: '{{trigger.sha}}' },
+      { key: 'state', label: 'State', required: true, placeholder: 'success, failure, error, or pending' },
+      { key: 'context', label: 'Context', placeholder: 'agent-nekko/<workflow>' },
+      { key: 'description', label: 'Description', placeholder: 'Shown next to the check' },
+      { key: 'targetUrl', label: 'Details URL', placeholder: 'https://… (optional)' },
+    ],
+  },
+  {
+    op: 'gitlab.setCommitStatus',
+    connector: 'gitlab',
+    group: 'GitLab',
+    label: 'Set commit status',
+    hint: 'Report a pipeline-style result on a commit.',
+    params: [
+      { key: 'project', label: 'Project', required: true, placeholder: 'group/name or project id' },
+      { key: 'sha', label: 'Commit SHA', required: true, placeholder: '{{trigger.sha}}' },
+      { key: 'state', label: 'State', required: true, placeholder: 'success, failed, running, pending, canceled' },
+      { key: 'name', label: 'Status name', placeholder: 'agent-nekko/<workflow>' },
+      { key: 'description', label: 'Description' },
+      { key: 'targetUrl', label: 'Details URL', placeholder: 'https://… (optional)' },
+    ],
+  },
+  {
+    op: 'gitlab.commentMR',
+    connector: 'gitlab',
+    group: 'GitLab',
+    label: 'Comment on a merge request',
+    params: [
+      { key: 'project', label: 'Project', required: true, placeholder: 'group/name or project id' },
+      { key: 'mr', label: 'MR number (iid)', required: true, placeholder: '{{trigger.number}}' },
+      { key: 'body', label: 'Comment', required: true, multiline: true },
+    ],
+  },
+  {
+    op: 'discord.postMessage',
+    connector: 'discord',
+    group: 'Discord',
+    label: 'Post a message',
+    params: [
+      { key: 'channel', label: 'Channel id', required: true, placeholder: 'Discord channel id' },
+      { key: 'text', label: 'Message', required: true, multiline: true },
+    ],
+  },
+  {
+    op: 'teams.postMessage',
+    connector: 'teams',
+    group: 'Microsoft Teams',
+    label: 'Post a message',
+    hint: 'Posts through the Teams incoming webhook saved on the connector.',
+    params: [{ key: 'text', label: 'Message', required: true, multiline: true }],
+  },
+  {
+    op: 'webhook.post',
+    group: 'Webhooks',
+    label: 'POST to a URL',
+    hint: 'Send a JSON body to any https endpoint.',
+    params: [
+      { key: 'url', label: 'URL', required: true, placeholder: 'https://…' },
+      { key: 'body', label: 'Body', required: true, multiline: true, placeholder: '{"text": "{{run.status}}"}' },
+      { key: 'contentType', label: 'Content-Type', placeholder: 'application/json' },
+    ],
+  },
+];
 
 /** What can start a workflow. */
 export type WorkflowTriggerKind = 'manual' | 'schedule' | 'cli' | 'slack' | 'git';
@@ -506,8 +701,9 @@ export function stepSummary(step: WorkflowStep): string {
       return short || 'no command';
     case 'workflow':
       return 'runs another workflow';
+    case 'action':
+      return findWorkflowAction(step.run)?.label ?? (short || 'no action chosen');
     case 'skill':
-      return short ? `/${short.replace(/^\//, '')}` : 'no skill chosen';
     default:
       return short || 'no instruction';
   }

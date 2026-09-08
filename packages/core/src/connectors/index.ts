@@ -111,6 +111,45 @@ export const discordConnector: Connector = {
 };
 
 /**
+ * Resolve a GitLab API base URL from connector settings. `site` points at a
+ * self-managed instance; empty means gitlab.com. Shared by the connector and
+ * the workflow action runners (see ./actions.ts).
+ */
+export function gitlabBase(settings?: Record<string, string>): string {
+  const site = (settings?.site ?? '').trim().replace(/\/+$/, '') || 'https://gitlab.com';
+  let u: URL;
+  try {
+    u = new URL(site);
+  } catch {
+    throw new Error(`GitLab site "${site}" isn't a valid URL.`);
+  }
+  if (u.protocol !== 'https:') throw new Error('The GitLab instance URL must be https.');
+  return u.origin + u.pathname.replace(/\/+$/, '');
+}
+
+/** GitLab REST v4, personal access token (PRIVATE-TOKEN header). Lists the
+ *  projects the token can see, or searches them by name. */
+export const gitlabConnector: Connector = {
+  kind: 'gitlab',
+  async fetch(token, query, settings) {
+    const base = gitlabBase(settings);
+    const qs = `membership=true&order_by=updated_at&per_page=25${query ? `&search=${encodeURIComponent(query)}` : ''}`;
+    const res = await fetch(`${base}/api/v4/projects?${qs}`, {
+      headers: { 'PRIVATE-TOKEN': token },
+    });
+    if (!res.ok) throw new Error(`GitLab ${res.status}`);
+    const projects = (await res.json()) as any[];
+    return projects.map((p) => ({
+      id: String(p.id),
+      title: p.path_with_namespace,
+      subtitle: 'GitLab project',
+      url: p.web_url,
+      body: p.description ?? '',
+    }));
+  },
+};
+
+/**
  * Jira Cloud REST, Basic auth (email + API token). The site URL and email ride
  * in `settings` (`site`, `email`) since the connector contract has a single
  * token slot; the token is the API token from id.atlassian.com.
@@ -254,6 +293,7 @@ export const gdriveConnector: Connector = {
 
 export const CONNECTORS: Record<ConnectorKind, Connector> = {
   github: githubConnector,
+  gitlab: gitlabConnector,
   linear: linearConnector,
   slack: slackConnector,
   discord: discordConnector,

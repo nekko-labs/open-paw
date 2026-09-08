@@ -37,8 +37,8 @@
 
 ### PR 9 — `feat/workflow-actions`
 
-- [ ] **T1: action step kind** — `WorkflowStepKind` += `'action'`; `params`; registry `WORKFLOW_ACTIONS` in `core/connectors/actions.ts` with the ops listed above; `renderTemplate` (`{{trigger.x}}`, `{{steps.y.output}}`, `{{run.*}}`); executor branch in `host/workflows.ts` (resolve connector config + token → `run` → `ToolResult`-shaped step output); `actions.test.ts`.
-- [ ] **T2: editor UI** — action step card in `WorkflowEditor`: op picker grouped by connector (disabled when that connector isn't connected, with a "connect it" link), param fields per op, template-hint text.
+- [x] **T1: action step kind** — `WorkflowStepKind` += `'action'`; `params`; registry `WORKFLOW_ACTIONS` in `core/connectors/actions.ts` with the ops listed above; `renderTemplate` (`{{trigger.x}}`, `{{steps.y.output}}`, `{{run.*}}`); executor branch in `host/workflows.ts` (resolve connector config + token → `run` → `ToolResult`-shaped step output); `actions.test.ts`.
+- [x] **T2: editor UI** — action step card in `WorkflowEditor`: op picker grouped by connector (disabled when that connector isn't connected, with a "connect it" link), param fields per op, template-hint text.
 
 ### PR 10 — `feat/workflow-triggers`
 
