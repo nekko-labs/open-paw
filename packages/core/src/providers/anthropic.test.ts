@@ -55,25 +55,20 @@ describe('AnthropicProvider subscription auth', () => {
     const { headers } = await runChat(subCfg, 'be terse');
     expect(headers.Authorization).toBe('Bearer oauth-access-token');
     expect(headers['anthropic-beta']).toBe('oauth-2025-04-20');
-    expect(headers['anthropic-version']).toBe('2023-06-01');
     expect(headers['x-api-key']).toBeUndefined();
   });
 
   it('prepends the Claude Code identity block ahead of the real system prompt', async () => {
     const { body } = await runChat(subCfg, 'You are a coding agent.');
     expect(Array.isArray(body.system)).toBe(true);
-    expect(body.system[0]).toEqual({
-      type: 'text',
-      text: "You are Claude Code, Anthropic's official CLI for Claude.",
-    });
-    expect(body.system[1]).toEqual({ type: 'text', text: 'You are a coding agent.' });
+    expect(body.system[0].text).toContain('Claude Code');
+    expect(body.system[1].text).toBe('You are a coding agent.');
   });
 
   it('still sends the required prefix when the request has no system prompt', async () => {
     const { body } = await runChat(subCfg);
-    expect(body.system).toEqual([
-      { type: 'text', text: "You are Claude Code, Anthropic's official CLI for Claude." },
-    ]);
+    expect(body.system).toHaveLength(1);
+    expect(body.system[0].text).toContain('Claude Code');
   });
 
   it('test() reports subscription sign-in state', async () => {

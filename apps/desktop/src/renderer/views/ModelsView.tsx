@@ -130,6 +130,7 @@ function AddProvider({ onDone }: { onDone: () => void }) {
     setBaseUrl(PROVIDER_DEFAULTS[k].baseUrl);
     setLabel(PROVIDER_DEFAULTS[k].label);
     setUseApiKey(false);
+    setApiKey('');
   };
 
   const [testing, setTesting] = useState(false);
@@ -218,12 +219,12 @@ function AddProvider({ onDone }: { onDone: () => void }) {
             <input className="input mt-1" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-…" />
           </label>
         )}
-        {kind === 'anthropic' && !useApiKey && (
+        {kind === 'anthropic' && (
           <button
             className="col-span-2 justify-self-start text-[12px] text-ink-faint hover:text-ink"
-            onClick={() => setUseApiKey(true)}
+            onClick={() => setUseApiKey((v) => !v)}
           >
-            Use an API key instead (billed per token)
+            {useApiKey ? 'Back to subscription sign-in' : 'Use an API key instead (billed per token)'}
           </button>
         )}
       </div>
@@ -321,6 +322,11 @@ function ProviderCard({ provider, onChanged }: { provider: ProviderConfig; onCha
   // A re-auth (or a first connect on an existing card) returns a new tokenKey;
   // fold it onto the provider and re-check status against the saved config.
   const relinkSubscription = async (status: OAuthStatus) => {
+    // A re-auth can land under a different tokenKey; sign the old one out
+    // before repointing the provider so it doesn't linger in the host store.
+    if (provider.tokenKey && provider.tokenKey !== status.tokenKey) {
+      await window.kotrain.oauthSignOut(provider.id).catch(() => {});
+    }
     await window.kotrain.saveProvider({
       ...provider,
       auth: 'subscription',

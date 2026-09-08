@@ -33,7 +33,9 @@ export function SubscriptionSignIn({
   const [importing, setImporting] = useState(false);
   const sessionRef = useRef<OAuthSessionInfo | null>(null);
   const onConnectedRef = useRef(onConnected);
-  onConnectedRef.current = onConnected;
+  useEffect(() => {
+    onConnectedRef.current = onConnected;
+  });
 
   // The host emits oauthStatus as the flow advances: 'pending' on begin,
   // 'success' when the loopback callback (or a pasted code) exchanged, and
@@ -42,13 +44,21 @@ export function SubscriptionSignIn({
   // sessionRef; the other sees null and stands down.
   useEffect(() => {
     const off = window.kotrain.onOAuthStatus((s) => {
-      if (s.provider !== oauthProvider || !sessionRef.current) return;
+      const session = sessionRef.current;
+      if (s.provider !== oauthProvider || !session) return;
       if (s.state === 'success' && s.connected) {
         sessionRef.current = null;
         setPasted('');
         setPhase({ kind: 'idle' });
-        void Promise.resolve(onConnectedRef.current(s));
+        // The parent's save (e.g. saveProvider) can still fail; surface it as
+        // a phase error instead of an unhandled rejection.
+        Promise.resolve(onConnectedRef.current(s)).catch((e) => {
+          setPhase({ kind: 'error', message: (e as Error).message });
+        });
       } else if (s.state === 'error') {
+        // A failed exchange leaves the host session (and its loopback
+        // listener) open, so close it out before dropping the ref.
+        void window.kotrain.oauthCancel(session.id).catch(() => {});
         sessionRef.current = null;
         setPhase({ kind: 'error', message: s.message ?? 'Sign-in failed.' });
       }
@@ -90,16 +100,21 @@ export function SubscriptionSignIn({
   const finish = async () => {
     const session = sessionRef.current;
     const text = pasted.trim();
-    if (!session || !text) return;
+    if (!session || !text || finishing) return;
+    // Claim the session synchronously so a second Enter/click, or a success
+    // event landing while oauthFinish is in flight, can't complete it twice.
+    sessionRef.current = null;
     setFinishing(true);
     try {
       const status = await window.kotrain.oauthFinish(session.id, text);
-      sessionRef.current = null;
       setPasted('');
       setPhase({ kind: 'idle' });
       await onConnectedRef.current(status);
     } catch (e) {
       setPhase({ kind: 'error', message: (e as Error).message });
+      // The failed exchange left the host session open; close it so its
+      // loopback listener and expiry timer don't linger.
+      void window.kotrain.oauthCancel(session.id).catch(() => {});
     } finally {
       setFinishing(false);
     }
@@ -143,10 +158,12 @@ export function SubscriptionSignIn({
           <div className="flex gap-2">
             <input
               className="input py-1.5 text-[12px]"
+              aria-label="Paste the sign-in code"
               placeholder="Paste the code (code#state)"
               value={pasted}
               onChange={(e) => setPasted(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && void finish()}
+              onKeyDown={(e) => e.key === 'Enter' && !finishing && void finish()}
+              disabled={finishing}
               autoFocus
             />
             <button className="btn btn-primary py-1.5 text-[12px]" onClick={() => void finish()} disabled={finishing || !pasted.trim()}>
