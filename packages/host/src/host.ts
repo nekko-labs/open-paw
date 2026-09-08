@@ -4,6 +4,13 @@ import type {
   AppSettings,
   ProviderConfig,
   ModelInfo,
+  ModelFacts,
+  FitPlan,
+  FitRequest,
+  RuntimeStatus,
+  StopResult,
+  LoadParams,
+  LoadResult,
   Session,
   SendOptions,
   OAuthProvider,
@@ -61,6 +68,7 @@ import type {
   SubscriptionLimits,
 } from '@kotrain/shared';
 import { isLocalProvider } from '@kotrain/shared';
+import { createRuntimes } from './runtimes/index.js';
 import {
   createProvider,
   discoverLocalProviders,
@@ -197,6 +205,12 @@ export interface Host {
   unloadModel(providerId: string, model: string): Promise<{ ok: boolean; message?: string }>;
   /** Whether per-model load/unload is available for an LM Studio provider (via `lms`). */
   lmsAvailable(providerId: string): Promise<LmsProbe>;
+  runtimeStatus(providerId: string): Promise<RuntimeStatus | null>;
+  runtimeStart(providerId: string): Promise<RuntimeStatus | { error: string }>;
+  runtimeStop(providerId: string, force?: boolean): Promise<StopResult>;
+  runtimeLoad(providerId: string, modelId: string, params: LoadParams): Promise<LoadResult>;
+  runtimeFacts(providerId: string): Promise<ModelFacts[]>;
+  runtimePlan(providerId: string, modelId: string, req: FitRequest): Promise<FitPlan | null>;
   /** Stop the local model server backing a provider (kills its listening process). */
   stopServer(providerId: string): Promise<{ ok: boolean; message: string }>;
   /** GPU stats from the platform's probe (null when it can't read one). */
@@ -413,6 +427,14 @@ export function createHost(opts: { dataDir: string }): Host {
 
   const findProvider = (id: string) => getSettings().providers.find((p) => p.id === id);
 
+  // The runtime control plane. Providers come from settings, hardware from the
+  // existing GPU and system probes, so it stays a thin join over what exists.
+  const runtimes = createRuntimes({
+    findProvider,
+    getGpuStats,
+    getSystemStats,
+  });
+
   const host: Host = {
     events,
     dataDir,
@@ -504,6 +526,13 @@ export function createHost(opts: { dataDir: string }): Host {
       if (!isLocalProvider(p.kind)) return { ok: false, message: 'Only local model servers can be stopped from here.' };
       return stopLocalServer(p.baseUrl);
     },
+    runtimeStatus: (providerId) => runtimes.status(providerId),
+    runtimeStart: (providerId) => runtimes.start(providerId),
+    runtimeStop: (providerId, force) => runtimes.stop(providerId, force),
+    runtimeLoad: (providerId, modelId, params) => runtimes.load(providerId, modelId, params),
+    runtimeFacts: (providerId) => runtimes.facts(providerId),
+    runtimePlan: (providerId, modelId, req) => runtimes.plan(providerId, modelId, req),
+
     getGpuStats: () => getGpuStats(),
     getSystemStats: () => getSystemStats(),
 

@@ -34,7 +34,7 @@ const FAILURE_RE =
   /(model not found|cannot find a model|no models are|is not loaded|not connected|failed to|error:)/i;
 
 /** Resolve the `lms` binary: prefer LM Studio's default install path, else PATH. */
-function lmsBin(): string {
+export function lmsBin(): string {
   const name = process.platform === 'win32' ? 'lms.exe' : 'lms';
   const bundled = join(homedir(), '.lmstudio', 'bin', name);
   return existsSync(bundled) ? bundled : 'lms';

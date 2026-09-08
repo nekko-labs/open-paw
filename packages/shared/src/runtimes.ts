@@ -1,0 +1,167 @@
+/**
+ * Control-plane types for the local model servers we manage.
+ *
+ * The central idea is `RuntimeCapabilities`: the renderer asks what a runtime can
+ * do, never what it is. Ollama and LM Studio are model managers you send models
+ * to; vLLM is a process per model, configured entirely at launch. Expressing that
+ * asymmetry as data instead of `if (kind === 'vllm')` is what keeps the UI honest
+ * and what lets a future bundled engine drop in without touching the renderer.
+ */
+
+import type { ProviderKind } from './models.js';
+import type { KvCacheDtype, ModelFacts } from './capacity.js';
+
+/** The local model servers we manage. Mirrors LOCAL_PROVIDER_KINDS. */
+export type RuntimeKind = 'ollama' | 'lmstudio' | 'vllm';
+
+export function isRuntimeKind(kind: ProviderKind): kind is RuntimeKind {
+  return kind === 'ollama' || kind === 'lmstudio' || kind === 'vllm';
+}
+
+/**
+ * What a runtime can actually do.
+ *
+ * `'server-env'` means the setting exists but only as a server-wide environment
+ * variable, so changing it needs a restart. The UI shows those controls disabled
+ * with the env line to copy, rather than pretending they take effect per load.
+ */
+export interface RuntimeCapabilities {
+  canStart: boolean;
+  canStop: boolean;
+  canLoad: boolean;
+  canSetContext: boolean;
+  canSetGpuLayers: boolean;
+  canSetParallel: 'per-load' | 'server-env' | false;
+  canSetKvCacheType: 'per-load' | 'server-env' | false;
+  canSetTtl: boolean;
+  /** Configuration is a launch command, not a control (vLLM). */
+  configuredAtLaunch: boolean;
+  /** Reports per-model VRAM, so a measurement can reconcile the projection. */
+  reportsPerModelVram: boolean;
+}
+
+export const RUNTIME_CAPABILITIES: Record<RuntimeKind, RuntimeCapabilities> = {
+  ollama: {
+    canStart: true,
+    canStop: true,
+    canLoad: true,
+    canSetContext: true,
+    canSetGpuLayers: true,
+    // OLLAMA_NUM_PARALLEL and OLLAMA_KV_CACHE_TYPE are read at server start.
+    canSetParallel: 'server-env',
+    canSetKvCacheType: 'server-env',
+    canSetTtl: true,
+    configuredAtLaunch: false,
+    reportsPerModelVram: true,
+  },
+  lmstudio: {
+    canStart: true,
+    canStop: true,
+    canLoad: true,
+    canSetContext: true,
+    canSetGpuLayers: true,
+    canSetParallel: false,
+    canSetKvCacheType: false,
+    canSetTtl: true,
+    configuredAtLaunch: false,
+    // /api/v0/models reports load state but no per-model VRAM figure.
+    reportsPerModelVram: false,
+  },
+  // Connect-existing only. One model per process, configured at launch, and in
+  // practice Linux + NVIDIA + Python, which nothing here can verify a spawn path
+  // against. We detect it, read /metrics, and can stop it. We never start it.
+  vllm: {
+    canStart: false,
+    canStop: true,
+    canLoad: false,
+    canSetContext: false,
+    canSetGpuLayers: false,
+    canSetParallel: false,
+    canSetKvCacheType: false,
+    canSetTtl: false,
+    configuredAtLaunch: true,
+    reportsPerModelVram: false,
+  },
+};
+
+export interface RuntimeDetection {
+  kind: RuntimeKind;
+  /** The server answered a health probe. */
+  running: boolean;
+  /** A CLI or binary we could start it with was found. */
+  installed: boolean;
+  version?: string;
+  /** Why we cannot start it, when `installed` is false. */
+  reason?: string;
+}
+
+export interface ResidentModel {
+  id: string;
+  sizeBytes?: number;
+  vramBytes?: number;
+  contextLength?: number;
+  expiresAt?: number;
+}
+
+export interface RuntimeStatus {
+  kind: RuntimeKind;
+  running: boolean;
+  /** A binary or CLI we could start it with was found on this machine. */
+  installed?: boolean;
+  /** Why it cannot be started, when `installed` is false. */
+  reason?: string;
+  /** We spawned this process and hold its handle. */
+  owned: boolean;
+  version?: string;
+  baseUrl: string;
+  startedAt?: number;
+  resident: ResidentModel[];
+  /** Last lines of captured output, so a failed start can explain itself. */
+  log?: string[];
+  error?: string;
+  /** vLLM only: parsed /metrics highlights. */
+  metrics?: RuntimeMetrics;
+}
+
+export interface RuntimeMetrics {
+  kvCacheUsagePct?: number;
+  requestsRunning?: number;
+  requestsWaiting?: number;
+}
+
+export interface LoadParams {
+  contextTokens?: number;
+  gpuLayers?: number;
+  kvCacheDtype?: KvCacheDtype;
+  ttlSeconds?: number;
+}
+
+export interface StartOptions {
+  baseUrl: string;
+  /** Env applied to the spawned process (OLLAMA_NUM_PARALLEL and friends). */
+  env?: Record<string, string>;
+}
+
+export interface StopResult {
+  ok: boolean;
+  message: string;
+  /** We refused because the process is not ours. Retry with force to proceed. */
+  needsConfirmation?: boolean;
+  /** What we would be killing, so the confirmation can name it. */
+  processName?: string;
+}
+
+export interface LoadResult {
+  ok: boolean;
+  message?: string;
+  facts?: ModelFacts;
+}
+
+/** Environment variables that only take effect when the server restarts. */
+export const RUNTIME_ENV_HINTS: Partial<Record<RuntimeKind, Record<string, string>>> = {
+  ollama: {
+    parallel: 'OLLAMA_NUM_PARALLEL',
+    kvCacheType: 'OLLAMA_KV_CACHE_TYPE',
+    maxLoaded: 'OLLAMA_MAX_LOADED_MODELS',
+  },
+};

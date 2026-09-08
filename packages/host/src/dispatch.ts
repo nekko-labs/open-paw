@@ -30,6 +30,12 @@ export function createDispatcher(host: Host): (channel: string, args: any[]) => 
     [C.modelUnload]: ([id, m]) => host.unloadModel(id, m),
     [C.lmsProbe]: ([id]) => host.lmsAvailable(id),
     [C.serverStop]: ([id]) => host.stopServer(id),
+    [C.runtimeStatus]: ([id]) => host.runtimeStatus(id),
+    [C.runtimeStart]: ([id]) => host.runtimeStart(id),
+    [C.runtimeStop]: ([id, force]) => host.runtimeStop(id, force),
+    [C.runtimeLoad]: ([id, model, params]) => host.runtimeLoad(id, model, params),
+    [C.runtimeFacts]: ([id]) => host.runtimeFacts(id),
+    [C.runtimePlan]: ([id, model, req]) => host.runtimePlan(id, model, req),
     [C.gpuStats]: () => host.getGpuStats(),
     [C.systemStats]: () => host.getSystemStats(),
 

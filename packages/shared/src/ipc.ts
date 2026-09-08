@@ -38,6 +38,12 @@ export const IpcChannels = {
   modelUnload: 'model:unload',
   lmsProbe: 'lms:probe',
   serverStop: 'server:stop',
+  runtimeStatus: 'runtime:status',
+  runtimeStart: 'runtime:start',
+  runtimeStop: 'runtime:stop',
+  runtimeLoad: 'runtime:load',
+  runtimeFacts: 'runtime:facts',
+  runtimePlan: 'runtime:plan',
   gpuStats: 'gpu:stats',
   systemStats: 'system:stats',
 
@@ -247,6 +253,32 @@ export interface KotrainApi {
   lmsAvailable(providerId: string): Promise<import('./models.js').LmsProbe>;
   /** Stop the local model server backing a provider (ollama/lmstudio/vllm/…). */
   stopServer(providerId: string): Promise<{ ok: boolean; message: string }>;
+
+  /** Live state of a local runtime: health, ownership, resident models, metrics. */
+  runtimeStatus(providerId: string): Promise<import('./runtimes.js').RuntimeStatus | null>;
+  /** Start a local runtime we are able to start. Returns the reason when we are not. */
+  runtimeStart(
+    providerId: string,
+  ): Promise<import('./runtimes.js').RuntimeStatus | { error: string }>;
+  /**
+   * Stop a local runtime. Without `force` this refuses a process Agent Nekko did
+   * not start, returning `needsConfirmation` so the UI can ask first.
+   */
+  runtimeStop(providerId: string, force?: boolean): Promise<import('./runtimes.js').StopResult>;
+  /** Load a model with explicit parameters (context, GPU layers, TTL). */
+  runtimeLoad(
+    providerId: string,
+    modelId: string,
+    params: import('./runtimes.js').LoadParams,
+  ): Promise<import('./runtimes.js').LoadResult>;
+  /** Model metadata normalized for the fit planner. */
+  runtimeFacts(providerId: string): Promise<import('./capacity.js').ModelFacts[]>;
+  /** Project whether a model fits at the given context/parallelism, and why. */
+  runtimePlan(
+    providerId: string,
+    modelId: string,
+    req: import('./capacity.js').FitRequest,
+  ): Promise<import('./capacity.js').FitPlan | null>;
   /** GPU/VRAM stats for the metrics bar + Command Center (null if unavailable). */
   getGpuStats(): Promise<import('./models.js').GpuStats | null>;
   /** CPU load + RAM use for the monitor surfaces (null if unavailable). */
