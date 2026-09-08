@@ -78,7 +78,11 @@ export function ContextGauge({
           · {formatUSD(cost)}
         </span>
       ) : subscription ? (
-        <span className="hidden sm:inline" title="Runs on a subscription plan; no per-token API cost.">
+        <span
+          className="hidden sm:inline"
+          title="Runs on a subscription plan; no per-token API cost."
+          aria-label="Runs on a subscription plan; no per-token API cost."
+        >
           · Subscription
         </span>
       ) : null}

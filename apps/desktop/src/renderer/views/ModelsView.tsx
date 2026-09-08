@@ -28,7 +28,7 @@ function formatExpiry(expiresAt?: number): string | null {
   if (mins < 60) return `Session expires in ${mins}m`;
   const hours = Math.floor(delta / 3_600_000);
   if (hours < 24) {
-    const rem = Math.ceil((delta % 3_600_000) / 60_000);
+    const rem = Math.floor((delta % 3_600_000) / 60_000);
     return `Session expires in ${hours}h ${rem}m`;
   }
   const days = Math.floor(delta / 86_400_000);
