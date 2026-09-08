@@ -13,7 +13,7 @@
  * carries a category and its triggers are addressable, and the list groups by
  * both (see groupWorkflows).
  */
-import type { ConnectorKind } from './connectors.js';
+import { CONNECTOR_CATALOG, type ConnectorKind } from './connectors.js';
 
 /** What a step actually does when it runs. */
 export type WorkflowStepKind = 'prompt' | 'skill' | 'workflow' | 'shell' | 'action';
@@ -298,7 +298,7 @@ export const WORKFLOW_ACTIONS: WorkflowActionSpec[] = [
 ];
 
 /** What can start a workflow. */
-export type WorkflowTriggerKind = 'manual' | 'schedule' | 'cli' | 'slack' | 'git';
+export type WorkflowTriggerKind = 'manual' | 'schedule' | 'cli' | 'slack' | 'git' | 'connector' | 'webhook';
 
 export const WORKFLOW_TRIGGER_KINDS: Array<{ kind: WorkflowTriggerKind; label: string; hint: string }> = [
   { kind: 'manual', label: 'Manual', hint: 'Only when you press Run.' },
@@ -306,6 +306,8 @@ export const WORKFLOW_TRIGGER_KINDS: Array<{ kind: WorkflowTriggerKind; label: s
   { kind: 'cli', label: 'CLI', hint: 'From the terminal: kotrain workflow run <command>.' },
   { kind: 'slack', label: 'Slack', hint: 'When a message matches in a channel.' },
   { kind: 'git', label: 'Git provider', hint: 'On a pull request, push, or comment event.' },
+  { kind: 'connector', label: 'Connector', hint: 'Poll an integration (Slack, Linear, Jira, GitHub, GitLab) for new events.' },
+  { kind: 'webhook', label: 'Webhook', hint: 'POST to a secret URL on the server edition or a reachable desktop.' },
 ];
 
 export type GitProvider = 'github' | 'gitlab' | 'bitbucket' | 'other';
@@ -372,6 +374,17 @@ export interface WorkflowTrigger {
   repo?: string;
   /** Branch names or `prefix*` globs; empty means any branch. */
   branches?: string[];
+
+  /** connector: which integration to poll. */
+  connector?: ConnectorKind;
+  /** connector: the event type to react to, e.g. 'message' or 'issue'. */
+  event?: string;
+  /** connector: how often to poll, in ms. Defaults to 60 seconds. */
+  pollIntervalMs?: number;
+  /** connector/webhook: a simple substring filter applied to event text/payload. */
+  filter?: string;
+  /** webhook: a per-trigger secret passed in the URL (?key=...) or header. */
+  webhookSecret?: string;
 }
 
 export type WorkflowRunStatus = 'queued' | 'running' | 'success' | 'failure' | 'cancelled';
@@ -511,6 +524,15 @@ export function triggerLabel(t: WorkflowTrigger, wf?: Workflow): string {
       const what = events.length ? events.join(', ') : 'any event';
       return `${provider}: ${what}${t.repo ? ` · ${t.repo}` : ''}`;
     }
+    case 'connector': {
+      const catalog = CONNECTOR_CATALOG.find((c) => c.kind === t.connector);
+      const label = catalog?.label ?? t.connector ?? 'Connector';
+      const what = t.event ?? 'any event';
+      const pieces = [label, what, t.channel ?? t.repo, t.filter, t.pollIntervalMs ? formatEvery(t.pollIntervalMs) : ''].filter(Boolean);
+      return pieces.join(' · ');
+    }
+    case 'webhook':
+      return `Webhook${t.webhookSecret ? ' · secured' : ' · open'}`;
   }
 }
 
@@ -536,6 +558,8 @@ export function listenerKeys(wf: Workflow): string[] {
       const provider = t.provider ?? 'github';
       for (const e of t.events ?? []) keys.add(`git:${provider}:${e}`);
       if (!t.events?.length) keys.add(`git:${provider}:any`);
+    } else if (t.kind === 'connector') {
+      keys.add(`connector:${t.connector ?? 'any'}:${t.event ?? 'any'}`);
     } else {
       keys.add(t.kind);
     }
@@ -546,13 +570,18 @@ export function listenerKeys(wf: Workflow): string[] {
 
 /** Human label for a listener key produced by listenerKeys. */
 export function listenerLabel(key: string): string {
-  if (!key.startsWith('git:')) {
-    return WORKFLOW_TRIGGER_KINDS.find((k) => k.kind === key)?.label ?? key;
+  if (key.startsWith('git:')) {
+    const [, provider, event] = key.split(':');
+    const providerLabel = GIT_PROVIDERS.find((p) => p.id === provider)?.label ?? provider;
+    const eventLabel = event === 'any' ? 'Any event' : GIT_EVENTS.find((g) => g.id === event)?.label ?? event;
+    return `${providerLabel} · ${eventLabel}`;
   }
-  const [, provider, event] = key.split(':');
-  const providerLabel = GIT_PROVIDERS.find((p) => p.id === provider)?.label ?? provider;
-  const eventLabel = event === 'any' ? 'Any event' : GIT_EVENTS.find((g) => g.id === event)?.label ?? event;
-  return `${providerLabel} · ${eventLabel}`;
+  if (key.startsWith('connector:')) {
+    const [, kind, event] = key.split(':');
+    const label = CONNECTOR_CATALOG.find((c) => c.kind === kind)?.label ?? kind ?? 'Connector';
+    return `${label} · ${event === 'any' ? 'Any event' : event}`;
+  }
+  return WORKFLOW_TRIGGER_KINDS.find((k) => k.kind === key)?.label ?? key;
 }
 
 export type WorkflowGrouping = 'category' | 'listener';
@@ -886,15 +915,23 @@ export interface WorkflowEvent {
   kind: WorkflowTriggerKind;
   /** git: which provider sent it. */
   provider?: GitProvider;
-  /** git: the normalized event. */
-  event?: GitEvent;
+  /** git/connector: the normalized event. */
+  event?: GitEvent | string;
   repo?: string;
   branch?: string;
   /** cli: the command that was invoked. */
   command?: string;
-  /** slack: where it came from, and the message text. */
+  /** slack/connector: where it came from, and the message text. */
   channel?: string;
   text?: string;
+  /** connector: which integration produced the event. */
+  connector?: ConnectorKind;
+  /** webhook: the trigger secret used to authenticate the call. */
+  secret?: string;
+  /** webhook: the slug from the URL. */
+  slug?: string;
+  /** webhook: the workflow this webhook is intended for, when the transport already resolved it. */
+  workflowId?: string;
   /** Free-form payload handed to the run as context. */
   payload?: Record<string, unknown>;
 }
@@ -902,6 +939,7 @@ export interface WorkflowEvent {
 /** Whether one trigger accepts an inbound event. */
 export function triggerAccepts(wf: Workflow, t: WorkflowTrigger, e: WorkflowEvent): boolean {
   if (!triggerEnabled(t) || t.kind !== e.kind) return false;
+  if (e.workflowId && wf.id !== e.workflowId) return false;
   switch (e.kind) {
     case 'cli':
       return !e.command || cliCommand(wf, t) === e.command;
@@ -914,14 +952,30 @@ export function triggerAccepts(wf: Workflow, t: WorkflowTrigger, e: WorkflowEven
     }
     case 'git': {
       if ((t.provider ?? 'github') !== (e.provider ?? 'github')) return false;
-      if (t.events?.length && e.event && !t.events.includes(e.event)) return false;
+      if (t.events?.length && e.event && !(t.events as string[]).includes(e.event)) return false;
       if (t.repo?.trim() && e.repo && t.repo.trim() !== e.repo) return false;
       if (e.branch && !branchMatches(e.branch, t.branches)) return false;
       return true;
     }
+    case 'connector': {
+      if (t.connector && t.connector !== e.connector) return false;
+      if (t.event && t.event !== e.event) return false;
+      return filterMatches(t.filter, e);
+    }
+    case 'webhook': {
+      if (t.webhookSecret && t.webhookSecret !== e.secret) return false;
+      return filterMatches(t.filter, e);
+    }
     default:
       return true;
   }
+}
+
+/** Simple substring filter: the filter text must appear in the event text or payload. */
+function filterMatches(filter: string | undefined, e: WorkflowEvent): boolean {
+  if (!filter?.trim()) return true;
+  const haystack = [e.text ?? '', e.repo ?? '', e.branch ?? '', e.channel ?? '', JSON.stringify(e.payload ?? {})].join('\n').toLowerCase();
+  return haystack.includes(filter.toLowerCase());
 }
 
 /** Every enabled workflow an event should start. */

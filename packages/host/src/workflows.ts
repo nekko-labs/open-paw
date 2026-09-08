@@ -1,7 +1,7 @@
 import { exec } from 'child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { isAbsolute, join, resolve } from 'path';
-import { randomUUID } from 'crypto';
+import { randomUUID, timingSafeEqual } from 'node:crypto';
 import type {
   AgentEvent,
   ConnectorConfig,
@@ -24,6 +24,7 @@ import {
   matchWorkflows,
   nextScheduledRun,
   readStepOutcome,
+  slugify,
   stepOutcomeInstruction,
 } from '@kotrain/shared';
 import {
@@ -628,9 +629,61 @@ function describeEvent(e: WorkflowEvent): string {
       return `CLI ${e.command ?? ''}`.trim();
     case 'schedule':
       return 'Schedule';
+    case 'connector': {
+      const catalog = [
+        { kind: 'slack', label: 'Slack' },
+        { kind: 'linear', label: 'Linear' },
+        { kind: 'jira', label: 'Jira' },
+        { kind: 'github', label: 'GitHub' },
+        { kind: 'gitlab', label: 'GitLab' },
+      ] as const;
+      const label = catalog.find((c) => c.kind === e.connector)?.label ?? e.connector ?? 'Connector';
+      const parts = [label, e.channel ?? e.repo, e.event, e.text].filter(Boolean);
+      return parts.join(' · ');
+    }
+    case 'webhook':
+      return `Webhook${e.slug ? ` · ${e.slug}` : ''}`;
     default:
       return 'Manual';
   }
+}
+
+/** Thrown when a request reaches a webhook trigger with the wrong secret. */
+class WebhookUnauthorizedError extends Error {
+  readonly code = 'WEBHOOK_UNAUTHORIZED' as const;
+  constructor(message = 'unauthorized') {
+    super(message);
+  }
+}
+
+/** Dispatch a webhook that was already authenticated by its route. */
+function secretMatches(expected: string, supplied: string): boolean {
+  if (expected.length !== supplied.length) return false;
+  try {
+    return timingSafeEqual(Buffer.from(expected), Buffer.from(supplied));
+  } catch {
+    return false;
+  }
+}
+
+/** Dispatch a webhook that was already authenticated by its route. */
+export async function dispatchWebhook(slug: string, secret: string, payload: Record<string, unknown>): Promise<WorkflowRun[]> {
+  let foundWebhook = false;
+  for (const wf of loadWorkflows()) {
+    if (!wf.enabled) continue;
+    if (slugify(wf.name) !== slug) continue;
+    for (const t of wf.triggers) {
+      if (t.kind !== 'webhook' || !t.webhookSecret) continue;
+      foundWebhook = true;
+      if (secretMatches(t.webhookSecret, secret)) {
+        return dispatchWorkflowEvent({ kind: 'webhook', workflowId: wf.id, secret, slug, payload });
+      }
+    }
+  }
+  if (foundWebhook) {
+    throw new WebhookUnauthorizedError();
+  }
+  return [];
 }
 
 /* ------------------------------------------------------------------ *

@@ -54,6 +54,8 @@ export interface ExperimentalFlags {
   design?: boolean;
   /** The Memory tab (global + per-project memory). */
   memory?: boolean;
+  /** Listen on 127.0.0.1 for inbound workflow webhooks. */
+  workflowLoopbackListener?: boolean;
 }
 
 /**

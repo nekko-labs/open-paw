@@ -437,7 +437,7 @@ function WorkflowRow({
           {live
             ? 'running now'
             : last
-              ? `${STATUS_TONE[last.status].label} ${relative(last.startedAt)} · ${formatDuration(runDurationMs(last))}`
+              ? `${STATUS_TONE[last.status].label} ${relative(last.startedAt)} · ${formatDuration(runDurationMs(last))}${last.triggerLabel ? ` · ${last.triggerLabel}` : ''}`
               : wf.nextRunAt
                 ? `next ${relative(wf.nextRunAt)}`
                 : 'never run'}

@@ -28,6 +28,7 @@ import {
   isValidCron,
   newStepId,
   nextCronRun,
+  slugify,
   unreachableSteps,
 } from '@kotrain/shared';
 import { useStore } from '../store.js';
@@ -603,6 +604,148 @@ function ActionStepFields({
   );
 }
 
+const POLLABLE_CONNECTORS: ConnectorKind[] = ['slack', 'linear', 'jira', 'github', 'gitlab'];
+
+function connectorLabel(kind: ConnectorKind | undefined): string {
+  if (!kind) return 'Connector';
+  return CONNECTOR_CATALOG.find((c) => c.kind === kind)?.label ?? kind;
+}
+
+function ConnectorTriggerFields({
+  trigger, onPatch,
+}: {
+  trigger: WorkflowTrigger;
+  onPatch: (patch: Partial<WorkflowTrigger>) => void;
+}) {
+  const intervalMin = trigger.pollIntervalMs ? Math.max(1, Math.round(trigger.pollIntervalMs / 60_000)) : '';
+  const isRepo = trigger.connector === 'github' || trigger.connector === 'gitlab';
+  const isChannel = trigger.connector === 'slack' || trigger.connector === 'discord';
+  return (
+    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+      <label className="block">
+        <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-ink-faint">Connector</span>
+        <select
+          className="input w-full py-1! text-[12px]"
+          value={trigger.connector ?? ''}
+          onChange={(e) => onPatch({ connector: e.target.value as ConnectorKind, event: undefined, channel: undefined, repo: undefined })}
+        >
+          <option value="">Pick a connector…</option>
+          {POLLABLE_CONNECTORS.map((k) => (
+            <option key={k} value={k}>{connectorLabel(k)}</option>
+          ))}
+        </select>
+      </label>
+      <label className="block">
+        <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-ink-faint">Event type</span>
+        <input
+          className="input w-full text-[12px]"
+          placeholder={trigger.connector === 'slack' ? 'message' : 'issue'}
+          value={trigger.event ?? ''}
+          onChange={(e) => onPatch({ event: e.target.value || undefined })}
+        />
+      </label>
+      <label className="block">
+        <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-ink-faint">Poll every N minutes</span>
+        <input
+          type="number"
+          min={1}
+          className="input w-full py-1! tabular-nums text-[12px]"
+          placeholder="1"
+          value={intervalMin}
+          onChange={(e) => onPatch({ pollIntervalMs: Number(e.target.value) ? Number(e.target.value) * 60_000 : undefined })}
+        />
+        {trigger.pollIntervalMs && <span className="mt-1 block text-[11px] text-ink-faint">Polls every {formatEvery(trigger.pollIntervalMs)}.</span>}
+      </label>
+      {isChannel && (
+        <label className="block">
+          <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-ink-faint">Channel</span>
+          <input
+            className="input w-full text-[12px]"
+            placeholder={trigger.connector === 'slack' ? '#builds or a channel id' : 'channel id'}
+            value={trigger.channel ?? ''}
+            onChange={(e) => onPatch({ channel: e.target.value || undefined })}
+          />
+        </label>
+      )}
+      {isRepo && (
+        <label className="block">
+          <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-ink-faint">Repo / project</span>
+          <input
+            className="input w-full text-[12px]"
+            placeholder="owner/name (any)"
+            value={trigger.repo ?? ''}
+            onChange={(e) => onPatch({ repo: e.target.value || undefined })}
+          />
+        </label>
+      )}
+      <label className="block sm:col-span-2">
+        <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-ink-faint">Filter</span>
+        <input
+          className="input w-full text-[12px]"
+          placeholder="Optional substring filter on the event text or payload"
+          value={trigger.filter ?? ''}
+          onChange={(e) => onPatch({ filter: e.target.value || undefined })}
+        />
+      </label>
+      <p className="text-[11px] text-ink-faint sm:col-span-2">
+        The connector must be connected under Connectors. Agent Nekko polls it on the interval and starts a run for each new matching event.
+      </p>
+    </div>
+  );
+}
+
+function newWebhookSecret(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return (crypto as Crypto & { randomUUID(): string }).randomUUID();
+  }
+  return `wh_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function WebhookTriggerFields({
+  trigger, slugSource, onPatch,
+}: {
+  trigger: WorkflowTrigger;
+  slugSource: string;
+  onPatch: (patch: Partial<WorkflowTrigger>) => void;
+}) {
+  const secret = trigger.webhookSecret ?? '';
+  const slug = slugify(slugSource);
+  return (
+    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+      <label className="block sm:col-span-2">
+        <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-ink-faint">Webhook secret</span>
+        <div className="flex gap-2">
+          <input
+            className="input w-full font-mono text-[12px]"
+            type="text"
+            readOnly
+            value={secret}
+            onFocus={(e) => e.target.select()}
+          />
+          <button
+            className="btn btn-outline shrink-0 px-2! py-1! text-[12px]"
+            onClick={() => onPatch({ webhookSecret: newWebhookSecret() })}
+          >
+            Regenerate
+          </button>
+        </div>
+        <p className="mt-1 text-[11px] text-ink-faint">
+          Keep this secret out of logs. The webhook only fires when the URL includes <code className="font-mono">?key=...</code> with this value.
+        </p>
+      </label>
+      <div className="block sm:col-span-2">
+        <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-ink-faint">Webhook URL</span>
+        <code className="block break-all rounded-lg border border-line bg-(--surface) px-2.5 py-1.5 font-mono text-[11px] text-ink-soft">
+          POST https://&lt;your-host&gt;/api/hooks/{slug}?key={secret}
+        </code>
+        <p className="mt-1 text-[11px] text-ink-faint">
+          Requires the server edition or a reachable URL. The desktop can opt in to a loopback listener (127.0.0.1:1441) under Settings → Experimental.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 /** Route picker: the default, an explicit end, a hard fail, or a named step. */
 function RouteSelect({
   label, value, steps, selfId, defaultLabel, onChange,
@@ -663,7 +806,14 @@ function TriggerEditor({
         <select
           className="input w-[132px] py-1! text-[12px]"
           value={trigger.kind}
-          onChange={(e) => onPatch({ kind: e.target.value as WorkflowTriggerKind })}
+          onChange={(e) => {
+            const kind = e.target.value as WorkflowTriggerKind;
+            const patch: Partial<WorkflowTrigger> = { kind };
+            if (kind === 'webhook' && !trigger.webhookSecret) {
+              patch.webhookSecret = newWebhookSecret();
+            }
+            onPatch(patch);
+          }}
         >
           {WORKFLOW_TRIGGER_KINDS.map((k) => <option key={k.kind} value={k.kind}>{k.label}</option>)}
         </select>
@@ -817,6 +967,14 @@ function TriggerEditor({
             </p>
           </div>
         </div>
+      )}
+
+      {trigger.kind === 'connector' && (
+        <ConnectorTriggerFields trigger={trigger} onPatch={onPatch} />
+      )}
+
+      {trigger.kind === 'webhook' && (
+        <WebhookTriggerFields trigger={trigger} slugSource={slugSource} onPatch={onPatch} />
       )}
     </div>
   );
