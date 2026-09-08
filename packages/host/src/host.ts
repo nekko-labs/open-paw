@@ -177,6 +177,8 @@ export interface Host {
   saveProvider(p: ProviderConfig): ProviderConfig[];
   removeProvider(id: string): ProviderConfig[];
   discoverProviders(): Promise<ProviderConfig[]>;
+  /** Probe localhost for running model servers without persisting (onboarding). */
+  probeProviders(): Promise<ProviderConfig[]>;
   testProvider(id: string): Promise<{ ok: boolean; message: string }>;
   testProviderConfig(cfg: ProviderConfig): Promise<{ ok: boolean; message: string }>;
 
@@ -415,6 +417,7 @@ export function createHost(opts: { dataDir: string }): Host {
       for (const d of discovered) if (!merged.some((p) => p.baseUrl === d.baseUrl)) merged.push(d);
       return saveSettings({ providers: merged }).providers;
     },
+    probeProviders: () => discoverLocalProviders(),
     testProvider: async (id) => {
       const p = findProvider(id);
       if (!p) return { ok: false, message: 'Not found' };

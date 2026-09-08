@@ -26,6 +26,7 @@ export const IpcChannels = {
   providersSave: 'providers:save',
   providersRemove: 'providers:remove',
   providersDiscover: 'providers:discover',
+  providersProbe: 'providers:probe',
   providersTest: 'providers:test',
   providersTestConfig: 'providers:testConfig',
 
@@ -219,6 +220,13 @@ export interface KotrainApi {
   saveProvider(p: ProviderConfig): Promise<ProviderConfig[]>;
   removeProvider(id: string): Promise<ProviderConfig[]>;
   discoverProviders(): Promise<ProviderConfig[]>;
+  /**
+   * Probe well-known localhost ports for running model servers WITHOUT saving
+   * anything, unlike discoverProviders which merges hits into settings. The
+   * onboarding wizard uses this so a skipped step stays non-destructive and the
+   * user picks which detected server to add.
+   */
+  probeProviders(): Promise<ProviderConfig[]>;
   testProvider(id: string): Promise<{ ok: boolean; message: string }>;
   /** Test an unsaved provider config (used by the add form before saving). */
   testProviderConfig(cfg: ProviderConfig): Promise<{ ok: boolean; message: string }>;

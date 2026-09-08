@@ -119,7 +119,10 @@ export function WizardShell({
         aria-label={step.title}
         className="flex flex-1 justify-center overflow-y-auto px-6 py-4 outline-none"
       >
-        <div className="flex w-full max-w-xl flex-col items-center justify-center">{children}</div>
+        {/* `my-auto` centers a short step but collapses to top-aligned when the
+            content overflows, so nothing is clipped above the scroll area (a
+            justify-center column would push the top out of reach). */}
+        <div className="my-auto flex w-full max-w-xl flex-col items-center">{children}</div>
       </section>
 
       {/* Footer: Back on the left, Skip step + Next on the right. */}
