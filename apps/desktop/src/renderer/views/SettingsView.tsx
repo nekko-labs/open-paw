@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { AppSettings, ChatMode, GuardrailRule, GuardrailAction, McpServerStatus, SandboxMode } from '@kotrain/shared';
 import { useStore } from '../store.js';
 import { Badge } from '../components/primitives/index.js';
@@ -25,11 +25,21 @@ const CHAT_MODES: Array<{ value: ChatMode; label: string; desc: string }> = [
 ];
 
 export function SettingsView() {
-  const { applyTheme } = useStore();
+  const { applyTheme, onboardingOpen } = useStore();
   const tr = useT();
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  const prevOnboardingOpen = useRef(onboardingOpen);
 
   useEffect(() => { window.kotrain.getSettings().then(setSettings); }, []);
+
+  // When the wizard overlay closes, re-read settings so the Settings view
+  // behind it reflects any theme/onboarding changes made inside the wizard.
+  useEffect(() => {
+    if (prevOnboardingOpen.current && !onboardingOpen) {
+      void window.kotrain.getSettings().then(setSettings);
+    }
+    prevOnboardingOpen.current = onboardingOpen;
+  }, [onboardingOpen]);
 
   const update = async (patch: Partial<AppSettings>) => {
     const next = await window.kotrain.updateSettings(patch);
@@ -39,7 +49,7 @@ export function SettingsView() {
   };
 
   /** Re-read settings the host changed on its own (connecting Hypergate writes an MCP entry). */
-  const reload = async () => setSettings(await window.kotrain.getSettings());
+  const reload = useCallback(async () => setSettings(await window.kotrain.getSettings()), []);
 
   /** Reopen the first-run wizard: clear the completion flag, then show it. */
   const replaySetup = async () => {

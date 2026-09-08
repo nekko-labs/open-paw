@@ -54,7 +54,7 @@ const NAV: Array<{ view: View; labelKey: string; Icon: (p: { className?: string 
 const MOBILE_NAV: View[] = ['command', 'chat', 'training', 'workflows', 'settings'];
 
 export function App() {
-  const { view, setView, mascotMood, settings, providers, onboardingOpen, refreshSettings, refreshProviders, refreshSessions, refreshTerminals } = useStore();
+  const { view, setView, mascotMood, settings, settingsLoaded, providers, onboardingOpen, refreshSettings, refreshProviders, refreshSessions, refreshTerminals } = useStore();
   const t = useT();
 
   // Experimental surfaces only exist in the nav once their Settings flag is on.
@@ -160,8 +160,14 @@ export function App() {
       {/* The window's own title bar, in the desktop shell only. */}
       <TitleBar />
 
-      <div className="relative flex min-h-0 w-full flex-1">
-        {/* Left rail: icon-only at rest, expands over the content on hover to
+      {!settingsLoaded ? (
+        <div className="relative flex min-h-0 w-full flex-1 items-center justify-center">
+          <span className="text-ink-faint">Loading…</span>
+        </div>
+      ) : (
+        <>
+          <div className="relative flex min-h-0 w-full flex-1">
+            {/* Left rail: icon-only at rest, expands over the content on hover to
             reveal each destination's label. Hidden on phones (hover is useless on
             touch), where the bottom tab bar below takes over. */}
         <nav className="relative z-40 hidden w-16 shrink-0 md:block">
@@ -247,6 +253,7 @@ export function App() {
       <CommandPalette />
       <DeepLinkListener />
       <Toasts />
+      </>)}
     </div>
   );
 }

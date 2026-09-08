@@ -1,54 +1,48 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { OnboardingState } from '@kotrain/shared';
 import { ONBOARDING_VERSION } from '@kotrain/shared';
 import { useStore } from '../store.js';
-import { WizardShell, type WizardStepDef } from '../components/onboarding/WizardShell.js';
+import { WizardShell } from '../components/onboarding/WizardShell.js';
+import {
+  ONBOARDING_STEPS,
+  SKIPPABLE_STEP_IDS,
+  wizardTransition,
+  type WizardState,
+} from '../components/onboarding/onboardingMachine.js';
 import { WelcomeStep } from '../components/onboarding/WelcomeStep.js';
 import { ThemeStep } from '../components/onboarding/ThemeStep.js';
 import { ProvidersStep } from '../components/onboarding/ProvidersStep.js';
 import { IntegrationsStep } from '../components/onboarding/IntegrationsStep.js';
 import { DoneStep } from '../components/onboarding/DoneStep.js';
 
-const STEPS: WizardStepDef[] = [
-  { id: 'welcome', title: 'Welcome' },
-  { id: 'theme', title: 'Theme' },
-  { id: 'providers', title: 'Providers' },
-  { id: 'integrations', title: 'Integrations' },
-  { id: 'done', title: 'All set' },
-];
-
-/** "Skip step" is meaningful only on steps that configure something. */
-const SKIPPABLE = new Set(['theme', 'providers', 'integrations']);
-
-/**
- * The first-run setup wizard, rendered over the app while
- * `onboarding.completedAt` is unset (or Settings → Replay setup reopens it).
- * Progress is persisted per step through the normal `updateSettings` path:
- * `steps` records each step as 'done' or 'skipped', and `completedAt` is
- * written the same whether the user finishes or skips setup - the flag means
- * "don't auto-show again," not "did everything."
- */
 export function OnboardingView() {
   const { settings, setOnboardingOpen } = useStore();
   const [index, setIndex] = useState(0);
-  // A ref rather than state: rapid Back/Next keypresses must each read the
-  // latest outcome map, and nothing renders from it.
-  const stepsRef = useRef<Record<string, 'done' | 'skipped'>>(
-    useStore.getState().settings?.onboarding?.steps ? { ...useStore.getState().settings!.onboarding!.steps } : {},
-  );
+  const stepsRef = useRef<Record<string, 'done' | 'skipped'>>({});
+  const runningRef = useRef(false);
 
-  const persist = useCallback((steps: Record<string, 'done' | 'skipped'>, complete: boolean) => {
-    const prev = useStore.getState().settings?.onboarding;
-    const onboarding: OnboardingState = {
-      version: ONBOARDING_VERSION,
-      ...prev,
-      steps,
-      ...(complete ? { completedAt: Date.now() } : {}),
-    };
-    void window.kotrain
-      .updateSettings({ onboarding })
-      .then((next) => useStore.setState({ settings: next }));
+  // Seed the in-memory outcome map once on mount; do not read the store during
+  // render (it can be stale or missing in SSR/strict mode).
+  useEffect(() => {
+    const onboarding = useStore.getState().settings?.onboarding;
+    stepsRef.current = onboarding?.steps ? { ...onboarding.steps } : {};
   }, []);
+
+  const persist = useCallback(
+    async (steps: Record<string, 'done' | 'skipped'>, complete: boolean) => {
+      const prev = useStore.getState().settings?.onboarding;
+      const onboarding: OnboardingState = {
+        ...(prev ?? {}),
+        version: ONBOARDING_VERSION,
+        steps,
+        ...(complete ? { completedAt: Date.now() } : {}),
+      };
+      const next = await window.kotrain.updateSettings({ onboarding });
+      useStore.setState({ settings: next });
+      return next;
+    },
+    [],
+  );
 
   const close = useCallback(
     (after?: () => void) => {
@@ -58,60 +52,115 @@ export function OnboardingView() {
     [setOnboardingOpen],
   );
 
+  const back = useCallback(() => {
+    if (runningRef.current) return;
+    const { state } = wizardTransition({ index, steps: stepsRef.current }, { type: 'back' });
+    setIndex(state.index);
+  }, [index]);
+
+  const goTo = useCallback(
+    async (i: number) => {
+      if (runningRef.current) return;
+      if (i === index) return;
+      if (i > index) {
+        runningRef.current = true;
+        try {
+          const prev: WizardState = { index, steps: stepsRef.current };
+          const { state } = wizardTransition(prev, { type: 'goTo', to: i });
+          stepsRef.current = state.steps;
+          await persist(state.steps, false);
+          setIndex(state.index);
+        } finally {
+          runningRef.current = false;
+        }
+      } else {
+        setIndex(i);
+      }
+    },
+    [index, persist],
+  );
+
+  const next = useCallback(async () => {
+    if (runningRef.current) return;
+    runningRef.current = true;
+    try {
+      const prev: WizardState = { index, steps: stepsRef.current };
+      const { state, complete } = wizardTransition(prev, { type: 'next' });
+      stepsRef.current = state.steps;
+      await persist(state.steps, complete);
+      if (complete) {
+        close();
+      } else {
+        setIndex(state.index);
+      }
+    } finally {
+      runningRef.current = false;
+    }
+  }, [index, persist, close]);
+
+  const skipStep = useCallback(async () => {
+    if (runningRef.current) return;
+    runningRef.current = true;
+    try {
+      const prev: WizardState = { index, steps: stepsRef.current };
+      const { state, complete } = wizardTransition(prev, { type: 'skipStep' });
+      stepsRef.current = state.steps;
+      await persist(state.steps, complete);
+      if (complete) {
+        close();
+      } else {
+        setIndex(state.index);
+      }
+    } finally {
+      runningRef.current = false;
+    }
+  }, [index, persist, close]);
+
+  const skipAll = useCallback(async () => {
+    if (runningRef.current) return;
+    runningRef.current = true;
+    try {
+      const prev: WizardState = { index, steps: stepsRef.current };
+      const { state, complete } = wizardTransition(prev, { type: 'skipAll' });
+      stepsRef.current = state.steps;
+      await persist(state.steps, complete);
+      close();
+    } finally {
+      runningRef.current = false;
+    }
+  }, [index, persist, close]);
+
   const finish = useCallback(
-    (after?: () => void) => {
-      stepsRef.current = { ...stepsRef.current, [STEPS[STEPS.length - 1].id]: 'done' };
-      persist(stepsRef.current, true);
-      close(after);
+    async (after?: () => void) => {
+      if (runningRef.current) return;
+      runningRef.current = true;
+      try {
+        const prev: WizardState = { index, steps: stepsRef.current };
+        const { state, complete } = wizardTransition(prev, { type: 'finish' });
+        stepsRef.current = state.steps;
+        await persist(state.steps, complete);
+        close(after);
+      } finally {
+        runningRef.current = false;
+      }
     },
     [persist, close],
   );
 
-  const goTo = useCallback((i: number) => setIndex(Math.min(STEPS.length - 1, Math.max(0, i))), []);
-
-  const back = useCallback(() => goTo(index - 1), [goTo, index]);
-
-  const next = useCallback(() => {
-    if (index >= STEPS.length - 1) {
-      finish();
-      return;
-    }
-    stepsRef.current = { ...stepsRef.current, [STEPS[index].id]: 'done' };
-    persist(stepsRef.current, false);
-    goTo(index + 1);
-  }, [index, finish, persist, goTo]);
-
-  const skipStep = useCallback(() => {
-    stepsRef.current = { ...stepsRef.current, [STEPS[index].id]: 'skipped' };
-    if (index >= STEPS.length - 1) {
-      persist(stepsRef.current, true);
-      close();
-      return;
-    }
-    persist(stepsRef.current, false);
-    goTo(index + 1);
-  }, [index, persist, close, goTo]);
-
-  const skipAll = useCallback(() => {
-    stepsRef.current = { ...stepsRef.current, [STEPS[index].id]: 'skipped' };
-    persist(stepsRef.current, true);
-    close();
-  }, [index, persist, close]);
-
   if (!settings) return null;
-  const step = STEPS[index];
+  const step = ONBOARDING_STEPS[index];
 
   return (
     <WizardShell
-      steps={STEPS}
+      steps={ONBOARDING_STEPS}
       index={index}
       onBack={back}
       onNext={next}
       onSkipStep={skipStep}
       onSkipAll={skipAll}
       onGoTo={goTo}
-      nextLabel={index === STEPS.length - 1 ? 'Finish' : 'Next'}
-      showSkipStep={SKIPPABLE.has(step.id)}
+      nextLabel={index === ONBOARDING_STEPS.length - 1 ? 'Finish' : 'Next'}
+      showSkipStep={SKIPPABLE_STEP_IDS.has(step.id)}
     >
       {step.id === 'welcome' && <WelcomeStep />}
       {step.id === 'theme' && <ThemeStep />}

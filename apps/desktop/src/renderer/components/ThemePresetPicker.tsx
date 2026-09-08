@@ -23,7 +23,10 @@ export function ThemePresetPicker({
   large?: boolean;
 }) {
   const tr = useT();
-  const activeId = settings.themePreset ?? settings.theme;
+  // Only highlight a preset when it was explicitly selected. Falling back to
+  // `settings.theme` would falsely highlight a preset when the user only has a
+  // base mode and a custom accent.
+  const activeId = settings.themePreset;
 
   const select = (preset: ThemePreset) => {
     void update({
@@ -37,7 +40,11 @@ export function ThemePresetPicker({
   return (
     <div className={showLabel ? 'mt-4' : undefined}>
       {showLabel && <span className="text-[13px]">{tr('settings.theme')}</span>}
-      <div className={`${showLabel ? 'mt-2' : ''} grid grid-cols-4 gap-2`}>
+      <div
+        className={`${showLabel ? 'mt-2' : ''} grid grid-cols-4 gap-2`}
+        role="radiogroup"
+        aria-label={tr('settings.theme')}
+      >
         {THEME_PRESETS.map((preset) => {
           const active = activeId === preset.id;
           const gradient = `conic-gradient(from 0deg, ${[...preset.swatch, preset.swatch[0]].join(', ')})`;
@@ -46,7 +53,8 @@ export function ThemePresetPicker({
               key={preset.id}
               onClick={() => select(preset)}
               title={preset.label}
-              aria-pressed={active}
+              role="radio"
+              aria-checked={active}
               className={`flex flex-col items-center gap-1.5 rounded-xl border p-2 text-[11px] font-medium transition-colors ${
                 active ? 'border-accent bg-accent-soft' : 'border-line bg-surface hover:bg-surface-2'
               }`}

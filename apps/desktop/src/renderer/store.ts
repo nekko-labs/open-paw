@@ -89,6 +89,8 @@ interface UiState {
   contextPanelOpen: boolean;
   /** Whether the first-run setup wizard is showing over the app. */
   onboardingOpen: boolean;
+  /** True after the first settings load has finished. */
+  settingsLoaded: boolean;
   mascotMood: MascotMood;
   toasts: Toast[];
   paletteOpen: boolean;
@@ -227,6 +229,7 @@ export const useStore = create<UiState>((set, get) => ({
   // Default the context panel closed on small screens (phones).
   contextPanelOpen: typeof window !== 'undefined' ? window.innerWidth >= 1024 : true,
   onboardingOpen: false,
+  settingsLoaded: false,
   mascotMood: 'waving',
   toasts: [],
   paletteOpen: false,
@@ -268,9 +271,9 @@ export const useStore = create<UiState>((set, get) => ({
 
   refreshSettings: async () => {
     const settings = await window.kotrain.getSettings();
-    set({ settings });
+    const onboardingOpen = shouldAutoOpenOnboarding(settings);
+    set({ settings, onboardingOpen, settingsLoaded: true });
     get().applyTheme();
-    if (shouldAutoOpenOnboarding(settings)) set({ onboardingOpen: true });
     if (!get().activeProviderId && settings.defaultProviderId) {
       set({ activeProviderId: settings.defaultProviderId, activeModelId: settings.defaultModelId ?? null });
     }

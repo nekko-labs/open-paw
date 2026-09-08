@@ -50,26 +50,32 @@ export function WizardShell({
     stepRef.current?.focus({ preventScroll: true });
   }, [index]);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement | null;
-      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
-      if (e.key === 'ArrowRight') {
+  const handleKey = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    // Stop wizard keys from bubbling up to global shortcut listeners.
+    e.stopPropagation();
+
+    const target = e.target as HTMLElement | null;
+    if (!target) return;
+
+    // Let inputs, contenteditable regions, grids, and single-choice groups
+    // handle their own arrow keys.
+    if (target.isContentEditable) return;
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+    if (target.closest('[role="grid"], [role="radiogroup"], [contenteditable]')) return;
+
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      onNext();
+    } else if (e.key === 'ArrowLeft') {
+      if (index > 0) {
         e.preventDefault();
-        onNext();
-      } else if (e.key === 'ArrowLeft') {
-        if (index > 0) {
-          e.preventDefault();
-          onBack();
-        }
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        onSkipAll();
+        onBack();
       }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [index, onNext, onBack, onSkipAll]);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      onSkipAll();
+    }
+  };
 
   return (
     <div
@@ -77,6 +83,7 @@ export function WizardShell({
       role="dialog"
       aria-modal="true"
       aria-label="Agent Nekko setup"
+      onKeyDown={handleKey}
     >
       {/* Header: step dots centered, Skip setup tucked in the trailing corner. */}
       <div className="flex items-center px-6 py-5">
@@ -117,12 +124,7 @@ export function WizardShell({
 
       {/* Footer: Back on the left, Skip step + Next on the right. */}
       <div className="flex items-center justify-between px-6 py-5">
-        <button
-          className={`btn btn-ghost ${index === 0 ? 'invisible' : ''}`}
-          onClick={onBack}
-          tabIndex={index === 0 ? -1 : 0}
-          aria-hidden={index === 0}
-        >
+        <button className="btn btn-ghost" onClick={onBack} disabled={index === 0} aria-disabled={index === 0}>
           Back
         </button>
         <div className="flex items-center gap-2">
