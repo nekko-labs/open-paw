@@ -1,10 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import type {
+  ConnectorKind,
   GitEvent,
   GitProvider,
   NewWorkflow,
   SkillDef,
   Workflow,
+  WorkflowActionSpec,
   WorkflowStep,
   WorkflowStepKind,
   WorkflowTransition,
@@ -12,13 +14,16 @@ import type {
   WorkflowTriggerKind,
 } from '@kotrain/shared';
 import {
+  CONNECTOR_CATALOG,
   DEFAULT_WORKFLOW_CATEGORIES,
   GIT_EVENTS,
   GIT_PROVIDERS,
   UNCATEGORIZED,
+  WORKFLOW_ACTIONS,
   WORKFLOW_STEP_KINDS,
   WORKFLOW_TRIGGER_KINDS,
   cliCommand,
+  findWorkflowAction,
   formatEvery,
   isValidCron,
   newStepId,
@@ -81,6 +86,12 @@ export function WorkflowEditor({
   onSave: (patch: NewWorkflow) => Promise<void> | void;
 }) {
   const settings = useStore((s) => s.settings);
+  const setView = useStore((s) => s.setView);
+  /** Connectors with stored credentials, so an action step can grey out ops it can't run. */
+  const connectedKinds = useMemo(
+    () => new Set<ConnectorKind>((settings?.connectors ?? []).filter((c) => c.connected).map((c) => c.kind)),
+    [settings?.connectors],
+  );
   const [draft, setDraft] = useState<Draft>(() => {
     const base = toDraft(workflow);
     return seed
@@ -263,6 +274,8 @@ export function WorkflowEditor({
                 workflows={workflows.filter((w) => w.id !== workflow?.id)}
                 skills={skills}
                 unreachable={unreachable.has(step.id)}
+                connectedKinds={connectedKinds}
+                onGoConnectors={() => { onClose(); setView('connectors'); }}
                 onPatch={(patch) => patchStep(step.id, patch)}
                 onRemove={() => removeStep(step.id)}
                 onMove={(d) => moveStep(step.id, d)}
@@ -324,7 +337,7 @@ function routeStillValid(t: WorkflowTransition | undefined, goneId: string): boo
 }
 
 function StepEditor({
-  step, index, total, steps, workflows, skills, unreachable, onPatch, onRemove, onMove, onFocus, highlighted,
+  step, index, total, steps, workflows, skills, unreachable, connectedKinds, onGoConnectors, onPatch, onRemove, onMove, onFocus, highlighted,
 }: {
   step: WorkflowStep;
   index: number;
@@ -333,6 +346,9 @@ function StepEditor({
   workflows: Workflow[];
   skills: SkillDef[];
   unreachable: boolean;
+  /** Connectors with stored credentials (action steps need them to run). */
+  connectedKinds: Set<ConnectorKind>;
+  onGoConnectors: () => void;
   onPatch: (patch: Partial<WorkflowStep>) => void;
   onRemove: () => void;
   onMove: (delta: number) => void;
@@ -357,9 +373,10 @@ function StepEditor({
         <select
           className="input w-[112px] py-1! text-[12px]"
           value={step.kind}
-          // Switching kind clears `run`: a shell command is not a valid skill id,
-          // and a half-converted step is worse than an empty one.
-          onChange={(e) => onPatch({ kind: e.target.value as WorkflowStepKind, run: '' })}
+          // Switching kind clears `run` (and action `params`): a shell command
+          // is not a valid skill id, and a half-converted step is worse than
+          // an empty one.
+          onChange={(e) => onPatch({ kind: e.target.value as WorkflowStepKind, run: '', params: undefined })}
         >
           {WORKFLOW_STEP_KINDS.map((k) => <option key={k.kind} value={k.kind}>{k.label}</option>)}
         </select>
@@ -411,6 +428,14 @@ function StepEditor({
             <option value="">Pick a workflow…</option>
             {workflows.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
           </select>
+        )}
+        {step.kind === 'action' && (
+          <ActionStepFields
+            step={step}
+            connectedKinds={connectedKinds}
+            onPatch={onPatch}
+            onGoConnectors={onGoConnectors}
+          />
         )}
         {(step.kind === 'prompt' || step.kind === 'skill') && (
           <input
@@ -471,6 +496,109 @@ function StepEditor({
         />
         <span className="text-[11.5px] text-ink-soft">Keep going even if this step fails</span>
       </label>
+    </div>
+  );
+}
+
+/**
+ * Action step body: pick an op from the shared WORKFLOW_ACTIONS catalog, then
+ * fill in that op's params. Ops are grouped by the connector they run through
+ * and greyed out while that connector isn't connected, since credentials come
+ * from the connector's saved settings rather than the step.
+ */
+function ActionStepFields({
+  step, connectedKinds, onPatch, onGoConnectors,
+}: {
+  step: WorkflowStep;
+  connectedKinds: Set<ConnectorKind>;
+  onPatch: (patch: Partial<WorkflowStep>) => void;
+  onGoConnectors: () => void;
+}) {
+  const spec = findWorkflowAction(step.run);
+  const groups = useMemo(() => {
+    const by = new Map<string, WorkflowActionSpec[]>();
+    for (const a of WORKFLOW_ACTIONS) {
+      const list = by.get(a.group) ?? [];
+      list.push(a);
+      by.set(a.group, list);
+    }
+    return [...by.entries()].map(([label, ops]) => ({ label, ops }));
+  }, []);
+  const needsConnector = spec?.connector && !connectedKinds.has(spec.connector);
+  const connectorLabel = spec?.connector
+    ? CONNECTOR_CATALOG.find((c) => c.kind === spec.connector)?.label ?? spec.connector
+    : undefined;
+  const setParam = (key: string, value: string) => {
+    const next = { ...(step.params ?? {}) };
+    if (value) next[key] = value;
+    else delete next[key];
+    onPatch({ params: Object.keys(next).length ? next : undefined });
+  };
+  return (
+    <div className="space-y-2">
+      <select
+        className="input w-full text-[12.5px]"
+        value={step.run}
+        // A new op takes new params; carrying the old keys over would leave
+        // fields the op never reads.
+        onChange={(e) => onPatch({ run: e.target.value, params: undefined })}
+      >
+        <option value="">Pick an action…</option>
+        {groups.map((g) => (
+          <optgroup key={g.label} label={g.label}>
+            {g.ops.map((a) => {
+              const blocked = !!a.connector && !connectedKinds.has(a.connector);
+              return (
+                <option key={a.op} value={a.op} disabled={blocked}>
+                  {a.label}{blocked ? ` (connect ${a.group} first)` : ''}
+                </option>
+              );
+            })}
+          </optgroup>
+        ))}
+      </select>
+      {spec?.hint && <p className="text-[11px] text-ink-faint">{spec.hint}</p>}
+      {needsConnector && (
+        <p className="text-[11.5px]" style={{ color: 'var(--warning)' }}>
+          {connectorLabel} isn't connected, so this step can't run yet.{' '}
+          <button className="underline" onClick={onGoConnectors}>Connect it</button>
+          {' '}— closing the editor discards this draft.
+        </p>
+      )}
+      {spec && (
+        <div className="grid gap-2 sm:grid-cols-2">
+          {spec.params.map((p) => (
+            <label key={p.key} className={`block ${p.multiline ? 'sm:col-span-2' : ''}`}>
+              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-ink-faint">
+                {p.label}{p.required ? ' *' : ''}
+              </span>
+              {p.multiline ? (
+                <textarea
+                  className="input min-h-[48px] w-full resize-y text-[12.5px]"
+                  placeholder={p.placeholder}
+                  value={step.params?.[p.key] ?? ''}
+                  onChange={(e) => setParam(p.key, e.target.value)}
+                />
+              ) : (
+                <input
+                  className="input w-full py-1! text-[12px]"
+                  placeholder={p.placeholder}
+                  value={step.params?.[p.key] ?? ''}
+                  onChange={(e) => setParam(p.key, e.target.value)}
+                />
+              )}
+              {p.hint && <span className="mt-0.5 block text-[10.5px] text-ink-faint">{p.hint}</span>}
+            </label>
+          ))}
+        </div>
+      )}
+      {spec && (
+        <p className="text-[10.5px] text-ink-faint">
+          Values can interpolate the run: <code className="font-mono">{'{{trigger.branch}}'}</code>,{' '}
+          <code className="font-mono">{'{{steps.<stepId>.output}}'}</code>,{' '}
+          <code className="font-mono">{'{{run.status}}'}</code>.
+        </p>
+      )}
     </div>
   );
 }

@@ -16,3 +16,4 @@ export * from './context/assembler.js';
 export * from './indexer/index.js';
 export * from './memory/store.js';
 export * from './connectors/index.js';
+export * from './connectors/actions.js';

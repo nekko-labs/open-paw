@@ -1,6 +1,6 @@
-/** External connector types: GitHub, Linear, Slack, Discord, Jira, Microsoft Teams, Gmail, Google Drive. */
+/** External connector types: GitHub, GitLab, Linear, Slack, Discord, Jira, Microsoft Teams, Gmail, Google Drive. */
 
-export type ConnectorKind = 'github' | 'linear' | 'slack' | 'discord' | 'jira' | 'teams' | 'gmail' | 'gdrive';
+export type ConnectorKind = 'github' | 'gitlab' | 'linear' | 'slack' | 'discord' | 'jira' | 'teams' | 'gmail' | 'gdrive';
 
 export type ConnectorAuthKind = 'token' | 'oauth';
 
@@ -33,6 +33,7 @@ export interface ConnectorResource {
 
 export const CONNECTOR_CATALOG: ConnectorMeta[] = [
   { kind: 'github', label: 'GitHub', auth: 'token', description: 'Repositories, issues, and pull requests via a personal access token.' },
+  { kind: 'gitlab', label: 'GitLab', auth: 'token', description: 'Projects, merge requests, and commit statuses via a personal access token (gitlab.com or self-managed).' },
   { kind: 'linear', label: 'Linear', auth: 'token', description: 'Issues, projects, and cycles via Linear API key.' },
   { kind: 'slack', label: 'Slack', auth: 'token', description: 'Channels and messages via a bot/user token.' },
   { kind: 'discord', label: 'Discord', auth: 'token', description: 'Servers and channels via a bot token.' },

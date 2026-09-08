@@ -4,6 +4,7 @@ import { isAbsolute, join, resolve } from 'path';
 import { randomUUID } from 'crypto';
 import type {
   AgentEvent,
+  ConnectorConfig,
   NewWorkflow,
   Workflow,
   WorkflowEvent,
@@ -14,15 +15,24 @@ import type {
   WorkflowsSnapshot,
 } from '@kotrain/shared';
 import {
+  CONNECTOR_CATALOG,
   MAX_STEP_LOOPS,
   MAX_WORKFLOW_DEPTH,
   UNCATEGORIZED,
   eventContext,
+  findWorkflowAction,
   matchWorkflows,
   nextScheduledRun,
   readStepOutcome,
   stepOutcomeInstruction,
 } from '@kotrain/shared';
+import {
+  renderTemplate,
+  runWorkflowAction,
+  templateContext,
+  type WorkflowActionContext,
+  type WorkflowTemplateContext,
+} from '@kotrain/core';
 import { dataDir, getSettings } from './store.js';
 import { createSession, deleteSession, getSession, saveSession } from './sessions.js';
 import { abortChat, sendChat } from './chat.js';
@@ -315,6 +325,16 @@ async function execute(
   saveSession(session);
 
   const visits = new Map<string, number>();
+  /** Latest output per step id, for `{{steps.<stepId>.output}}` templates. */
+  const stepOutputs = new Map<string, string>();
+  const runInfo: WorkflowActionContext['run'] = {
+    id: run.id,
+    workflowId,
+    workflowName: wf.name,
+    status: 'running',
+    triggerKind,
+    triggerLabel: run.triggerLabel,
+  };
   let cursor = 0;
   let status: WorkflowRun['status'] = 'success';
   let message: string | undefined;
@@ -341,8 +361,17 @@ async function execute(
         const entry: WorkflowStepRun = { stepId: step.id, status: 'running', attempt, startedAt: Date.now() };
         persistRun(run.id, (r) => { r.steps.push(entry); });
 
-        result = await runStep(wf, step, session.id, firstStep ? event : undefined, depth);
+        result = await runStep(wf, step, session.id, {
+          event,
+          isFirst: firstStep,
+          depth,
+          run: runInfo,
+          tctx: templateContext({ event, outputs: stepOutputs, run: runInfo }),
+        });
         firstStep = false;
+        // Even a failed attempt's output is worth exposing: a later action step
+        // may want the tail of the log it's reporting on.
+        stepOutputs.set(step.id, result.output ?? result.error ?? '');
 
         persistRun(run.id, (r) => {
           const last = r.steps[r.steps.length - 1];
@@ -405,23 +434,73 @@ async function execute(
   }
 }
 
+/** Everything a step needs beyond its own definition. */
+interface StepContext {
+  /** The event that fired the run (undefined for a manual start). */
+  event?: WorkflowEvent;
+  /** True only for the first step, which gets the event context in its prompt. */
+  isFirst: boolean;
+  depth: number;
+  /** The run, handed to action runners for defaults like the status context. */
+  run: WorkflowActionContext['run'];
+  /** `{{trigger.*}}` / `{{steps.*}}` / `{{run.*}}` interpolation context. */
+  tctx: WorkflowTemplateContext;
+}
+
 /** Run one step according to its kind. */
 async function runStep(
   wf: Workflow,
   step: WorkflowStep,
   sessionId: string,
-  event: WorkflowEvent | undefined,
-  depth: number,
+  sctx: StepContext,
 ): Promise<StepResult> {
+  // Templates apply to `run`/`with`/`params` across kinds: a prompt can quote
+  // an earlier step's output and a shell step can name the triggering branch.
+  const render = (s?: string) => (s ? renderTemplate(s, sctx.tctx) : s);
   switch (step.kind) {
     case 'shell':
-      return runShell(wf, step);
+      return runShell(wf, { ...step, run: render(step.run) ?? step.run });
     case 'workflow':
-      return runNested(step, depth);
+      return runNested({ ...step, run: render(step.run) ?? step.run }, sctx.depth);
+    case 'action':
+      return runAction(step, sctx);
     case 'prompt':
     case 'skill':
-      return runAgentStep(wf, step, sessionId, event);
+      return runAgentStep(
+        wf,
+        { ...step, run: render(step.run) ?? step.run, with: render(step.with) },
+        sessionId,
+        sctx.isFirst ? sctx.event : undefined,
+      );
   }
+}
+
+/**
+ * Action step: call a registered integration op (see core's WORKFLOW_ACTIONS
+ * runners). The connector's credentials come from settings, never from the
+ * step, so a workflow stays shareable without leaking tokens.
+ */
+async function runAction(step: WorkflowStep, sctx: StepContext): Promise<StepResult> {
+  const spec = findWorkflowAction(step.run.trim());
+  if (!spec) {
+    return { ok: false, error: `Unknown action "${step.run}". Pick one from the action list in the editor.` };
+  }
+  let config: ConnectorConfig | undefined;
+  if (spec.connector) {
+    config = getSettings().connectors.find((c) => c.kind === spec.connector && c.connected);
+    if (!config) {
+      const label = CONNECTOR_CATALOG.find((c) => c.kind === spec.connector)?.label ?? spec.connector;
+      return { ok: false, error: `The ${label} connector isn't connected — connect it under Connectors.` };
+    }
+  }
+  const params = Object.fromEntries(
+    Object.entries(step.params ?? {}).map(([k, v]) => [k, renderTemplate(v, sctx.tctx)]),
+  );
+  const res = await runWorkflowAction(spec.op, config, params, { event: sctx.event, run: sctx.run });
+  if (res.isError) {
+    return { ok: false, output: res.output, error: res.output.split('\n')[0].slice(0, 300) || 'Action failed.' };
+  }
+  return { ok: true, output: res.output };
 }
 
 /**
