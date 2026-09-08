@@ -824,6 +824,48 @@
     color-scheme: dark;
   }
 
+  /* Preset-specific surface/ink overrides for atmospheres the base
+     light/dark tokens cannot capture on their own. */
+  [data-theme='dark'][data-preset='terminal'] {
+    --paper: #070a07;
+    --surface: #0e1a0e;
+    --surface-2: #162316;
+    --ink: #e8f5e8;
+    --ink-soft: #8bb08b;
+    --ink-faint: #4e6b4e;
+    --line: #1a261a;
+  }
+
+  [data-theme='dark'][data-preset='nord'] {
+    --paper: #1e222a;
+    --surface: #252a33;
+    --surface-2: #2e3440;
+    --ink: #eceff4;
+    --ink-soft: #9ca6b6;
+    --ink-faint: #6b7787;
+    --line: #3b4252;
+  }
+
+  [data-theme='dark'][data-preset='ember'] {
+    --paper: #150f0b;
+    --surface: #1c140e;
+    --surface-2: #261b14;
+    --ink: #f7ece5;
+    --ink-soft: #c7a998;
+    --ink-faint: #8a6e5e;
+    --line: #3d2a1f;
+  }
+
+  [data-theme='light'][data-preset='solar'] {
+    --paper: #faf6ed;
+    --surface: #fffdf6;
+    --surface-2: #f3ead9;
+    --ink: #2b211a;
+    --ink-soft: #6d5d4d;
+    --ink-faint: #9e8d7a;
+    --line: #e8dfc8;
+  }
+
   /* Belt-and-suspenders for the native <select> popup list. */
   select.input option {
     background: var(--surface);

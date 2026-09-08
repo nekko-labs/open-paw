@@ -81,9 +81,9 @@ export function TerminalPane({ terminalId }: { terminalId: string }) {
     const ro = new ResizeObserver(() => { try { fit.fit(); } catch { /* hidden */ } });
     ro.observe(el);
 
-    // Re-theme when the app toggles light/dark.
+    // Re-theme when the app toggles light/dark or switches theme presets.
     const themeObs = new MutationObserver(() => { term.options.theme = readTheme(); });
-    themeObs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    themeObs.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'data-preset'] });
 
     return () => {
       onData.dispose();

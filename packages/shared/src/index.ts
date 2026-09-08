@@ -34,3 +34,4 @@ export * from './insights.js';
 export * from './model-select.js';
 export * from './oauth.js';
 export * from './monitor.js';
+export * from './themes.js';
