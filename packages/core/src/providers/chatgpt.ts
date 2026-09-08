@@ -1,5 +1,6 @@
 import type { ModelInfo, ProviderConfig, ToolCall } from '@kotrain/shared';
 import type { Provider, ChatRequest, ProviderChunk } from './types.js';
+import { randomUUID } from 'node:crypto';
 import { parseSSE } from './sse.js';
 import { DecodeClock } from './decode-clock.js';
 
@@ -34,7 +35,7 @@ const MISSING_ACCOUNT_ID =
  */
 export class ChatGptProvider implements Provider {
   /** One session id per provider instance (≈ one agent run). */
-  private readonly sessionId = crypto.randomUUID();
+  private readonly sessionId = randomUUID();
 
   constructor(public readonly config: ProviderConfig) {}
 

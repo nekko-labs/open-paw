@@ -134,6 +134,53 @@ describe('ChatGptProvider SSE parsing', () => {
       { type: 'usage', inputTokens: 10, outputTokens: 7, outputMs: expect.any(Number) },
       { type: 'done' },
     ]);
+    expect(chunks.filter((c) => c.type === 'done')).toHaveLength(1);
+  });
+
+  it('stops on response.incomplete with usage and a single done', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      sseResponse([
+        'data: {"type":"response.output_text.delta","delta":"partial"}\n\n',
+        'data: {"type":"response.incomplete","response":{"usage":{"input_tokens":4,"output_tokens":2}}}\n\n',
+      ]),
+    );
+    const chunks = await collect(new ChatGptProvider(cfg), { model: 'gpt-5-codex', messages: [] });
+    expect(chunks).toEqual([
+      { type: 'text', delta: 'partial' },
+      { type: 'usage', inputTokens: 4, outputTokens: 2, outputMs: expect.any(Number) },
+      { type: 'done' },
+    ]);
+    expect(chunks.filter((c) => c.type === 'done')).toHaveLength(1);
+  });
+
+  it('throws when the stream reports response.failed', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      sseResponse([
+        'data: {"type":"response.failed","response":{"error":{"message":"ran out of room"}}}\n\n',
+      ]),
+    );
+    await expect(collect(new ChatGptProvider(cfg), { model: 'gpt-5-codex', messages: [] })).rejects.toThrow(/ran out of room/);
+  });
+
+  it('throws when the stream reports an error', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      sseResponse([
+        'data: {"type":"error","error":{"message":"model overloaded"}}\n\n',
+      ]),
+    );
+    await expect(collect(new ChatGptProvider(cfg), { model: 'gpt-5-codex', messages: [] })).rejects.toThrow(/model overloaded/);
+  });
+
+  it('yields done exactly once in a completed stream', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      sseResponse([
+        'data: {"type":"response.output_text.delta","delta":"Hello"}\n\n',
+        'data: {"type":"response.completed","response":{"usage":{"input_tokens":2,"output_tokens":1}}}\n\n',
+      ]),
+    );
+    const chunks = await collect(new ChatGptProvider(cfg), { model: 'gpt-5-codex', messages: [] });
+    expect(chunks.filter((c) => c.type === 'done')).toHaveLength(1);
+    expect(chunks.at(-1)).toEqual({ type: 'done' });
   });
 
   it('throws on a non-OK response so a 401 triggers the host refresh path', async () => {
