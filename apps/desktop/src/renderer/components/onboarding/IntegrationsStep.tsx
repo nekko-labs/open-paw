@@ -193,16 +193,23 @@ function AgentToolCard({
 /** The copy-paste fallback: where the entry goes plus the snippet itself. */
 function ManualSnippet({ id }: { id: AgentToolId }) {
   const [snippet, setSnippet] = useState<SubagentSnippet | null>(null);
+  const [failed, setFailed] = useState(false);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     let alive = true;
+    // A different tool means a fresh snippet and a fresh copy state.
+    setSnippet(null);
+    setFailed(false);
+    setCopied(false);
     window.kotrain
       .subagentSnippet(id)
       .then((s) => {
         if (alive) setSnippet(s);
       })
-      .catch(() => {});
+      .catch(() => {
+        if (alive) setFailed(true);
+      });
     return () => {
       alive = false;
     };
@@ -219,7 +226,12 @@ function ManualSnippet({ id }: { id: AgentToolId }) {
     }
   };
 
-  if (!snippet) return null;
+  if (failed) {
+    return <p className="mt-2 text-[11px] text-ink-faint">Couldn't load the manual config.</p>;
+  }
+  if (!snippet) {
+    return <p className="mt-2 text-[11px] text-ink-faint">Loading config…</p>;
+  }
   return (
     <div className="mt-2 rounded-xl p-3" style={{ background: 'var(--surface-2)' }}>
       <p className="text-[11px] text-ink-faint">

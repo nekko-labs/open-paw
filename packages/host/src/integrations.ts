@@ -79,6 +79,126 @@ const TOML_ENTRY_RE = new RegExp(
   'm',
 );
 
+/**
+ * Lightweight TOML safety net. There is no TOML parser in the stdlib and new
+ * dependencies are off the table, so this is a lexical pass rather than a full
+ * parse. `scanToml` blanks out string contents (basic "…", literal '…', and
+ * their multiline """/''' forms, with \ escapes in basic strings) and `#`
+ * comments, which keeps a `[table]` header from matching inside a string or
+ * comment. `tomlLooksParseable` then requires every remaining line to look
+ * like a `[table]` header, a `key = value` pair, or part of a multiline
+ * array/inline-table value.
+ *
+ * Known limit: the value half of a `key = value` line is only checked for
+ * bracket balance, not validated, so subtly invalid values still count as
+ * parseable. The conservative direction is preserved: anything that doesn't
+ * fit this shape is "not confident" and the install refuses to edit the file
+ * rather than guess.
+ */
+interface TomlScan {
+  /** Source with string/comment contents replaced by spaces. */
+  clean: string;
+  /** False when the file can't be read confidently; don't edit it. */
+  confident: boolean;
+}
+
+function scanToml(text: string): TomlScan {
+  const chars = text.split('');
+  const blank = (i: number) => {
+    if (chars[i] !== '\n' && chars[i] !== '\r') chars[i] = ' ';
+  };
+  let i = 0;
+  while (i < text.length) {
+    const c = text[i];
+    if (c === '#') {
+      while (i < text.length && text[i] !== '\n') blank(i++);
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      const triple = text.startsWith(c + c + c, i);
+      const end = triple ? c + c + c : c;
+      for (let k = 0; k < end.length; k++) blank(i + k);
+      i += end.length;
+      let closed = false;
+      while (i < text.length) {
+        if (text.startsWith(end, i)) {
+          for (let k = 0; k < end.length; k++) blank(i + k);
+          i += end.length;
+          closed = true;
+          break;
+        }
+        if (!triple && text[i] === '\n') break; // bare newline: unterminated
+        if (c === '"' && text[i] === '\\') {
+          // A backslash escapes the next char in basic strings ("" and """).
+          blank(i);
+          if (i + 1 < text.length) blank(i + 1);
+          i += 2;
+          continue;
+        }
+        blank(i++);
+      }
+      if (!closed) {
+        // An unterminated string makes everything after it untrustworthy.
+        while (i < text.length) blank(i++);
+        return { clean: chars.join(''), confident: false };
+      }
+      continue;
+    }
+    i++;
+  }
+  return { clean: chars.join(''), confident: true };
+}
+
+/** A `[table]` or `[[array-of-tables]]` header line, on stripped text. */
+const TOML_HEADER_LINE_RE = /^\[\[?[^\[\]]+\]?\]$/;
+/** A bare TOML key, possibly dotted (`a.b.c`). Quoted keys are already blank. */
+const TOML_BARE_KEY_RE = /^[A-Za-z0-9_-]+(\s*\.\s*[A-Za-z0-9_-]+)*$/;
+
+function tomlLooksParseable(clean: string): boolean {
+  let depth = 0; // unclosed [ / { inside a value
+  const countBrackets = (s: string): boolean => {
+    for (const ch of s) {
+      if (ch === '[' || ch === '{') depth++;
+      else if (ch === ']' || ch === '}') depth--;
+      if (depth < 0) return false;
+    }
+    return true;
+  };
+  for (const rawLine of clean.split('\n')) {
+    const line = rawLine.trim();
+    if (depth > 0) {
+      // Continuation of a multiline array or inline table; only the bracket
+      // balance matters here.
+      if (!countBrackets(line)) return false;
+      continue;
+    }
+    if (!line) continue;
+    if (line.startsWith('[')) {
+      if (!TOML_HEADER_LINE_RE.test(line)) return false;
+      continue;
+    }
+    const eq = line.indexOf('=');
+    if (eq < 0) return false;
+    const key = line.slice(0, eq).trim();
+    // An empty key is a blanked-out quoted key; that's fine.
+    if (key && !TOML_BARE_KEY_RE.test(key)) return false;
+    if (!countBrackets(line.slice(eq + 1))) return false;
+  }
+  return depth === 0;
+}
+
+interface TomlCheck {
+  installed: boolean;
+  /** False when the file can't be read confidently; don't edit it. */
+  confident: boolean;
+}
+
+function checkTomlConfig(text: string): TomlCheck {
+  const { clean, confident } = scanToml(text);
+  if (!confident || !tomlLooksParseable(clean)) return { installed: false, confident: false };
+  return { installed: TOML_ENTRY_RE.test(clean), confident: true };
+}
+
 function specFor(tool: AgentToolId): AgentToolSpec | undefined {
   return TOOLS.find((t) => t.id === tool);
 }
@@ -96,7 +216,7 @@ function readConfig(spec: AgentToolSpec, home: string): string | undefined {
 function isInstalled(spec: AgentToolSpec, home: string): boolean {
   const text = readConfig(spec, home);
   if (!text) return false;
-  if (spec.format === 'toml') return TOML_ENTRY_RE.test(text);
+  if (spec.format === 'toml') return checkTomlConfig(text).installed;
   try {
     const cfg = JSON.parse(text) as { mcpServers?: Record<string, unknown> };
     const servers = cfg?.mcpServers ?? {};
@@ -144,7 +264,8 @@ export function installSubagent(tool: AgentToolId, home: string = homedir()): Su
     const text = readConfig(spec, home);
     if (text !== undefined) {
       try {
-        const parsed = JSON.parse(text);
+        // An empty-but-present file is a fresh config, not a parse failure.
+        const parsed = text.trim() === '' ? {} : JSON.parse(text);
         if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) cfg = parsed;
       } catch {
         // Never clobber a config we can't parse; the backup isn't even written
@@ -163,6 +284,15 @@ export function installSubagent(tool: AgentToolId, home: string = homedir()): Su
     writeJsonAtomic(path, cfg);
   } else {
     const text = readConfig(spec, home);
+    if (text !== undefined && !checkTomlConfig(text).confident) {
+      // Never append to a config we can't read confidently; the backup isn't
+      // even written so the file is exactly as the tool left it.
+      return {
+        ok: false,
+        message: `${spec.configFile} doesn't look like valid TOML. Fix it by hand or add the entry manually.`,
+        tools: detectAgentTools(home),
+      };
+    }
     const body = (text ?? '').replace(/\s+$/, '');
     const next = body ? `${body}\n\n${TOML_SECTION}` : TOML_SECTION;
     backupFile(path);

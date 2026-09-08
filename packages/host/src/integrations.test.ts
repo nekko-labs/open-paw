@@ -108,6 +108,54 @@ describe('agent-tool detection and subagent install', () => {
     expect(existsSync(join(home, '.claude.json.bak'))).toBe(false);
   });
 
+  it('treats an empty-but-present JSON config as a fresh object', () => {
+    mkdirSync(join(home, '.cursor'));
+    writeFileSync(join(home, '.cursor', 'mcp.json'), '   \n');
+    const res = installSubagent('cursor', home);
+    expect(res.ok).toBe(true);
+    const cfg = JSON.parse(readFileSync(join(home, '.cursor', 'mcp.json'), 'utf8'));
+    expect(cfg.mcpServers['agent-nekko'].command).toBe('npx');
+  });
+
+  it('does not count a TOML section header inside a string or comment as installed', () => {
+    mkdirSync(join(home, '.codex'));
+    writeFileSync(
+      join(home, '.codex', 'config.toml'),
+      '# [mcp_servers.agent-nekko]\nnote = "[mcp_servers.agent-nekko]"\n',
+    );
+    expect(detectAgentTools(home).find((t) => t.id === 'codex')?.installed).toBe(false);
+    const res = installSubagent('codex', home);
+    expect(res.ok).toBe(true);
+    const text = readFileSync(join(home, '.codex', 'config.toml'), 'utf8');
+    expect(text).toContain('[mcp_servers.agent-nekko]\ncommand = "npx"');
+  });
+
+  it('refuses to append to a TOML config it cannot read confidently', () => {
+    mkdirSync(join(home, '.codex'));
+    writeFileSync(join(home, '.codex', 'config.toml'), 'model = "unterminated\nthis is not toml');
+    const res = installSubagent('codex', home);
+    expect(res.ok).toBe(false);
+    expect(res.message).toContain('valid TOML');
+    expect(existsSync(join(home, '.codex', 'config.toml.bak'))).toBe(false);
+    writeFileSync(join(home, '.codex', 'config.toml'), 'just some words\n');
+    const again = installSubagent('codex', home);
+    expect(again.ok).toBe(false);
+    expect(again.message).toContain('valid TOML');
+  });
+
+  it('handles multiline arrays and strings in config.toml', () => {
+    mkdirSync(join(home, '.codex'));
+    writeFileSync(
+      join(home, '.codex', 'config.toml'),
+      'args = [\n  "-y",\n  "kotrain",\n]\ndoc = """\nmulti line\n"""\n',
+    );
+    const res = installSubagent('codex', home);
+    expect(res.ok).toBe(true);
+    expect(readFileSync(join(home, '.codex', 'config.toml'), 'utf8')).toContain(
+      '[mcp_servers.agent-nekko]',
+    );
+  });
+
   it('writes the Windsurf MCP config under ~/.codeium/windsurf', () => {
     mkdirSync(join(home, '.windsurf'));
     const res = installSubagent('windsurf', home);

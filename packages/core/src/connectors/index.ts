@@ -136,9 +136,16 @@ export const jiraConnector: Connector = {
       Authorization: `Basic ${Buffer.from(`${email}:${token}`).toString('base64')}`,
       Accept: 'application/json',
     };
-    const jql = query
-      ? `text ~ "${query.replace(/["\\]/g, ' ').trim()}" order by updated desc`
-      : 'order by updated desc';
+    // JQL reserves a swath of punctuation that can't appear inside a quoted
+    // phrase (`+ - = & | > < ! ( ) { } [ ] ^ " ~ * ? : \ /`), so the term is
+    // folded to plain words rather than escaped: this stays a fuzzy text
+    // search, never a query-language injection point.
+    const term = (query ?? '')
+      .replace(/["\\]/g, ' ')
+      .replace(/[+\-=&|><!(){}\[\]^~*?:/]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const jql = term ? `text ~ "${term}" order by updated desc` : 'order by updated desc';
     const qs = `jql=${encodeURIComponent(jql)}&maxResults=25&fields=summary,status,issuetype,description`;
     let res = await fetch(`${site}/rest/api/3/search/jql?${qs}`, { headers });
     if (res.status === 404 || res.status === 410) {
@@ -187,13 +194,23 @@ export const teamsConnector: Connector = {
     }
     const webhook = (settings?.webhookUrl ?? '').trim();
     if (webhook) {
-      let host: string;
+      let u: URL;
       try {
-        const u = new URL(webhook);
-        if (u.protocol !== 'https:') throw new Error('not https');
-        host = u.hostname;
+        u = new URL(webhook);
       } catch {
         throw new Error("The Teams webhook URL isn't a valid https URL.");
+      }
+      // A webhook URL is a stored credential that gets POSTed to, so it has to
+      // be a real Teams incoming webhook, not just any https URL: https on the
+      // *.webhook.office.com host that Teams hands out for channel connectors.
+      const host = u.hostname.toLowerCase();
+      if (
+        u.protocol !== 'https:' ||
+        (host !== 'webhook.office.com' && !host.endsWith('.webhook.office.com'))
+      ) {
+        throw new Error(
+          "The Teams webhook URL must be an https URL on *.webhook.office.com (the Incoming Webhook URL from the Teams channel).",
+        );
       }
       return [
         {

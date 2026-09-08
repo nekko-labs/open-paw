@@ -110,6 +110,19 @@ describe('teams connector', () => {
     await expect(teamsConnector.fetch('', undefined, { webhookUrl: 'not a url' })).rejects.toThrow('valid https');
     await expect(teamsConnector.fetch('', undefined, {})).rejects.toThrow('webhook URL or a Microsoft Graph token');
   });
+
+  it('rejects webhook URLs that are not Teams incoming webhooks', async () => {
+    await expect(
+      teamsConnector.fetch('', undefined, { webhookUrl: 'https://example.com/hook' }),
+    ).rejects.toThrow('webhook.office.com');
+    await expect(
+      teamsConnector.fetch('', undefined, { webhookUrl: 'https://evilwebhook.office.com.evil.net/x' }),
+    ).rejects.toThrow('webhook.office.com');
+    await expect(
+      teamsConnector.fetch('', undefined, { webhookUrl: 'http://acme.webhook.office.com/abc' }),
+    ).rejects.toThrow('webhook.office.com');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });
 
 describe('connector registry', () => {

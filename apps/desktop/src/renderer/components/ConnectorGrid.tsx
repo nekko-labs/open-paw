@@ -63,7 +63,7 @@ export function ConnectorGrid({ compact = false }: { compact?: boolean }) {
   const [configs, setConfigs] = useState<ConnectorConfig[]>([]);
   const [tokens, setTokens] = useState<Record<string, string>>({});
   const [fields, setFields] = useState<Record<string, Record<string, string>>>({});
-  const [preview, setPreview] = useState<Record<string, ConnectorResource[] | string>>({});
+  const [preview, setPreview] = useState<Record<string, ConnectorResource[] | string | undefined>>({});
   const [busy, setBusy] = useState<ConnectorKind | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -98,7 +98,7 @@ export function ConnectorGrid({ compact = false }: { compact?: boolean }) {
 
   const disconnect = async (k: ConnectorKind) => {
     setConfigs(await window.kotrain.disconnectConnector(k));
-    setPreview((p) => ({ ...p, [k]: undefined as unknown as ConnectorResource[] }));
+    setPreview((p) => ({ ...p, [k]: undefined }));
   };
 
   const fetchData = async (k: ConnectorKind) => {
