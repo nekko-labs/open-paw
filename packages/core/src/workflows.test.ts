@@ -303,4 +303,29 @@ describe('templates', () => {
     expect(workflowEdges(steps).some((e) => e.back)).toBe(true);
     expect(MAX_STEP_LOOPS).toBeGreaterThan(1);
   });
+
+  it('the local CI runner template wires trigger → build → status → comment', () => {
+    const { steps, triggers } = WORKFLOW_TEMPLATES.find((t) => t.id === 'local-ci-runner')!.build();
+    // An armed git trigger on push/PR events.
+    const git = triggers.find((t) => t.kind === 'git');
+    expect(git?.provider).toBe('github');
+    expect(git?.events).toEqual(expect.arrayContaining(['push', 'pr_opened']));
+    // Poll and webhook modes ship as disarmed starters — arming both (or with
+    // the git trigger) would double-fire.
+    const starters = triggers.filter((t) => t.kind !== 'git');
+    expect(starters.map((t) => t.kind).sort()).toEqual(['connector', 'webhook']);
+    for (const s of starters) expect(s.enabled, s.kind).toBe(false);
+    expect(starters.find((t) => t.kind === 'webhook')?.webhookSecret).toBeTruthy();
+    // Two shell steps to edit, two status reporters, one commenter.
+    const kinds = steps.map((s) => `${s.kind}:${s.kind === 'action' ? s.run : ''}`);
+    expect(kinds.filter((k) => k.startsWith('shell')).length).toBe(2);
+    expect(kinds.filter((k) => k === 'action:github.setCommitStatus').length).toBe(2);
+    expect(kinds).toContain('action:github.commentPR');
+    // Failure paths route to the failure reporter; the success reporter ends the run.
+    const test = steps.find((s) => s.name.toLowerCase().includes('build'))!;
+    const failStep = steps.find((s) => s.name.toLowerCase().includes('failure'))!;
+    expect(test.onFailure).toEqual({ goto: 'step', stepId: failStep.id });
+    const okStep = steps.find((s) => s.name.toLowerCase().includes('success'))!;
+    expect(okStep.onSuccess).toEqual({ goto: 'end' });
+  });
 });

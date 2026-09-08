@@ -114,14 +114,34 @@ const fail = (output: string): WorkflowActionResult => ({ output, isError: true 
 
 const str = (v: unknown): string => (v == null ? '' : String(v)).trim();
 
-/** First non-empty of the step's param, then the event's field, then payload keys. */
+/**
+ * Resolve a possibly-dotted path (`pull_request.head.sha`) against an object,
+ * returning the leaf as a string. Non-scalar leaves (objects, arrays) count as
+ * a miss so a wrapper key can't shadow a deeper real value.
+ */
+function dig(obj: unknown, path: string): string {
+  let cur: unknown = obj;
+  for (const seg of path.split('.')) {
+    if (cur == null || typeof cur !== 'object') return '';
+    cur = (cur as Record<string, unknown>)[seg];
+  }
+  if (cur == null || typeof cur === 'object') return '';
+  return str(cur);
+}
+
+/**
+ * First non-empty of the step's param, then the event's field, then payload
+ * keys. Keys may be dotted paths, which is what makes a raw provider webhook
+ * body (GitHub's `repository.full_name`, GitLab's `object_attributes.iid`)
+ * usable without a normalizing relay in front.
+ */
 function pick(params: Record<string, string>, key: string, ctx: WorkflowActionContext, ...eventKeys: string[]): string {
   const own = str(params[key]);
   if (own) return own;
   for (const k of eventKeys) {
-    const top = str((ctx.event as unknown as Record<string, unknown> | undefined)?.[k]);
+    const top = dig(ctx.event, k);
     if (top) return top;
-    const payload = str(ctx.event?.payload?.[k]);
+    const payload = dig(ctx.event?.payload, k);
     if (payload) return payload;
   }
   return '';
@@ -286,8 +306,11 @@ const RUNNERS: Partial<Record<string, WorkflowActionRunner>> = {
   },
 
   'github.commentPR': async (config, params, ctx) => {
-    const repo = repoPath(required(pick(params, 'repo', ctx, 'repo'), 'Repo'));
-    const number = required(pick(params, 'number', ctx, 'number', 'pull_number', 'issue_number'), 'PR number').replace(/^#/, '');
+    const repo = repoPath(required(pick(params, 'repo', ctx, 'repo', 'repository.full_name'), 'Repo'));
+    const number = required(
+      pick(params, 'number', ctx, 'number', 'pull_number', 'issue_number', 'pull_request.number', 'issue.number'),
+      'PR number',
+    ).replace(/^#/, '');
     const res = await fetch(`https://api.github.com/repos/${repo}/issues/${encodeURIComponent(number)}/comments`, {
       method: 'POST',
       headers: GITHUB_HEADERS(needToken(config, 'GitHub')),
@@ -299,9 +322,21 @@ const RUNNERS: Partial<Record<string, WorkflowActionRunner>> = {
   },
 
   'github.setCommitStatus': async (config, params, ctx) => {
-    const repo = repoPath(required(pick(params, 'repo', ctx, 'repo'), 'Repo'));
+    const repo = repoPath(required(pick(params, 'repo', ctx, 'repo', 'repository.full_name'), 'Repo'));
     const sha = required(
-      pick(params, 'sha', ctx, 'sha', 'after', 'head_sha', 'checkout_sha'),
+      pick(
+        params,
+        'sha',
+        ctx,
+        'sha',
+        'after',
+        'head_sha',
+        'checkout_sha',
+        'head',
+        'head_commit.id',
+        'pull_request.head.sha',
+        'object_attributes.last_commit.id',
+      ),
       'Commit SHA',
     );
     // Accept GitLab's spelling too so a {{run.status}} template works on both.
@@ -326,8 +361,13 @@ const RUNNERS: Partial<Record<string, WorkflowActionRunner>> = {
 
   'gitlab.setCommitStatus': async (config, params, ctx) => {
     const base = gitlabBase(config?.settings);
-    const project = encodeURIComponent(required(pick(params, 'project', ctx, 'repo', 'project'), 'Project'));
-    const sha = required(pick(params, 'sha', ctx, 'sha', 'after', 'checkout_sha'), 'Commit SHA');
+    const project = encodeURIComponent(
+      required(pick(params, 'project', ctx, 'repo', 'project', 'project.path_with_namespace', 'project_id'), 'Project'),
+    );
+    const sha = required(
+      pick(params, 'sha', ctx, 'sha', 'after', 'checkout_sha', 'head_commit.id', 'object_attributes.last_commit.id'),
+      'Commit SHA',
+    );
     const raw = required(str(params.state), 'State').toLowerCase();
     // Same spelling bridge as the GitHub op, in the other direction.
     const state = raw === 'failure' ? 'failed' : raw;
@@ -348,8 +388,10 @@ const RUNNERS: Partial<Record<string, WorkflowActionRunner>> = {
 
   'gitlab.commentMR': async (config, params, ctx) => {
     const base = gitlabBase(config?.settings);
-    const project = encodeURIComponent(required(pick(params, 'project', ctx, 'repo', 'project'), 'Project'));
-    const iid = required(pick(params, 'mr', ctx, 'iid', 'number'), 'MR number').replace(/^!/, '');
+    const project = encodeURIComponent(
+      required(pick(params, 'project', ctx, 'repo', 'project', 'project.path_with_namespace', 'project_id'), 'Project'),
+    );
+    const iid = required(pick(params, 'mr', ctx, 'iid', 'number', 'object_attributes.iid'), 'MR number').replace(/^!/, '');
     const res = await fetch(`${base}/api/v4/projects/${project}/merge_requests/${encodeURIComponent(iid)}/notes`, {
       method: 'POST',
       headers: { 'PRIVATE-TOKEN': needToken(config, 'GitLab'), 'Content-Type': 'application/json' },

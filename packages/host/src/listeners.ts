@@ -130,6 +130,12 @@ async function pollTrigger(
       text: ev.text,
       payload: ev.payload,
     };
+    // Repo-scoped connectors: surface the repo so `{{trigger.repo}}` and the
+    // status/comment action fallbacks resolve without a step param. The
+    // trigger's own repo wins — it's the one the poll was scoped to.
+    if (kind === 'github' || kind === 'gitlab') {
+      event.repo = t.repo?.trim() || ev.source;
+    }
     await dispatchWorkflowEvent(event);
     if (ev.cursor > rec.lastCursor) {
       rec.lastCursor = ev.cursor;

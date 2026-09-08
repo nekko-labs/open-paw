@@ -16,6 +16,7 @@ import type {
 } from '@kotrain/shared';
 import {
   CONNECTOR_CATALOG,
+  GIT_PROVIDERS,
   MAX_STEP_LOOPS,
   MAX_WORKFLOW_DEPTH,
   UNCATEGORIZED,
@@ -621,8 +622,10 @@ function findSkill(ref: string) {
 /** Short human label for what set a run off, shown on the run row. */
 function describeEvent(e: WorkflowEvent): string {
   switch (e.kind) {
-    case 'git':
-      return [e.provider, e.event, e.repo, e.branch].filter(Boolean).join(' · ');
+    case 'git': {
+      const provider = GIT_PROVIDERS.find((p) => p.id === e.provider)?.label ?? e.provider ?? 'Git';
+      return [provider, e.event, e.repo, e.branch].filter(Boolean).join(' · ');
+    }
     case 'slack':
       return `Slack ${e.channel ?? ''}`.trim();
     case 'cli':
