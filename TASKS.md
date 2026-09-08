@@ -220,6 +220,12 @@ Philip's three initiatives: (1) support Claude and ChatGPT **subscriptions** via
 - [x] **T144**, Onboarding integrations step + new connectors: one-click MCP-subagent install into Claude Code / Codex / Cursor configs (backup first, manual snippet fallback), new `jira` + `teams` connector kinds. PR `feat/onboarding-integrations`. · merged #174 · Done: 2026-09-08
 - [x] **T145**, Workflow action steps + integration triggers: `action` step kind over a `WORKFLOW_ACTIONS` registry (slack/teams post, linear/jira create+comment, github/gitlab comment+commit-status, generic webhook post) with `{{...}}` run-context templating; `connector` + `webhook` trigger kinds, host pollers with per-trigger cursors, `POST /api/hooks/:slug` on the server edition + opt-in desktop loopback. PRs `feat/workflow-actions` + `feat/workflow-triggers`. · merged #175 + #176 · Done: 2026-09-08
 - [x] **T146**, Local CI runner: git-event-triggered workflow template that checks out the ref, runs build/test locally, and reports back as a commit status + failure comment; `docs/git-runner.md`. Restricted to trusted refs by default (SPEC scope boundary). PR `feat/git-runner`. Aligns with AN8 (workflow/runner expansion). · merged #177 · Done: 2026-09-08
+### Subscription limits + pricing visibility (added 2026-09-08)
+
+Follow-on to the subscription stack: surface real plan state (5-hour + weekly reset windows, per-model scoped limits) and cost (per-model price estimates, running session total). Plan: [usage-visibility](docs/superpowers/plans/2026-09-08-usage-visibility.md).
+
+- [ ] **T147**, Usage-limits data path: normalized `SubscriptionLimits` (Claude `anthropic-ratelimit-unified-*` response headers + `/api/oauth/usage`; ChatGPT `GET /wham/usage`), host `LimitsService` (header capture + throttled poll), `limits:get` + `limitsUpdated` IPC. PR `feat/usage-limits`.
+- [ ] **T148**, Limits + pricing UI: chat-header limits chip + popover (all windows + reset times + plan/credits), provider-card breakdown, per-model price estimate in model pickers ("Included in plan" + muted equiv. for subs, `$` for metered), running session-cost total. `docs/USAGE-LIMITS.md`. PR `feat/usage-limits-ui`.
 
 ### Agent Nekko rebrand and next product wave (added 2026-09-07)
 
